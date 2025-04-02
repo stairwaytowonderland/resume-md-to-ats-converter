@@ -1,12 +1,23 @@
-# Resume/CV Markdown to ATS DOCX Converter
+# Resume/CV Markdown to ATS `.docx` Converter ⭐
 
 A tool to convert your Markdown resume or cv into an ATS-friendly Word document that looks clean and professional while preserving your carefully crafted content.
 
-## Overview
+## Overview 📚
 
 This project allows you to maintain your resume in an easily editable Markdown format, then convert it to an ATS (Applicant Tracking System) optimized Word document with proper formatting for better parsing by job application systems.
 
-## Installation
+🎨 **Your Markdown resume *must* use the same ("*Resume Markdown*") style as our [sample template](./sample/resume.sample.md)** 🎨
+
+*(see the [Sample Template and Exmaple](#sample-template-and-example-) section for more details)*
+
+## Key Features ⚡️
+
+- Proper formatting of sections (contact, experience, education, etc.)
+- Maintains hierarchy of job titles, companies, and dates
+- Properly formats projects, skills, and responsibilities
+- Creates an ATS-friendly document that parses well in applicant tracking systems
+
+## Installation 📀
 
 Set up the project with:
 
@@ -21,17 +32,20 @@ make install
 ```
 
 > [!NOTE]
-> See the [Makefile Commands](#makefile-commands) section (below) for a full list of available commands.
+> See the [Makefile Commands (Basic)](#makefile-commands-basic-%EF%B8%8F) section (below) for more commands.
 
-Remember to activate the virtual environment before running any Python commands:
+🌐 **Remember to *activate* the virtual environment *before* running any Python commands** 🌐
 
 ```bash
 . .venv/bin/activate
 ```
 
-## Usage
+> [!tip]
+> Run `deactivate` to deactivate the *virtual environment*.
 
-### Basic usage
+## Usage 👾
+
+### Basic usage 🐍
 
 Convert your Markdown resume to a Word document:
 
@@ -41,7 +55,7 @@ python resume_md_to_docx.py -i resume.md
 
 This will create `My ATS Resume.docx` in the current directory.
 
-### Advanced usage
+### Advanced usage 🐍
 
 Specify an output filename:
 
@@ -49,16 +63,30 @@ Specify an output filename:
 python resume_md_to_docx.py -i resume.md -o your-filename.docx
 ```
 
-## Sample Template and Example
+## Sample Template and Example 🤖
 
-A sample Markdown resume -- `resume.sample.md` -- is included in this project. Please copy/paste it (removing `.sample` from the name) and use it as a guide to create your own resume.
+A [sample Markdown resume](./sample/resume.sample.md) (`sample/resume.sample.md`) is included in this project. You may copy or download it (removing `.sample` from the name if downloading) and use it as a template to create your own Markdown resume.
 
 > [!IMPORTANT]
-> The **`h2`** level headings **must not** be changed.
+> For basic functionality, the **`h2`** level headings **should not** be changed; however if you feel so inclined, you can modify the `ResumeSection` *enum* according to your needs (see the [Resume Sections](#resume-sections-) section for more details).
 
-You can download the sample `.docx` document -- `resume.sample.docx` -- and open it in Microsoft Word or Google Docs (or another application capable of viewing `.docx` files) to see how the sample Markdown file is rendered.
+You can [download the example `.docx` document](./sample/example.docx) (`sample/example.docx`) and open it in *Microsoft Word* or *Google Docs* (or another application capable of viewing `.docx` files) to see how the sample Markdown file is rendered.
 
-## Makefile Commands
+## Resume Sections 🚀
+
+The converter maps Markdown headings to ATS-friendly Word document headings using the `ResumeSection` enum. The default mappings are:
+
+| Markdown Heading (h2) | Word Document Heading |
+|----------------------|----------------------|
+| About | PROFESSIONAL SUMMARY |
+| Top Skills | CORE SKILLS |
+| Experience | PROFESSIONAL EXPERIENCE |
+| Education | EDUCATION |
+| Contact | CONTACT INFORMATION |
+
+If you need to customize these mappings, you can modify the `ResumeSection` enum in [resume_md_to_docx.py](./resume_md_to_docx.py).
+
+## Makefile Commands (Basic) ⚙️
 
 | Command | Description |
 |---------|-------------|
@@ -66,33 +94,40 @@ You can download the sample `.docx` document -- `resume.sample.docx` -- and open
 | `make list` | List all available commands |
 | `make init` | Initialize the project |
 | `make install` | Install dependencies |
+| `make uninstall` | Uninstall dependencies |
 | `make clean` | Clean up environment |
-| `make test` | Run linters (without reformatting) |
-| `make lint` | Run linters and reformat code |
 
-## Project Structure
+> [!NOTE]
+> See the [Development](#development-) section (below) for advanced commands.
 
-- `resume_md_to_docx.py` - Main Python script for conversion
-- `resume.sample.md` - Sample resume template
-- `Makefile` - Contains helpful commands for managing the project
+## Project Structure 🗂️
 
-## Features
+```
+<root>/
+├── Makefile                    # Contains helpful commands for managing the project
+├── resume_md_to_docx.py        # Main Python script for conversion
+└── sample/
+    ├── resume.sample.md        # Sample resume template
+    └── example.docx            # Example docx ouput from sample with all stages
+```
 
-- Proper formatting of sections (contact, experience, education, etc.)
-- Maintains hierarchy of job titles, companies, and dates
-- Properly formats projects, skills, and responsibilities
-- Creates an ATS-friendly document that parses well in applicant tracking systems
-
-## Requirements
+## Requirements ⚙️
 
 - Python 3.x
 - Make
 
-## Development
+## Development 🛠
 
-For developers contributing to this project, use the linting tools:
+For developers wishing to build this project:
 
-```bash
-make lint  # Reformat code according to style guidelines
-make test  # Check code without reformatting
-```
+| Command | Description |
+|---------|-------------|
+| `make install-dev` | Install development dependencies |
+| `make uninstall-dev` | Uninstall development dependencies |
+| `make build` | Rebuild `sample/example.docx` from `sample/resume.sample.md` |
+| `make check` | Run linters without reformatting |
+| `make lint` | Reformat code according to style guidelines |
+
+# Contributing 💻
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for information on contributing to this project.

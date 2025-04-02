@@ -1,6 +1,7 @@
 # Full Name
 
 *Clever Tagline*
+
 These Are ◆ Some of My ◆ Specialty Areas
 
 ## About
@@ -157,15 +158,20 @@ The · Skills · That · Were Required
 
 ## Education
 
-**School or Institution Name** – Degree or Area of Study
+**School or Institution Name**
+Degree or Area of Study
 
-**Another School** – Another Degree
+**Another School**
+Another Degree
 
 
 ## Contact
 
-**LinkedIn**: https://www.linkedin.com/in/full-name/
+**LinkedIn**
+https://www.linkedin.com/in/full-name/
 
-**Email**: email@example.com
+**Email**
+email@example.com
 
-**Phone**: (XXX) 555-xxxx
+**Phone**
+(XXX) 555-xxxx

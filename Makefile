@@ -1,7 +1,6 @@
 MAKEFLAGS += --no-print-directory
 
 UNAME := $(shell uname -s)
-SCRIPT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 .PHONY: all
 all: .init .venv_reminder .python_command ## Entrypoint
@@ -26,6 +25,19 @@ init: .init .venv_reminder .python_command ## Install dependencies
 .PHONY: install
 install: .install .venv_reminder .python_command ## Install dependencies
 
+.PHONY: install-dev
+install-dev: .install-dev .venv_reminder .python_command ## Install development dependencies
+
+.PHONY: uninstall
+uninstall: .uninstall .venv_reminder .python_command ## Uninstall dependencies
+
+.PHONY: uninstall-dev
+uninstall-dev: .uninstall-dev .venv_reminder .python_command ## Uninstall development dependencies
+
+.PHONY: build
+build: .build ## Build the example
+	@printf "Created %s from %s\n" "sample/example.docx" "sample/resume.sample.md"
+
 .PHONY: clean
 clean: .uninstall ## Clean up
 	@( \
@@ -34,11 +46,11 @@ clean: .uninstall ## Clean up
   rm -rf .venv; \
 )
 
-.PHONY: test
-test: ## Run linters but don't reformat
+.PHONY: check
+check: ## Run linters but don't reformat
 	@( \
   . .venv/bin/activate; \
-  black --check --diff resume_md_to_docx.py; \
+  black --check --diff resume_md_to_docx.py --line-length 88; \
   isort --check-only --diff resume_md_to_docx.py; \
   autoflake --check --remove-all-unused-imports --remove-unused-variables resume_md_to_docx.py; \
 )
@@ -47,7 +59,7 @@ test: ## Run linters but don't reformat
 lint: ## Run linters and reformat
 	@( \
   . .venv/bin/activate; \
-  black resume_md_to_docx.py; \
+  black resume_md_to_docx.py --line-length 88; \
   isort resume_md_to_docx.py; \
   autoflake --remove-all-unused-imports --remove-unused-variables resume_md_to_docx.py; \
 )
@@ -56,7 +68,7 @@ lint: ## Run linters and reformat
 	@printf "\n\t📝 \033[1m%s\033[0m: %s\n\t   %s\n\t   %s\n\t   %s.\n\n\t🏄 %s \033[1;92m\`%s\`\033[0m\n\t   %s.\n" "NOTE" "The dependencies are installed" "in a virtual environment which needs" "to be manually activated to run the" "Python command" "Please run" ". .venv/bin/activate" "to activate the virtual environment"
 
 .python_command:
-	@printf "\n\033[1m%s\033[0m (%s) 🐍 \n  \033[1;92m\`%s\`\033[0m # for usage help\n  \033[1;92m\`%s\`\033[0m\n  \033[1;92m\`%s\`\033[0m\n\n" "The Python command(s)" "you must manually activate the virtual environment" "python3 resume_md_to_docx.py" "python3 resume_md_to_docx.py -i <input file>" "python3 resume_md_to_docx.py -i <input file> -o <output file>"
+	@printf "\n\033[1m%s\033[0m (🎮 %s 🎮):\n  \033[1;92m\`%s\`\033[0m # for usage help\n  \033[1;92m\`%s\`\033[0m\n  \033[1;92m\`%s\`\033[0m\n\n" "The Python 🐍 command" "you must manually activate the virtual environment" "python3 resume_md_to_docx.py" "python3 resume_md_to_docx.py -i <input file>" "python3 resume_md_to_docx.py -i <input file> -o <output file>"
 
 .init:
 	@deactivate 2>/dev/null || true
@@ -70,11 +82,31 @@ lint: ## Run linters and reformat
 .uninstall:
 	@( \
   . .venv/bin/activate; \
-  pip uninstall -y python-docx markdown beautifulsoup4 black isort autoflake; \
+  pip uninstall -y -r .requirements/requirements.txt; \
+)
+
+.uninstall-dev:
+	@( \
+  . .venv/bin/activate; \
+  pip uninstall -y -r .requirements/requirements-dev.txt; \
+  pre-commit uninstall; \
 )
 
 .install:
 	@( \
   . .venv/bin/activate; \
-  pip install --no-cache-dir python-docx markdown beautifulsoup4 black isort autoflake; \
+  pip install --no-cache-dir -r .requirements/requirements.txt; \
+)
+
+.install-dev:
+	@( \
+  . .venv/bin/activate; \
+  pip install --no-cache-dir -r .requirements/requirements-dev.txt; \
+  pre-commit install; \
+)
+
+.build:
+	@( \
+  . .venv/bin/activate; \
+  set -x; python resume_md_to_docx.py -i sample/resume.sample.md -o sample/example.docx; \
 )

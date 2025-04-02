@@ -2,6 +2,7 @@
 # python resume_md_to_docx.py
 
 import argparse
+from enum import Enum
 
 import markdown
 from bs4 import BeautifulSoup
@@ -9,6 +10,33 @@ from docx import Document
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.shared import Inches, Pt
 
+
+class ResumeSection(Enum):
+    """Maps markdown heading titles to their corresponding document headings"""
+
+    ABOUT = ("About", "PROFESSIONAL SUMMARY")
+    SKILLS = ("Top Skills", "CORE SKILLS")
+    EXPERIENCE = ("Experience", "PROFESSIONAL EXPERIENCE")
+    EDUCATION = ("Education", "EDUCATION")
+    CONTACT = ("Contact", "CONTACT INFORMATION")
+
+    def __init__(self, markdown_heading, docx_heading):
+        self.markdown_heading = markdown_heading
+        self.docx_heading = docx_heading
+
+class JobSubsection(Enum):
+    """Maps markdown subsection headings to their corresponding document headings"""
+
+    KEY_SKILLS = ("Key Skills", "Technical Skills: ")
+    SUMMARY = ("Summary", "Summary:")
+    INTERNAL = ("Internal", "Internal")
+    PROJECT_CLIENT = ("Project/Client", "Project/Client")
+    RESPONSIBILITIES = ("Responsibilities Overview", "Responsibilities:")
+    ADDITIONAL_DETAILS = ("Additional Details", "Additional Details:")
+
+    def __init__(self, markdown_heading, docx_heading):
+        self.markdown_heading = markdown_heading
+        self.docx_heading = docx_heading
 
 def create_ats_resume(md_file, output_file):
     """Convert markdown resume to ATS-friendly Word document"""
@@ -58,30 +86,21 @@ def create_ats_resume(md_file, output_file):
             tagline_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
             tagline_para.add_run(first_p.text)
 
+        # Check for additional paragraphs before the first h2 that might contain specialty areas
+        current_p = first_p.find_next_sibling()
+        # Simply process all paragraphs until we hit a non-paragraph element (like h2)
+        while current_p and current_p.name == "p":
+            specialty_para = document.add_paragraph()
+            specialty_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+            specialty_para.add_run(current_p.text)
+            current_p = current_p.find_next_sibling()
+
     # Add horizontal line
     add_horizontal_line_simple(document)
 
-    # Add contact information (from Contact section)
-    contact_h2 = soup.find("h2", string="Contact")
-    if contact_h2:
-        document.add_heading("CONTACT INFORMATION", level=1)
-
-        current_element = contact_h2.find_next_sibling()
-        while current_element and current_element.name != "h2":
-            if current_element.name == "p":
-                contact_para = document.add_paragraph()
-                for child in current_element.children:
-                    if getattr(child, "name", None) == "strong":
-                        contact_para.add_run(f"{child.text}: ").bold = True
-                    else:
-                        if child.string and child.string.strip():
-                            contact_para.add_run(child.string.strip())
-            current_element = current_element.find_next_sibling()
-
     # Process About section
-    about_h2 = soup.find("h2", string="About")
+    about_h2 = process_section(document, soup, ResumeSection.ABOUT)
     if about_h2:
-        document.add_heading("PROFESSIONAL SUMMARY", level=1)
         current_p = about_h2.find_next_sibling()
 
         # Add all paragraphs until next h2
@@ -94,31 +113,26 @@ def create_ats_resume(md_file, output_file):
                 "strong", string="Some highlights"
             ):
                 # Add the "Some highlights" as a separate paragraph
-                highlights_para = document.add_paragraph()
-                highlights_run = highlights_para.add_run("Some highlights")
-                highlights_run.bold = True
+                highlights_run = add_formatted_paragraph(
+                    document, "Some highlights", bold=True
+                ).add_run()
             elif current_p.name == "ul":
-                for li in current_p.find_all("li"):
-                    bullet_para = document.add_paragraph(style="List Bullet")
-                    bullet_para.add_run(li.text)
+                add_bullet_list(document, current_p)
             current_p = current_p.find_next_sibling()
 
     # Process Top Skills section
-    skills_h2 = soup.find("h2", string="Top Skills")
+    skills_h2 = process_section(document, soup, ResumeSection.SKILLS)
     if skills_h2:
-        document.add_heading("CORE SKILLS", level=1)
         current_p = skills_h2.find_next_sibling()
         if current_p and current_p.name == "p":
             skills = [s.strip() for s in current_p.text.split("•")]
             skills = [s for s in skills if s]
-
-            skills_para = document.add_paragraph()
-            skills_para.add_run(" | ".join(skills))
+            add_formatted_paragraph(document, " | ".join(skills))
 
     # Process Experience section
-    experience_h2 = soup.find("h2", string="Experience")
+    experience_h2 = soup.find("h2", string=ResumeSection.EXPERIENCE.markdown_heading)
     if experience_h2:
-        document.add_heading("PROFESSIONAL EXPERIENCE", level=1)
+        document.add_heading(ResumeSection.EXPERIENCE.docx_heading, level=1)
 
         # Find all job entries (h3 headings under Experience)
         current_element = experience_h2.find_next_sibling()
@@ -132,61 +146,13 @@ def create_ats_resume(md_file, output_file):
                 current_element = current_element.find_next_sibling()
                 continue
 
-            # New job title (h3) - Apply consistent format for all h3s
+            # New job title (h3)
             if current_element.name == "h3":
-                job_title = current_element.text.strip()
+                processed_elements = process_job_entry(
+                    document, current_element, processed_elements
+                )
 
-                # Add job title with consistent formatting
-                job_para = document.add_paragraph()
-                job_run = job_para.add_run(job_title)
-                job_run.bold = True
-                job_run.font.size = Pt(14)  # Consistent size for all h3s
-
-                # Find company name (h4) if it exists
-                next_element = current_element.find_next_sibling()
-
-                # Add company if it exists
-                if next_element and next_element.name == "h4":
-                    company_name = next_element.text.strip()
-
-                    # Add company with consistent formatting
-                    company_para = document.add_paragraph()
-                    company_run = company_para.add_run(company_name)
-                    company_run.bold = True
-
-                    # Mark as processed
-                    processed_elements.add(next_element)
-
-                    # Find date/location
-                    date_element = next_element.find_next_sibling()
-                    if (
-                        date_element
-                        and date_element.name == "p"
-                        and date_element.find("em")
-                    ):
-                        date_period = date_element.text.replace("*", "").strip()
-                        date_para = document.add_paragraph()
-                        date_run = date_para.add_run(date_period)
-                        date_run.italic = True
-
-                        # Mark as processed
-                        processed_elements.add(date_element)
-                else:
-                    # Direct date under h3 (company header case)
-                    if (
-                        next_element
-                        and next_element.name == "p"
-                        and next_element.find("em")
-                    ):
-                        company_date = next_element.text.replace("*", "").strip()
-                        date_para = document.add_paragraph()
-                        date_run = date_para.add_run(company_date)
-                        date_run.italic = True
-
-                        # Mark as processed
-                        processed_elements.add(next_element)
-
-            # Position titles under a company (h4) - Apply consistent format for all h4s
+            # Position titles under a company (h4)
             elif (
                 current_element.name == "h4"
                 and current_element not in processed_elements
@@ -221,84 +187,16 @@ def create_ats_resume(md_file, output_file):
                         processed_elements.add(date_element)
 
             elif (
-                current_element.name == "h5"
-                and "Project/Client" in current_element.text
+                current_element.name == "h5" and
+                JobSubsection.PROJECT_CLIENT.markdown_heading in current_element.text
             ):
-                # Get the next element to see if it contains the project details
-                next_element = current_element.find_next_sibling()
-                project_info = ""
+                processed_elements = process_project_section(
+                    document, current_element, processed_elements
+                )
 
-                # If next element is a paragraph, it might contain the project name/duration
-                if next_element and next_element.name == "p":
-                    project_info = next_element.text.strip()
-                    processed_elements.add(next_element)
-                    next_element = next_element.find_next_sibling()
-
-                project_para = document.add_paragraph()
-                project_text = "Project/Client"
-                if project_info:
-                    project_text += f": {project_info}"
-                project_run = project_para.add_run(project_text)
-                project_run.bold = True
-                project_run.italic = True
-
-                # Process next elements under this project until another section
-                while (
-                    next_element
-                    and next_element.name not in ["h2", "h3", "h4"]
-                    and not (next_element.name == "h5")
-                ):
-                    # Responsibilities Overview
-                    if (
-                        next_element.name == "h6"
-                        and "Responsibilities Overview" in next_element.text
-                    ):
-                        resp_header = document.add_paragraph()
-                        resp_header.paragraph_format.left_indent = Inches(
-                            0.25
-                        )  # Keep indentation for h6
-                        resp_run = resp_header.add_run("Responsibilities:")
-                        resp_run.bold = True
-
-                        # Get the paragraph with responsibilities
-                        resp_element = next_element.find_next_sibling()
-                        if resp_element and resp_element.name == "p":
-                            resp_para = document.add_paragraph(resp_element.text)
-                            resp_para.paragraph_format.left_indent = Inches(
-                                0.25
-                            )  # Keep indentation for content
-                            processed_elements.add(resp_element)
-
-                        processed_elements.add(next_element)
-
-                    # Additional Details
-                    elif (
-                        next_element.name == "h6"
-                        and "Additional Details" in next_element.text
-                    ):
-                        details_header = document.add_paragraph()
-                        details_header.paragraph_format.left_indent = Inches(
-                            0.25
-                        )  # Keep indentation for h6
-                        details_run = details_header.add_run("Additional Details:")
-                        details_run.bold = True
-                        processed_elements.add(next_element)
-
-                    # Bullet points
-                    elif next_element.name == "ul":
-                        for li in next_element.find_all("li"):
-                            bullet_para = document.add_paragraph(style="List Bullet")
-                            bullet_para.paragraph_format.left_indent = Inches(
-                                0.5
-                            )  # Keep indentation for bullets
-                            bullet_para.add_run(li.text)
-                        processed_elements.add(next_element)
-
-                    next_element = next_element.find_next_sibling()
-
-            elif current_element.name == "h5" and "Summary" in current_element.text:
+            elif current_element.name == "h5" and JobSubsection.SUMMARY.markdown_heading in current_element.text:
                 summary_para = document.add_paragraph()
-                summary_run = summary_para.add_run("Summary:")
+                summary_run = summary_para.add_run(JobSubsection.SUMMARY.docx_heading)
                 summary_run.bold = True
 
                 # Find the next element with summary content
@@ -307,9 +205,9 @@ def create_ats_resume(md_file, output_file):
                     document.add_paragraph(next_element.text)
                     processed_elements.add(next_element)
 
-            elif current_element.name == "h5" and "Internal" in current_element.text:
+            elif current_element.name == "h5" and JobSubsection.INTERNAL.markdown_heading in current_element.text:
                 internal_para = document.add_paragraph()
-                internal_run = internal_para.add_run(current_element.text)
+                internal_run = internal_para.add_run(JobSubsection.INTERNAL.docx_heading)
                 internal_run.bold = True
 
                 # Process elements under this internal section
@@ -323,17 +221,17 @@ def create_ats_resume(md_file, output_file):
                     if next_element.name == "ul":
                         for li in next_element.find_all("li"):
                             bullet_para = document.add_paragraph(style="List Bullet")
-                            bullet_para.paragraph_format.left_indent = Inches(
-                                0.5
+                            left_indent_paragraph(
+                                bullet_para, 0.5
                             )  # Keep indentation for bullets
                             bullet_para.add_run(li.text)
                         processed_elements.add(next_element)
 
                     next_element = next_element.find_next_sibling()
 
-            elif current_element.name == "h5" and "Key Skills" in current_element.text:
+            elif current_element.name == "h5" and JobSubsection.KEY_SKILLS.markdown_heading in current_element.text:
                 skills_para = document.add_paragraph()
-                skills_run = skills_para.add_run("Technical Skills: ")
+                skills_run = skills_para.add_run(JobSubsection.KEY_SKILLS.docx_heading)
                 skills_run.bold = True
 
                 # Get skills from next element
@@ -354,12 +252,11 @@ def create_ats_resume(md_file, output_file):
 
             # Standalone Responsibilities Overview (not under Project/Client)
             elif (
-                current_element.name == "h6"
-                and "Responsibilities Overview" in current_element.text
-                and current_element not in processed_elements
+                current_element.name == "h6" and
+                JobSubsection.RESPONSIBILITIES.markdown_heading in current_element.text and current_element not in processed_elements
             ):
                 resp_header = document.add_paragraph()
-                resp_run = resp_header.add_run("Responsibilities:")
+                resp_run = resp_header.add_run(JobSubsection.RESPONSIBILITIES.docx_heading)
                 resp_run.bold = True
 
                 # Get content
@@ -380,26 +277,223 @@ def create_ats_resume(md_file, output_file):
             current_element = current_element.find_next_sibling()
 
     # Process Education section
-    education_h2 = soup.find("h2", string="Education")
-    if education_h2:
-        document.add_heading("EDUCATION", level=1)
-        current_element = education_h2.find_next_sibling()
+    process_simple_section(document, soup, ResumeSection.EDUCATION)
 
-        while current_element and current_element.name != "h2":
-            if current_element.name == "p":
-                education_para = document.add_paragraph()
-                for child in current_element.children:
-                    if getattr(child, "name", None) == "strong":
-                        education_para.add_run(child.text).bold = True
-                    else:
-                        if child.string and child.string.strip():
-                            education_para.add_run(child.string.strip())
+    # Add an extra space after the last section
+    add_space_paragraph(document)
 
-            current_element = current_element.find_next_sibling()
+    # Add contact information
+    process_simple_section(document, soup, ResumeSection.CONTACT)
 
     # Save the document
     document.save(output_file)
     return output_file
+
+
+def left_indent_paragraph(paragraph, inches):
+    """Set the left indentation of a paragraph in inches"""
+    paragraph.paragraph_format.left_indent_paragraph = Inches(inches)
+    return paragraph
+
+
+def add_bullet_list(document, ul_element, indentation=None):
+    """Add bullet points from an unordered list element"""
+    for li in ul_element.find_all("li"):
+        bullet_para = document.add_paragraph(style="List Bullet")
+        bullet_para.add_run(li.text)
+        if indentation:
+            left_indent_paragraph(bullet_para, indentation)
+    return bullet_para
+
+
+def add_formatted_paragraph(
+    document,
+    text,
+    bold=False,
+    italic=False,
+    alignment=None,
+    indentation=None,
+    font_size=None,
+):
+    """Add a paragraph with consistent formatting"""
+    para = document.add_paragraph()
+    run = para.add_run(text)
+
+    # Apply formatting
+    run.bold = bold
+    run.italic = italic
+
+    if alignment:
+        para.alignment = alignment
+    if indentation:
+        left_indent_paragraph(para, indentation)
+    if font_size:
+        run.font.size = Pt(font_size)
+
+    return para
+
+
+def process_section(document, soup, section_type):
+    """Process a standard section with heading and content
+
+    Args:
+        document: The Word document object
+        soup: BeautifulSoup object of the HTML content
+        section_type: ResumeSection enum value
+    """
+    section_h2 = soup.find("h2", string=section_type.markdown_heading)
+    if section_h2:
+        document.add_heading(section_type.docx_heading, level=1)
+        return section_h2
+    return None
+
+
+def process_simple_section(document, soup, section_type):
+    """
+    Process sections with simple paragraph-based content like Education and Contact.
+    These sections typically have paragraphs with some bold (strong) elements.
+
+    Args:
+        document: The Word document object
+        soup: BeautifulSoup object of the HTML content
+        section_type: ResumeSection enum value
+    """
+    section_h2 = soup.find("h2", string=section_type.markdown_heading)
+    if not section_h2:
+        return
+
+    document.add_heading(section_type.docx_heading, level=1)
+    current_element = section_h2.find_next_sibling()
+
+    while current_element and current_element.name != "h2":
+        if current_element.name == "p":
+            para = document.add_paragraph()
+            for child in current_element.children:
+                if getattr(child, "name", None) == "strong":
+                    para.add_run(f"{child.text}: ").bold = True
+                else:
+                    if child.string and child.string.strip():
+                        para.add_run(child.string.strip())
+        elif current_element.name == "ul":
+            # Handle bullet lists if they appear
+            add_bullet_list(document, current_element)
+
+        current_element = current_element.find_next_sibling()
+
+
+def process_project_section(document, project_element, processed_elements):
+    """Process a project/client section and its related elements"""
+    # Get the next element to see if it contains the project details
+    next_element = project_element.find_next_sibling()
+    project_info = ""
+
+    # If next element is a paragraph, it might contain the project name/duration
+    if next_element and next_element.name == "p":
+        project_info = next_element.text.strip()
+        processed_elements.add(next_element)
+        next_element = next_element.find_next_sibling()
+
+    project_para = document.add_paragraph()
+    project_text = JobSubsection.PROJECT_CLIENT.docx_heading
+    if project_info:
+        project_text += f": {project_info}"
+    project_run = project_para.add_run(project_text)
+    project_run.bold = True
+    project_run.italic = True
+
+    # Process next elements under this project until another section
+    while (
+        next_element
+        and next_element.name not in ["h2", "h3", "h4"]
+        and not (next_element.name == "h5")
+    ):
+        # Responsibilities Overview
+        if (
+            next_element.name == "h6"
+            and "Responsibilities Overview" in next_element.text
+        ):
+            resp_header = document.add_paragraph()
+            left_indent_paragraph(resp_header, 0.25)  # Keep indentation for h6
+            resp_run = resp_header.add_run("Responsibilities:")
+            resp_run.bold = True
+
+            # Get the paragraph with responsibilities
+            resp_element = next_element.find_next_sibling()
+            if resp_element and resp_element.name == "p":
+                resp_para = document.add_paragraph(resp_element.text)
+                left_indent_paragraph(resp_para, 0.25)  # Keep indentation for content
+                processed_elements.add(resp_element)
+
+            processed_elements.add(next_element)
+
+        # Additional Details
+        elif next_element.name == "h6" and JobSubsection.ADDITIONAL_DETAILS.markdown_heading in next_element.text:
+            details_header = document.add_paragraph()
+            left_indent_paragraph(details_header, 0.25)  # Keep indentation for h6
+            details_run = details_header.add_run(JobSubsection.ADDITIONAL_DETAILS.docx_heading)
+            details_run.bold = True
+            processed_elements.add(next_element)
+
+        # Bullet points
+        elif next_element.name == "ul":
+            for li in next_element.find_all("li"):
+                bullet_para = document.add_paragraph(style="List Bullet")
+                left_indent_paragraph(bullet_para, 0.5)  # Keep indentation for bullets
+                bullet_para.add_run(li.text)
+            processed_elements.add(next_element)
+
+        next_element = next_element.find_next_sibling()
+
+    return processed_elements
+
+
+def process_job_entry(document, job_element, processed_elements):
+    """Process a job entry (h3) and its related elements"""
+    job_title = job_element.text.strip()
+
+    # Add job title with consistent formatting
+    job_para = document.add_paragraph()
+    job_run = job_para.add_run(job_title)
+    job_run.bold = True
+    job_run.font.size = Pt(14)  # Consistent size for all h3s
+
+    # Find company name (h4) if it exists
+    next_element = job_element.find_next_sibling()
+
+    # Add company if it exists
+    if next_element and next_element.name == "h4":
+        company_name = next_element.text.strip()
+
+        # Add company with consistent formatting
+        company_para = document.add_paragraph()
+        company_run = company_para.add_run(company_name)
+        company_run.bold = True
+
+        # Mark as processed
+        processed_elements.add(next_element)
+
+        # Find date/location
+        date_element = next_element.find_next_sibling()
+        if date_element and date_element.name == "p" and date_element.find("em"):
+            date_period = date_element.text.replace("*", "").strip()
+            date_para = document.add_paragraph()
+            date_run = date_para.add_run(date_period)
+            date_run.italic = True
+
+            # Mark as processed
+            processed_elements.add(date_element)
+    else:
+        # Direct date under h3 (company header case)
+        if next_element and next_element.name == "p" and next_element.find("em"):
+            company_date = next_element.text.replace("*", "").strip()
+            date_para = document.add_paragraph()
+            date_run = date_para.add_run(company_date)
+            date_run.italic = True
+
+            # Mark as processed
+            processed_elements.add(next_element)
+
+    return processed_elements
 
 
 def add_horizontal_line_simple(document):
@@ -409,6 +503,11 @@ def add_horizontal_line_simple(document):
     p.add_run("_" * 50).bold = True
 
     # Add some space after the line
+    # add_space_paragraph(document)
+
+
+def add_space_paragraph(document):
+    """Add a simple horizontal line to the document using underscores"""
     p = document.add_paragraph()
     p.paragraph_format.space_after = Pt(12)
 
@@ -444,11 +543,11 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--input", "-i", dest="input_file", help="Input markdown file (required)"
+        "-i", "--input", dest="input_file", help="Input markdown file (required)"
     )
     parser.add_argument(
-        "--output",
         "-o",
+        "--output",
         dest="output_file",
         default="My ATS Resume.docx",
         help='Output Word document (default: "My ATS Resume.docx")',
@@ -463,4 +562,4 @@ if __name__ == "__main__":
     else:
         # Use the parsed arguments
         result = create_ats_resume(args.input_file, args.output_file)
-        print(f"ATS-friendly resume created: {result}")
+        print(f"🎉 ATS-friendly resume created: {result} 🎉")

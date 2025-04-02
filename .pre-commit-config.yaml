@@ -1,0 +1,40 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+      - id: check-ast
+      - id: check-json
+      - id: check-toml
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-docstring-first
+      - id: check-merge-conflict
+      # - id: no-commit-to-branch
+      #   args: [--branch, main]
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.0.0
+    hooks:
+      - id: conventional-pre-commit
+
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        name: black
+        args: [.,--line-length=88]
+
+  - repo: local
+    hooks:
+      - id: isort
+        name: isort
+        entry: isort .
+        language: python
+
+      - id: autoflake
+        name: autoflake
+        entry: autoflake --remove-all-unused-imports --remove-unused-variables .
+        language: python

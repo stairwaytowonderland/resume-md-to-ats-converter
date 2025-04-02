@@ -14,8 +14,8 @@ __pycache__
 *.docx
 *.md
 *.pdf
-!README.md
 !*.sample.md
-!*.sample.docx
-!*.example.md
-!*.example.docx
+!example.docx
+!/docs/*
+!README.md
+!CONTRIBUTING.md
