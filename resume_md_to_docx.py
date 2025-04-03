@@ -12,8 +12,12 @@ from docx.shared import Inches, Pt
 
 
 class ResumeSection(Enum):
-    """Maps markdown heading titles to their corresponding document headings"""
+    """Maps markdown heading titles to their corresponding document headings
 
+    Properties:
+        markdown_heading (str): The text of the h2 heading in the markdown file
+        docx_heading (str): The text to use as a heading in the Word document
+    """
     ABOUT = ("About", "PROFESSIONAL SUMMARY")
     SKILLS = ("Top Skills", "CORE SKILLS")
     EXPERIENCE = ("Experience", "PROFESSIONAL EXPERIENCE")
@@ -21,12 +25,57 @@ class ResumeSection(Enum):
     CONTACT = ("Contact", "CONTACT INFORMATION")
 
     def __init__(self, markdown_heading, docx_heading):
+        """Initialize ResumeSection enum
+
+        Args:
+            markdown_heading (str): The text of the h2 heading in the markdown file
+            docx_heading (str): The text to use as a heading in the Word document
+        """
         self.markdown_heading = markdown_heading
         self.docx_heading = docx_heading
+        self.markdown_heading_lower = markdown_heading.lower()
+
+    def matches(self, text):
+        """Check if the given text matches this section's markdown_heading (case insensitive)
+
+        Args:
+            text (str): Text to compare against markdown_heading
+
+        Returns:
+            bool: True if text matches markdown_heading (case insensitive), False otherwise
+        """
+        return text.lower() == self.markdown_heading_lower
+
+    @classmethod
+    def find_by_text(cls, text):
+        """Find ResumeSection by heading text (case insensitive)
+
+        Args:
+            text (str): Text to search for
+
+        Returns:
+            ResumeSection or None: Matching section or None if not found
+        """
+        if not text:
+            return None
+        text_lower = text.lower()
+        for section in cls:
+            if section.markdown_heading_lower == text_lower:
+                return section
+        return None
 
 
 class JobSubsection(Enum):
-    """Maps markdown subsection headings to their corresponding document headings"""
+    """Maps markdown subsection headings to their corresponding document headings
+
+    Properties:
+        markdown_heading_level (str): The HTML tag name (e.g., 'h5', 'h6') in markdown
+        markdown_text_lower (str): The lowercase text content of the heading to match
+        docx_heading (str): The text to use as a heading in the Word document
+        separator (str): Optional separator to append after the heading (default: "")
+        bold (bool): Whether the heading should be bold (default: True)
+        italic (bool): Whether the heading should be italic (default: False)
+    """
 
     KEY_SKILLS = ("h5", "key skills", "Technical Skills", "", True, False)
     SUMMARY = ("h5", "summary", "Summary", "", True, False)
@@ -59,6 +108,7 @@ class JobSubsection(Enum):
         bold=True,
         italic=False,
     ):
+        """Initialize the JobSubsection with its properties"""
         self.markdown_heading_level = markdown_heading_level
         self.markdown_text_lower = markdown_text_lower
         self.docx_heading = docx_heading
@@ -68,12 +118,24 @@ class JobSubsection(Enum):
 
     @property
     def full_heading(self):
-        """Return the full heading with separator"""
+        """Return the full heading with separator
+
+        Returns:
+            str: The complete heading text with separator
+        """
         return f"{self.docx_heading}{self.separator}"
 
     @classmethod
     def find_by_tag_and_text(cls, tag_name, text):
-        """Find a JobSubsection by tag name and text content (case insensitive)"""
+        """Find a JobSubsection by tag name and text content (case insensitive)
+
+        Args:
+            tag_name (str): HTML tag name to match (e.g., 'h5', 'h6')
+            text (str): Text content to match (case insensitive)
+
+        Returns:
+            JobSubsection or None: The matching subsection or None if not found
+        """
         text_lower = text.lower().strip()
         for subsection in cls:
             if (
@@ -85,7 +147,11 @@ class JobSubsection(Enum):
 
 
 class MarkdownHeadingLevel(Enum):
-    """Maps markdown heading levels to their corresponding document heading levels"""
+    """Maps markdown heading levels to their corresponding document heading levels
+
+    Properties:
+        value (int): The Word document heading level (0-5) to use
+    """
 
     H1 = 0  # Used for name at top
     H2 = 1  # Main section headings (About, Experience, etc.)
@@ -96,7 +162,14 @@ class MarkdownHeadingLevel(Enum):
 
     @classmethod
     def get_level_for_tag(cls, tag_name):
-        """Get the Word document heading level for a given tag name"""
+        """Get the Word document heading level for a given tag name
+
+        Args:
+            tag_name (str): HTML tag name (e.g., 'h1', 'h2', etc.)
+
+        Returns:
+            int or None: The corresponding Word document heading level (0-5) or None if not found
+        """
         if tag_name == "h1":
             return cls.H1.value
         elif tag_name == "h2":
@@ -264,7 +337,7 @@ def create_ats_resume(md_file, output_file):
             add_formatted_paragraph(document, " | ".join(skills))
 
     # Process Experience section
-    experience_h2 = soup.find("h2", string=ResumeSection.EXPERIENCE.markdown_heading)
+    experience_h2 = soup.find("h2", string=lambda text: ResumeSection.EXPERIENCE.matches(text))
     if experience_h2:
         document.add_heading(
             ResumeSection.EXPERIENCE.docx_heading, level=MarkdownHeadingLevel.H2.value
@@ -578,7 +651,8 @@ def process_section(document, soup, section_type):
     Returns:
         BeautifulSoup element or None: The section heading element if found, None otherwise
     """
-    section_h2 = soup.find("h2", string=section_type.markdown_heading)
+    # Use case-insensitive comparison by using a lambda function
+    section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
     if section_h2:
         document.add_heading(
             section_type.docx_heading, level=MarkdownHeadingLevel.H2.value
@@ -599,7 +673,7 @@ def process_simple_section(document, soup, section_type):
     Returns:
         None
     """
-    section_h2 = soup.find("h2", string=section_type.markdown_heading)
+    section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
     if not section_h2:
         return
 
