@@ -27,7 +27,7 @@ Perhaps something more personal about yourself here, such as interests and hobbi
 
 My Top • Technical • Skills • And Buzzwords • I Want To Highlight
 
-
+---
 ## Experience
 
 
@@ -159,7 +159,7 @@ These Are · The Key · Skills · For My First Role
 The · Skills · That · Were Required
 
 
-
+---
 ## Education
 
 **School or Institution Name**
@@ -167,6 +167,41 @@ Degree or Area of Study
 
 **Another School**
 Another Degree
+
+
+## Licenses & Certifications
+
+### Certification Name
+
+> #### Certifying Organization
+> [*Issued Month Year · Expires Month Year*](https://www.example.com/)
+
+### Another Certification Name
+
+> **This Certifying Organization**
+> *Issued Month Year · Expires Month Year*
+
+### A 3rd Cert
+
+> #### A Different Org
+> ##### Alternate Name • Something after a bullet
+> Some details
+>
+> *Issued Month Year · Expires Month Year*
+
+### Number Four
+
+> ##### Alternate Smaller Headline
+> Some details
+
+### Cert Five
+
+> Just details
+> Some more details
+>
+> Another paragraph of details
+>
+> [*Issued Month Year · Expires Month Year*](https://www.example.com/)
 
 
 ## Contact

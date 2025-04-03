@@ -74,7 +74,7 @@ You can [download the example `.docx` document](./sample/example.docx) (`sample/
 
 ## Resume Sections 🚀
 
-The converter maps Markdown headings to ATS-friendly Word document headings using the `ResumeSection` enum. The default mappings are:
+The converter maps Markdown headings to ATS-friendly Word document headings using the `ResumeSection` enum. The **Markdown headings are *case-insensitive***. The default mappings are:
 
 | Markdown Heading (h2) | Word Document Heading |
 |----------------------|----------------------|
@@ -82,9 +82,29 @@ The converter maps Markdown headings to ATS-friendly Word document headings usin
 | Top Skills | CORE SKILLS |
 | Experience | PROFESSIONAL EXPERIENCE |
 | Education | EDUCATION |
+| Linceces & Certifications | LICENSES & CERTIFICATIONS |
 | Contact | CONTACT INFORMATION |
 
+> [!Tip]
+> If an `hr` (3 dashes, i.e. "---") is added immediately before a section (in your input `.md` file), that will put a page-break in the final document.
+
 If you need to customize these mappings, you can modify the `ResumeSection` enum in [resume_md_to_docx.py](./resume_md_to_docx.py).
+
+## Job Sub Sections 📋
+
+Within job entries (particularly in the Experience section), various subsections can be used to structure your information. These are defined by the `JobSubsection` enum which maps markdown elements to properly formatted document sections. The **Markdown headings are *case-insensitive***. The default mappings are
+
+| Markdown Element | Markdown Text | Word Document Heading | Notes |
+|------------------|--------------|---------------------|-------|
+| h5 | key skills | Technical Skills | Lists skills relevant to a specific role |
+| h5 | summary | Summary | Brief overview of a position |
+| h5 | internal | Internal | Internal project/responsibilities |
+| h5 | project/client | Project/Client | Client project details |
+| h6 | responsibilities overview | Responsibilities: | Project responsibilities |
+| h6 | additional details | Additional Details: | Supplementary information |
+| h3 | highlights | Highlights | Used in the About section for key achievements |
+
+These subsections help structure your job entries in a way that makes them more readable to both humans and ATS systems. For example, under each job, you might include a "Key Skills" subsection to highlight relevant technologies and abilities specific to that role.
 
 ## Makefile Commands (Basic) ⚙️
 

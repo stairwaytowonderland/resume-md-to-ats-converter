@@ -4,10 +4,13 @@
 import argparse
 from enum import Enum
 
+import docx.oxml.shared
+from docx.opc.constants import RELATIONSHIP_TYPE
+
 import markdown
 from bs4 import BeautifulSoup
 from docx import Document
-from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT, WD_BREAK
 from docx.shared import Inches, Pt
 
 
@@ -22,6 +25,7 @@ class ResumeSection(Enum):
     SKILLS = ("Top Skills", "CORE SKILLS")
     EXPERIENCE = ("Experience", "PROFESSIONAL EXPERIENCE")
     EDUCATION = ("Education", "EDUCATION")
+    CERTIFICATIONS = ("Licenses & certifications", "LICENSES & CERTIFICATIONS")
     CONTACT = ("Contact", "CONTACT INFORMATION")
 
     def __init__(self, markdown_heading, docx_heading):
@@ -254,7 +258,9 @@ def create_ats_resume(md_file, output_file):
     add_horizontal_line_simple(document)
 
     # Process About section
-    about_h2 = process_section(document, soup, ResumeSection.ABOUT)
+    about_h2 = soup.find("h2", string=lambda text: ResumeSection.ABOUT.matches(text))
+    about_page_break = has_hr_before_section(about_h2)
+    about_h2 = process_section(document, soup, ResumeSection.ABOUT, page_break=about_page_break)
     if about_h2:
         current_p = about_h2.find_next_sibling()
 
@@ -328,7 +334,9 @@ def create_ats_resume(md_file, output_file):
             current_p = current_p.find_next_sibling()
 
     # Process Top Skills section
-    skills_h2 = process_section(document, soup, ResumeSection.SKILLS)
+    skills_h2 = soup.find("h2", string=lambda text: ResumeSection.SKILLS.matches(text))
+    skills_page_break = has_hr_before_section(skills_h2)
+    skills_h2 = process_section(document, soup, ResumeSection.SKILLS, page_break=skills_page_break)
     if skills_h2:
         current_p = skills_h2.find_next_sibling()
         if current_p and current_p.name == "p":
@@ -338,7 +346,14 @@ def create_ats_resume(md_file, output_file):
 
     # Process Experience section
     experience_h2 = soup.find("h2", string=lambda text: ResumeSection.EXPERIENCE.matches(text))
+    experience_page_break = has_hr_before_section(experience_h2)
     if experience_h2:
+        # Use page break if there's an HR before this section
+        if experience_page_break:
+            p = document.add_paragraph()
+            run = p.add_run()
+            run.add_break(docx.enum.text.WD_BREAK.PAGE)
+
         document.add_heading(
             ResumeSection.EXPERIENCE.docx_heading, level=MarkdownHeadingLevel.H2.value
         )
@@ -554,13 +569,22 @@ def create_ats_resume(md_file, output_file):
             current_element = current_element.find_next_sibling()
 
     # Process Education section
-    process_simple_section(document, soup, ResumeSection.EDUCATION)
+    education_h2 = soup.find("h2", string=lambda text: ResumeSection.EDUCATION.matches(text))
+    education_page_break = has_hr_before_section(education_h2)
+    process_simple_section(document, soup, ResumeSection.EDUCATION, add_space=True,
+                        page_break=education_page_break)
 
-    # Add an extra space after the last section
-    add_space_paragraph(document)
+    # Process Licenses & certifications section
+    certifications_h2 = soup.find("h2", string=lambda text: ResumeSection.CERTIFICATIONS.matches(text))
+    certifications_page_break = has_hr_before_section(certifications_h2)
+    process_certifications(document, soup, ResumeSection.CERTIFICATIONS,
+                        page_break=certifications_page_break)
 
     # Add contact information
-    process_simple_section(document, soup, ResumeSection.CONTACT)
+    contact_h2 = soup.find("h2", string=lambda text: ResumeSection.CONTACT.matches(text))
+    contact_page_break = has_hr_before_section(contact_h2)
+    process_simple_section(document, soup, ResumeSection.CONTACT,
+                        page_break=contact_page_break)
 
     # Save the document
     document.save(output_file)
@@ -640,13 +664,35 @@ def add_formatted_paragraph(
     return para
 
 
-def process_section(document, soup, section_type):
+def has_hr_before_section(section_h2):
+    """Check if there's a horizontal rule (hr) element before a section heading
+
+    Args:
+        section_h2: BeautifulSoup element representing the section heading
+
+    Returns:
+        bool: True if there's an HR element immediately before this section, False otherwise
+    """
+    if not section_h2:
+        return False
+
+    prev_element = section_h2.previous_sibling
+    # Skip whitespace text nodes
+    while prev_element and isinstance(prev_element, str) and prev_element.strip() == "":
+        prev_element = prev_element.previous_sibling
+
+    # Check if the previous element is an HR
+    return prev_element and prev_element.name == "hr"
+
+
+def process_section(document, soup, section_type, page_break=False):
     """Process a standard section with heading and content
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
         section_type: ResumeSection enum value
+        page_break (bool, optional): Whether to add a page break before the section. Defaults to False.
 
     Returns:
         BeautifulSoup element or None: The section heading element if found, None otherwise
@@ -654,6 +700,14 @@ def process_section(document, soup, section_type):
     # Use case-insensitive comparison by using a lambda function
     section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
     if section_h2:
+        # Add page break if requested
+        if page_break:
+            # Add a page break by inserting a run with a page break character
+            p = document.add_paragraph()
+            run = p.add_run()
+            run.add_break(docx.enum.text.WD_BREAK.PAGE)
+
+        # Add the section heading
         document.add_heading(
             section_type.docx_heading, level=MarkdownHeadingLevel.H2.value
         )
@@ -661,7 +715,7 @@ def process_section(document, soup, section_type):
     return None
 
 
-def process_simple_section(document, soup, section_type):
+def process_simple_section(document, soup, section_type, page_break=False, add_space=False):
     """Process sections with simple paragraph-based content like Education and Contact.
     These sections typically have paragraphs with some bold (strong) elements.
 
@@ -669,6 +723,8 @@ def process_simple_section(document, soup, section_type):
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
         section_type: ResumeSection enum value
+        page_break (bool, optional): Whether to add a page break before the section. Defaults to False.
+        add_space (bool, optional): Whether to add a space paragraph after the section. Defaults to False.
 
     Returns:
         None
@@ -676,6 +732,13 @@ def process_simple_section(document, soup, section_type):
     section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
     if not section_h2:
         return
+
+    # Add page break if requested
+    if page_break:
+        # Add a page break by inserting a run with a page break character
+        p = document.add_paragraph()
+        run = p.add_run()
+        run.add_break(docx.enum.text.WD_BREAK.PAGE)
 
     document.add_heading(section_type.docx_heading, level=MarkdownHeadingLevel.H2.value)
     current_element = section_h2.find_next_sibling()
@@ -694,6 +757,10 @@ def process_simple_section(document, soup, section_type):
             add_bullet_list(document, current_element)
 
         current_element = current_element.find_next_sibling()
+
+    # Add an extra space after the section if requested
+    if add_space:
+        add_space_paragraph(document)
 
 
 def process_project_section(document, project_element, processed_elements):
@@ -868,6 +935,183 @@ def process_job_entry(document, job_element, processed_elements):
             processed_elements.add(next_element)
 
     return processed_elements
+
+
+def process_certifications(document, soup, section_type, page_break=False):
+    """Process the certifications section with its specific structure
+
+    Args:
+        document: The Word document object
+        soup: BeautifulSoup object of the HTML content
+        section_type: ResumeSection enum value (should be CERTIFICATIONS)
+        page_break (bool, optional): Whether to add a page break before the section. Defaults to False.
+
+    Returns:
+        None
+    """
+    section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
+    if not section_h2:
+        return
+
+    # Add page break if requested
+    if page_break:
+        p = document.add_paragraph()
+        run = p.add_run()
+        run.add_break(docx.enum.text.WD_BREAK.PAGE)
+
+    document.add_heading(section_type.docx_heading, level=MarkdownHeadingLevel.H2.value)
+    current_element = section_h2.find_next_sibling()
+
+    while current_element and current_element.name != "h2":
+        # Process certification name (h3)
+        if current_element.name == "h3":
+            cert_name = current_element.text.strip()
+            cert_heading = document.add_heading(cert_name, level=MarkdownHeadingLevel.H3.value)
+
+            # Look for next elements - either blockquote or organization info directly
+            next_element = current_element.find_next_sibling()
+
+            # Handle blockquote (optional)
+            if next_element and next_element.name == "blockquote":
+                # Process the blockquote contents
+                process_certification_blockquote(document, next_element)
+
+            # If no blockquote, look for organization info directly
+            elif next_element:
+                # Try to find organization info (could be bold text or heading)
+                if next_element.name in ["h4", "h5", "h6", "p"] and next_element.find("strong"):
+                    # Extract organization text
+                    org_text = next_element.find("strong").text.strip()
+                    org_para = document.add_paragraph()
+                    org_run = org_para.add_run(org_text)
+                    org_run.bold = True
+
+                    # Look for date information in the next element
+                    date_element = next_element.find_next_sibling()
+                    if date_element and date_element.find("em"):
+                        em_tag = date_element.find("em")
+                        date_text = em_tag.text.strip()
+                        date_para = document.add_paragraph()
+
+                        # Check if the date is hyperlinked
+                        parent_a = em_tag.find_parent("a")
+                        if parent_a and parent_a.get("href"):
+                            add_hyperlink(date_para, date_text, parent_a["href"])
+                        else:
+                            date_run = date_para.add_run(date_text)
+                            date_run.italic = True
+
+            # Add spacing after each certification
+            add_space_paragraph(document)
+
+        current_element = current_element.find_next_sibling()
+
+
+def process_certification_blockquote(document, blockquote):
+    """Process the contents of a certification blockquote
+
+    Args:
+        document: The Word document object
+        blockquote: BeautifulSoup blockquote element containing certification details
+
+    Returns:
+        None
+    """
+    # Process the organization name (first element)
+    org_element = blockquote.find(['h4', 'h5', 'h6', 'strong'])
+    if org_element:
+        if org_element.name.startswith('h'):
+            # It's a heading
+            heading_level = MarkdownHeadingLevel.get_level_for_tag(org_element.name)
+            document.add_heading(org_element.text.strip(), level=heading_level)
+        elif org_element.name == 'strong':
+            # It's bold text
+            org_para = document.add_paragraph()
+            org_run = org_para.add_run(org_element.text.strip())
+            org_run.bold = True
+
+    # Process all paragraphs and text content
+    # Find all p tags and loose text nodes directly under blockquote
+    for item in blockquote.contents:
+        # Skip elements we've already processed or that are empty
+        if (isinstance(item, str) and not item.strip()) or item == org_element:
+            continue
+
+        # Check if it's a heading (h5, h6, etc.)
+        if hasattr(item, 'name') and item.name and item.name.startswith('h') and item != org_element:
+            heading_level = MarkdownHeadingLevel.get_level_for_tag(item.name)
+            document.add_heading(item.text.strip(), level=heading_level)
+            continue
+
+        # Check if it's the date with italics (should be last non-empty element)
+        if hasattr(item, 'find') and item.find('em'):
+            em_tag = item.find('em')
+            date_text = em_tag.text.strip()
+            date_para = document.add_paragraph()
+
+            # Check if inside a hyperlink
+            parent_a = em_tag.find_parent('a')
+            if parent_a and parent_a.get('href'):
+                add_hyperlink(date_para, date_text, parent_a['href'])
+            else:
+                date_run = date_para.add_run(date_text)
+                date_run.italic = True
+            continue
+
+        # Handle normal text content (like "Some details")
+        if isinstance(item, str) and item.strip():
+            # It's a direct text node
+            document.add_paragraph(item.strip())
+        elif hasattr(item, 'name'):
+            if item.name == 'p':
+                # It's a paragraph
+                document.add_paragraph(item.text.strip())
+            elif item.name == 'ul':
+                # It's a bullet list
+                add_bullet_list(document, item)
+
+
+def add_hyperlink(paragraph, text, url):
+    """Add a hyperlink to a paragraph
+
+    Args:
+        paragraph: The paragraph to add the hyperlink to
+        text (str): The text to display for the hyperlink
+        url (str): The URL to link to
+
+    Returns:
+        Run: The created run object
+    """
+    # This gets access to the document
+    part = paragraph.part
+    # Create the relationship
+    r_id = part.relate_to(url, docx.opc.constants.RELATIONSHIP_TYPE.HYPERLINK, is_external=True)
+
+    # Create the hyperlink element
+    hyperlink = docx.oxml.shared.OxmlElement('w:hyperlink')
+    hyperlink.set(docx.oxml.shared.qn('r:id'), r_id)
+
+    # Create a run inside the hyperlink
+    new_run = docx.oxml.shared.OxmlElement('w:r')
+    rPr = docx.oxml.shared.OxmlElement('w:rPr')
+
+    # Add text style for hyperlinks (blue and underlined)
+    color = docx.oxml.shared.OxmlElement('w:color')
+    color.set(docx.oxml.shared.qn('w:val'), '0000FF')
+    rPr.append(color)
+
+    u = docx.oxml.shared.OxmlElement('w:u')
+    u.set(docx.oxml.shared.qn('w:val'), 'single')
+    rPr.append(u)
+
+    new_run.append(rPr)
+    new_run.text = text
+    hyperlink.append(new_run)
+
+    # Add the hyperlink to the paragraph
+    paragraph._p.append(hyperlink)
+
+    return hyperlink
 
 
 def add_horizontal_line_simple(document):
