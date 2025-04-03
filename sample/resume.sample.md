@@ -8,14 +8,18 @@ These Are ◆ Some of My ◆ Specialty Areas
 
 A brief introduction.
 
+*A possible line with emphasis, just for example*
+
 This can be multiple paragraphs.
 
-**Some highlights**
+### Highlights
 
 - Some additional
 - Bullet points
 - About my recent
 - Achievements and experiences
+
+**Optional personal heading**
 
 Perhaps something more personal about yourself here, such as interests and hobbies.
 

@@ -3,7 +3,7 @@ MAKEFLAGS += --no-print-directory
 UNAME := $(shell uname -s)
 
 .PHONY: all
-all: .init .venv_reminder .python_command ## Entrypoint
+all: init ## Entrypoint
 
 .PHONY: help
 help: ## Show this help.
@@ -20,7 +20,7 @@ list: ## List public targets
 	@LC_ALL=C $(MAKE) .list-targets | grep -E -v -e '^[^[:alnum:]]' -e '^$@$$' | xargs -n3 printf "%-26s%-26s%-26s%s\n"
 
 .PHONY: init
-init: .init .venv_reminder .python_command ## Install dependencies
+init: .init .venv_reminder .python_command ## Ensure pip and Initialize venv
 
 .PHONY: install
 install: .install .venv_reminder .python_command ## Install dependencies

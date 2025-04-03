@@ -90,6 +90,7 @@ If you need to customize these mappings, you can modify the `ResumeSection` enum
 
 | Command | Description |
 |---------|-------------|
+| `make` | Alias for `make init` |
 | `make help` | Show help information |
 | `make list` | List all available commands |
 | `make init` | Initialize the project |
