@@ -179,6 +179,7 @@ Another Degree
 ### Another Certification Name
 
 > **This Certifying Organization**
+>
 > *Issued Month Year · Expires Month Year*
 
 ### A 3rd Cert

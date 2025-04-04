@@ -63,6 +63,15 @@ Specify an output filename:
 python resume_md_to_docx.py -i resume.md -o your-filename.docx
 ```
 
+Render heading levels as paragraphs instead of Word headings:
+
+```bash
+python resume_md_to_docx.py -i resume.md -o custom-resume.docx -p h3 h4 h5 h6
+```
+
+> [!NOTE]
+> The `-p` (or `--paragraph-headings`) option choices are: `h3`, `h4`, `h5`, `h6`
+
 ## Sample Template and Example 🤖
 
 A [sample Markdown resume](./sample/resume.sample.md) (`sample/resume.sample.md`) is included in this project. You may copy or download it (removing `.sample` from the name if downloading) and use it as a template to create your own Markdown resume.

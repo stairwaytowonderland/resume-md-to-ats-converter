@@ -155,14 +155,25 @@ class MarkdownHeadingLevel(Enum):
 
     Properties:
         value (int): The Word document heading level (0-5) to use
+        font_size (int): The font size in points for paragraph style formatting
     """
 
-    H1 = 0  # Used for name at top
-    H2 = 1  # Main section headings (About, Experience, etc.)
-    H3 = 2  # Job titles
-    H4 = 3  # Company names or role titles
-    H5 = 4  # Subsections (Key Skills, Summary, etc.)
-    H6 = 5  # Sub-subsections (Responsibilities, Additional Details)
+    H1 = (0, 16)  # Used for name at top
+    H2 = (1, 14)  # Main section headings (About, Experience, etc.)
+    H3 = (2, 14)  # Job titles
+    H4 = (3, 12)  # Company names or role titles
+    H5 = (4, 11)  # Subsections (Key Skills, Summary, etc.)
+    H6 = (5, 10)  # Sub-subsections (Responsibilities, Additional Details)
+
+    def __init__(self, value, font_size):
+        """Initialize with heading level and font size
+
+        Args:
+            value (int): The Word document heading level (0-5) to use
+            font_size (int): The font size in points for paragraph style formatting
+        """
+        self._value_ = value
+        self.font_size = font_size
 
     @classmethod
     def get_level_for_tag(cls, tag_name):
@@ -188,17 +199,39 @@ class MarkdownHeadingLevel(Enum):
             return cls.H6.value
         return None
 
+    @classmethod
+    def get_font_size_for_level(cls, heading_level):
+        """Get the font size for a given heading level
 
-def create_ats_resume(md_file, output_file):
+        Args:
+            heading_level (int): The heading level (0-5)
+
+        Returns:
+            int: The font size in points
+        """
+        for level in cls:
+            if level.value == heading_level:
+                return level.font_size
+        return 11  # Default font size if not found
+
+
+def create_ats_resume(md_file, output_file, paragraph_style_headings=None):
     """Convert markdown resume to ATS-friendly Word document
 
     Args:
         md_file (str): Path to the markdown resume file
         output_file (str): Path where the output Word document will be saved
+        paragraph_style_headings (dict, optional): Dictionary mapping heading tags
+                                                 ('h3', 'h4', etc.) to boolean values
+                                                 indicating whether to use paragraph style
+                                                 instead of heading style. Defaults to None.
 
     Returns:
         str: Path to the created document
     """
+    # Default to using heading styles for all if not specified
+    if paragraph_style_headings is None:
+        paragraph_style_headings = {}
     # Read markdown file
     with open(md_file, "r") as file:
         md_content = file.read()
@@ -225,13 +258,28 @@ def create_ats_resume(md_file, output_file):
     # Add professional tagline if it exists - first paragraph after h1
     first_p = soup.find("h1").find_next_sibling()
     if first_p and first_p.name == "p":
+        # Check if ANY paragraph headings are specified, which indicates preference for simpler styling
+        use_paragraph_style = bool(paragraph_style_headings)  # True if any heading levels use paragraph style
+
         # Check if the paragraph contains emphasis (italics)
         em_tag = first_p.find("em")
         if em_tag:
-            tagline_para = document.add_paragraph()
-            tagline_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-            tagline_run = tagline_para.add_run(em_tag.text)
-            tagline_run.italic = True
+            # Always use paragraph style with manual formatting when paragraph_style_headings is active
+            if use_paragraph_style:
+                tagline_para = document.add_paragraph()
+                tagline_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                tagline_run = tagline_para.add_run(em_tag.text)
+                tagline_run.italic = True
+
+                # Set the font size to match heading style
+                tagline_run.font.size = Pt(MarkdownHeadingLevel.H4.font_size)
+            else:
+                # Use Word's built-in Subtitle style
+                tagline_para = document.add_paragraph(em_tag.text, style="Subtitle")
+                tagline_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                # Keep it italic despite the style
+                for run in tagline_para.runs:
+                    run.italic = True
 
             # Add the rest of the first paragraph as a separate paragraph if it exists
             rest_of_p = first_p.text.replace(em_tag.text, "").strip()
@@ -241,9 +289,14 @@ def create_ats_resume(md_file, output_file):
                 rest_para.add_run(rest_of_p)
         else:
             # If no emphasis tag, just add the whole paragraph
-            tagline_para = document.add_paragraph()
-            tagline_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-            tagline_para.add_run(first_p.text)
+            if use_paragraph_style:
+                tagline_para = document.add_paragraph()
+                tagline_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                tagline_para.add_run(first_p.text)
+            else:
+                # Use Word's built-in Subtitle style
+                tagline_para = document.add_paragraph(first_p.text, style="Subtitle")
+                tagline_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
         # Check for additional paragraphs before the first h2 that might contain specialty areas
         current_p = first_p.find_next_sibling()
@@ -260,7 +313,9 @@ def create_ats_resume(md_file, output_file):
     # Process About section
     about_h2 = soup.find("h2", string=lambda text: ResumeSection.ABOUT.matches(text))
     about_page_break = has_hr_before_section(about_h2)
-    about_h2 = process_section(document, soup, ResumeSection.ABOUT, page_break=about_page_break)
+    about_h2 = process_section(document, soup, ResumeSection.ABOUT,
+                            page_break=about_page_break,
+                            paragraph_style_headings=paragraph_style_headings)
     if about_h2:
         current_p = about_h2.find_next_sibling()
 
@@ -311,19 +366,15 @@ def create_ats_resume(md_file, output_file):
                     if current_p.name.startswith("h")
                     else None
                 )
-                if heading_level is not None:
-                    # Use heading style
-                    highlights_heading = document.add_heading(
-                        highlights_subsection.full_heading, level=heading_level
-                    )
-                else:
-                    # Otherwise use paragraph with manual formatting
-                    highlights_para = add_formatted_paragraph(
-                        document,
-                        highlights_subsection.full_heading,
-                        bold=highlights_subsection.bold,
-                        italic=highlights_subsection.italic,
-                    )
+                use_paragraph_style = paragraph_style_headings.get(current_p.name, False)
+                add_heading_or_paragraph(
+                    document,
+                    highlights_subsection.full_heading,
+                    heading_level,
+                    use_paragraph_style=use_paragraph_style,
+                    bold=highlights_subsection.bold,
+                    italic=highlights_subsection.italic
+                )
                 processed_elements.add(current_p)
 
             # Handle bullet list
@@ -336,7 +387,9 @@ def create_ats_resume(md_file, output_file):
     # Process Top Skills section
     skills_h2 = soup.find("h2", string=lambda text: ResumeSection.SKILLS.matches(text))
     skills_page_break = has_hr_before_section(skills_h2)
-    skills_h2 = process_section(document, soup, ResumeSection.SKILLS, page_break=skills_page_break)
+    skills_h2 = process_section(document, soup, ResumeSection.SKILLS,
+                            page_break=skills_page_break,
+                            paragraph_style_headings=paragraph_style_headings)
     if skills_h2:
         current_p = skills_h2.find_next_sibling()
         if current_p and current_p.name == "p":
@@ -372,8 +425,8 @@ def create_ats_resume(md_file, output_file):
 
             # New job title (h3)
             if current_element.name == "h3":
-                processed_elements = process_job_entry(
-                    document, current_element, processed_elements
+               processed_elements = process_job_entry(
+                    document, current_element, processed_elements, paragraph_style_headings
                 )
 
             # Position titles under a company (h4)
@@ -393,7 +446,13 @@ def create_ats_resume(md_file, output_file):
                     heading_level = MarkdownHeadingLevel.get_level_for_tag(
                         current_element.name
                     )
-                    document.add_heading(position_title, level=heading_level)
+                    use_paragraph_style = paragraph_style_headings.get(current_element.name, False)
+                    add_heading_or_paragraph(
+                        document,
+                        position_title,
+                        heading_level,
+                        use_paragraph_style=use_paragraph_style
+                    )
 
                     # Find date if available
                     date_element = current_element.find_next_sibling()
@@ -424,38 +483,33 @@ def create_ats_resume(md_file, output_file):
                     # PROJECT/CLIENT requires special handling with its own function
                     if subsection == JobSubsection.PROJECT_CLIENT:
                         processed_elements = process_project_section(
-                            document, current_element, processed_elements
+                            document, current_element, processed_elements,
+                            paragraph_style_headings=paragraph_style_headings
                         )
 
                     # SUMMARY subsection
                     elif subsection == JobSubsection.SUMMARY:
-                        if heading_level is not None:
-                            # Use heading style
-                            summary_heading = document.add_heading(
-                                subsection.full_heading, level=heading_level
-                            )
-                        else:
-                            # Otherwise use paragraph with manual formatting
-                            summary_para = document.add_paragraph()
-                            summary_run = summary_para.add_run(subsection.full_heading)
-                            summary_run.bold = subsection.bold
-                            summary_run.italic = subsection.italic
+                        use_paragraph_style = paragraph_style_headings.get(current_element.name, False)
+                        add_heading_or_paragraph(
+                            document,
+                            subsection.full_heading,
+                            heading_level,
+                            use_paragraph_style=use_paragraph_style,
+                            bold=subsection.bold,
+                            italic=subsection.italic
+                        )
 
                     # INTERNAL subsection
                     elif subsection == JobSubsection.INTERNAL:
-                        if heading_level is not None:
-                            # Use heading style
-                            internal_heading = document.add_heading(
-                                subsection.full_heading, level=heading_level
-                            )
-                        else:
-                            # Otherwise use paragraph with manual formatting
-                            internal_para = document.add_paragraph()
-                            internal_run = internal_para.add_run(
-                                subsection.full_heading
-                            )
-                            internal_run.bold = subsection.bold
-                            internal_run.italic = subsection.italic
+                        use_paragraph_style = paragraph_style_headings.get(current_element.name, False)
+                        add_heading_or_paragraph(
+                            document,
+                            subsection.full_heading,
+                            heading_level,
+                            use_paragraph_style=use_paragraph_style,
+                            bold=subsection.bold,
+                            italic=subsection.italic
+                        )
 
                         # Process elements under this internal section
                         next_element = current_element.find_next_sibling()
@@ -480,18 +534,16 @@ def create_ats_resume(md_file, output_file):
 
                     # KEY_SKILLS subsection
                     elif subsection == JobSubsection.KEY_SKILLS:
-                        if heading_level is not None:
-                            # Use heading style
-                            skills_heading = document.add_heading(
-                                subsection.full_heading, level=heading_level
-                            )
-                            skills_para = document.add_paragraph()
-                        else:
-                            # Otherwise use paragraph with manual formatting
-                            skills_para = document.add_paragraph()
-                            skills_run = skills_para.add_run(subsection.full_heading)
-                            skills_run.bold = subsection.bold
-                            skills_run.italic = subsection.italic
+                        use_paragraph_style = paragraph_style_headings.get(current_element.name, False)
+                        skills_heading = add_heading_or_paragraph(
+                            document,
+                            subsection.full_heading,
+                            heading_level,
+                            use_paragraph_style=use_paragraph_style,
+                            bold=subsection.bold,
+                            italic=subsection.italic
+                        )
+                        skills_para = document.add_paragraph()
 
                         # Get skills from next element
                         next_element = current_element.find_next_sibling()
@@ -514,17 +566,15 @@ def create_ats_resume(md_file, output_file):
                         subsection == JobSubsection.RESPONSIBILITIES
                         and current_element not in processed_elements
                     ):
-                        if heading_level is not None:
-                            # Use heading style
-                            resp_heading = document.add_heading(
-                                subsection.full_heading, level=heading_level
-                            )
-                        else:
-                            # Otherwise use paragraph with manual formatting
-                            resp_header = document.add_paragraph()
-                            resp_run = resp_header.add_run(subsection.full_heading)
-                            resp_run.bold = subsection.bold
-                            resp_run.italic = subsection.italic
+                        use_paragraph_style = paragraph_style_headings.get(current_element.name, False)
+                        add_heading_or_paragraph(
+                            document,
+                            subsection.full_heading,
+                            heading_level,
+                            use_paragraph_style=use_paragraph_style,
+                            bold=subsection.bold,
+                            italic=subsection.italic
+                        )
 
                         # Get content
                         next_element = current_element.find_next_sibling()
@@ -537,19 +587,15 @@ def create_ats_resume(md_file, output_file):
                         subsection == JobSubsection.ADDITIONAL_DETAILS
                         and current_element not in processed_elements
                     ):
-                        if heading_level is not None:
-                            # Use heading style
-                            details_heading = document.add_heading(
-                                subsection.full_heading, level=heading_level
-                            )
-                        else:
-                            # Otherwise use paragraph with manual formatting
-                            details_header = document.add_paragraph()
-                            details_run = details_header.add_run(
-                                subsection.full_heading
-                            )
-                            details_run.bold = subsection.bold
-                            details_run.italic = subsection.italic
+                        use_paragraph_style = paragraph_style_headings.get(current_element.name, False)
+                        add_heading_or_paragraph(
+                            document,
+                            subsection.full_heading,
+                            heading_level,
+                            use_paragraph_style=use_paragraph_style,
+                            bold=subsection.bold,
+                            italic=subsection.italic
+                        )
 
                         # Get content (next element might be list items)
                         next_element = current_element.find_next_sibling()
@@ -571,24 +617,61 @@ def create_ats_resume(md_file, output_file):
     # Process Education section
     education_h2 = soup.find("h2", string=lambda text: ResumeSection.EDUCATION.matches(text))
     education_page_break = has_hr_before_section(education_h2)
-    process_simple_section(document, soup, ResumeSection.EDUCATION, add_space=True,
-                        page_break=education_page_break)
+    process_simple_section(document, soup, ResumeSection.EDUCATION,
+                      add_space=True,
+                      page_break=education_page_break,
+                      paragraph_style_headings=paragraph_style_headings)
 
-    # Process Licenses & certifications section
+    # Process Certifications section
     certifications_h2 = soup.find("h2", string=lambda text: ResumeSection.CERTIFICATIONS.matches(text))
     certifications_page_break = has_hr_before_section(certifications_h2)
     process_certifications(document, soup, ResumeSection.CERTIFICATIONS,
-                        page_break=certifications_page_break)
+                        page_break=certifications_page_break,
+                        paragraph_style_headings=paragraph_style_headings)
 
-    # Add contact information
+    # Add Contact section
     contact_h2 = soup.find("h2", string=lambda text: ResumeSection.CONTACT.matches(text))
     contact_page_break = has_hr_before_section(contact_h2)
     process_simple_section(document, soup, ResumeSection.CONTACT,
-                        page_break=contact_page_break)
+                      page_break=contact_page_break,
+                      paragraph_style_headings=paragraph_style_headings)
 
     # Save the document
     document.save(output_file)
     return output_file
+
+
+def add_heading_or_paragraph(document, text, heading_level, use_paragraph_style=False, bold=True, italic=False, font_size=None):
+    """Add either a heading or a formatted paragraph based on preference
+
+    Args:
+        document: The Word document object
+        text (str): Text content for the heading/paragraph
+        heading_level (int): The heading level (0-5) to use if not using paragraph style
+        use_paragraph_style (bool): Whether to use paragraph style instead of heading style
+        bold (bool): Whether to make the paragraph text bold (if using paragraph style)
+        italic (bool): Whether to make the paragraph text italic (if using paragraph style)
+        font_size (int, optional): Font size in points for paragraph style. Defaults to None.
+
+    Returns:
+        The created heading or paragraph object
+    """
+    if use_paragraph_style:
+        para = document.add_paragraph()
+        run = para.add_run(text)
+        run.bold = bold
+        run.italic = italic
+
+        # Apply appropriate font size from the MarkdownHeadingLevel enum if not explicitly provided
+        if font_size is None:
+            size_pt = MarkdownHeadingLevel.get_font_size_for_level(heading_level)
+            run.font.size = Pt(size_pt)
+        else:
+            run.font.size = Pt(font_size)
+
+        return para
+    else:
+        return document.add_heading(text, level=heading_level)
 
 
 def left_indent_paragraph(paragraph, inches):
@@ -685,7 +768,7 @@ def has_hr_before_section(section_h2):
     return prev_element and prev_element.name == "hr"
 
 
-def process_section(document, soup, section_type, page_break=False):
+def process_section(document, soup, section_type, page_break=False, paragraph_style_headings=None):
     """Process a standard section with heading and content
 
     Args:
@@ -693,10 +776,15 @@ def process_section(document, soup, section_type, page_break=False):
         soup: BeautifulSoup object of the HTML content
         section_type: ResumeSection enum value
         page_break (bool, optional): Whether to add a page break before the section. Defaults to False.
+        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
+                                                  indicating whether to use paragraph style.
 
     Returns:
         BeautifulSoup element or None: The section heading element if found, None otherwise
     """
+    if paragraph_style_headings is None:
+        paragraph_style_headings = {}
+
     # Use case-insensitive comparison by using a lambda function
     section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
     if section_h2:
@@ -708,14 +796,19 @@ def process_section(document, soup, section_type, page_break=False):
             run.add_break(docx.enum.text.WD_BREAK.PAGE)
 
         # Add the section heading
-        document.add_heading(
-            section_type.docx_heading, level=MarkdownHeadingLevel.H2.value
+        use_paragraph_style = paragraph_style_headings.get('h2', False)
+        heading_level = MarkdownHeadingLevel.H2.value
+        add_heading_or_paragraph(
+            document,
+            section_type.docx_heading,
+            heading_level,
+            use_paragraph_style=use_paragraph_style
         )
         return section_h2
     return None
 
 
-def process_simple_section(document, soup, section_type, page_break=False, add_space=False):
+def process_simple_section(document, soup, section_type, page_break=False, add_space=False, paragraph_style_headings=None):
     """Process sections with simple paragraph-based content like Education and Contact.
     These sections typically have paragraphs with some bold (strong) elements.
 
@@ -725,10 +818,15 @@ def process_simple_section(document, soup, section_type, page_break=False, add_s
         section_type: ResumeSection enum value
         page_break (bool, optional): Whether to add a page break before the section. Defaults to False.
         add_space (bool, optional): Whether to add a space paragraph after the section. Defaults to False.
+        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
+                                                  indicating whether to use paragraph style.
 
     Returns:
         None
     """
+    if paragraph_style_headings is None:
+        paragraph_style_headings = {}
+
     section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
     if not section_h2:
         return
@@ -740,7 +838,16 @@ def process_simple_section(document, soup, section_type, page_break=False, add_s
         run = p.add_run()
         run.add_break(docx.enum.text.WD_BREAK.PAGE)
 
-    document.add_heading(section_type.docx_heading, level=MarkdownHeadingLevel.H2.value)
+    # Add the section heading
+    use_paragraph_style = paragraph_style_headings.get('h2', False)
+    heading_level = MarkdownHeadingLevel.H2.value
+    add_heading_or_paragraph(
+        document,
+        section_type.docx_heading,
+        heading_level,
+        use_paragraph_style=use_paragraph_style
+    )
+
     current_element = section_h2.find_next_sibling()
 
     while current_element and current_element.name != "h2":
@@ -763,17 +870,22 @@ def process_simple_section(document, soup, section_type, page_break=False, add_s
         add_space_paragraph(document)
 
 
-def process_project_section(document, project_element, processed_elements):
+def process_project_section(document, project_element, processed_elements, paragraph_style_headings=None):
     """Process a project/client section and its related elements
 
     Args:
         document: The Word document object
         project_element: BeautifulSoup element for the project heading
         processed_elements: Set of elements already processed
+        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
+                                                  indicating whether to use paragraph style.
 
     Returns:
         set: Updated set of processed elements
     """
+    if paragraph_style_headings is None:
+        paragraph_style_headings = {}
+
     # Get the next element to see if it contains the project details
     next_element = project_element.find_next_sibling()
     project_info = ""
@@ -791,23 +903,23 @@ def process_project_section(document, project_element, processed_elements):
     if not subsection:
         subsection = JobSubsection.PROJECT_CLIENT  # Fallback
 
-    project_para = document.add_paragraph()
     heading_level = MarkdownHeadingLevel.get_level_for_tag(project_element.name)
-    if heading_level is not None:
-        # Use heading style
-        project_heading = document.add_heading("", level=heading_level)
-        project_text = subsection.full_heading
-        if project_info:
-            project_text += " " + project_info
-        project_heading.add_run(project_text)
-    else:
-        # Otherwise use paragraph with manual formatting
-        project_text = subsection.full_heading
-        if project_info:
-            project_text += " " + project_info
-        project_run = project_para.add_run(project_text)
-        project_run.bold = subsection.bold
-        project_run.italic = subsection.italic
+    use_paragraph_style = paragraph_style_headings.get(project_element.name, False)
+
+    # Prepare the project text
+    project_text = subsection.full_heading
+    if project_info:
+        project_text += " " + project_info
+
+    # Add the heading or formatted paragraph
+    add_heading_or_paragraph(
+        document,
+        project_text,
+        heading_level,
+        use_paragraph_style=use_paragraph_style,
+        bold=subsection.bold,
+        italic=subsection.italic
+    )
 
     # Process next elements under this project until another section
     while (
@@ -815,7 +927,6 @@ def process_project_section(document, project_element, processed_elements):
         and next_element.name not in ["h2", "h3", "h4"]
         and not (next_element.name == "h5")
     ):
-
         # Find subsection for h6 elements
         h6_subsection = None
         if next_element.name == "h6":
@@ -826,19 +937,18 @@ def process_project_section(document, project_element, processed_elements):
         # Responsibilities Overview
         if h6_subsection == JobSubsection.RESPONSIBILITIES:
             heading_level = MarkdownHeadingLevel.get_level_for_tag(next_element.name)
-            if heading_level is not None:
-                # Use heading style
-                resp_heading = document.add_heading(
-                    h6_subsection.full_heading, level=heading_level
-                )
-                left_indent_paragraph(resp_heading, 0.25)  # Keep indentation for h6
-            else:
-                # Otherwise use paragraph with manual formatting
+            use_paragraph_style = paragraph_style_headings.get(next_element.name, False)
+
+            # Add the heading or paragraph
+            if use_paragraph_style:
                 resp_header = document.add_paragraph()
-                left_indent_paragraph(resp_header, 0.25)  # Keep indentation for h6
+                left_indent_paragraph(resp_header, 0.25)  # Keep indentation
                 resp_run = resp_header.add_run(h6_subsection.full_heading)
                 resp_run.bold = h6_subsection.bold
                 resp_run.italic = h6_subsection.italic
+            else:
+                resp_heading = document.add_heading(h6_subsection.full_heading, level=heading_level)
+                left_indent_paragraph(resp_heading, 0.25)  # Keep indentation
 
             # Get the paragraph with responsibilities
             resp_element = next_element.find_next_sibling()
@@ -852,19 +962,19 @@ def process_project_section(document, project_element, processed_elements):
         # Additional Details
         elif h6_subsection == JobSubsection.ADDITIONAL_DETAILS:
             heading_level = MarkdownHeadingLevel.get_level_for_tag(next_element.name)
-            if heading_level is not None:
-                # Use heading style
-                details_heading = document.add_heading(
-                    h6_subsection.full_heading, level=heading_level
-                )
-                left_indent_paragraph(details_heading, 0.25)  # Keep indentation for h6
-            else:
-                # Otherwise use paragraph with manual formatting
+            use_paragraph_style = paragraph_style_headings.get(next_element.name, False)
+
+            # Add the heading or paragraph
+            if use_paragraph_style:
                 details_header = document.add_paragraph()
-                left_indent_paragraph(details_header, 0.25)  # Keep indentation for h6
+                left_indent_paragraph(details_header, 0.25)  # Keep indentation
                 details_run = details_header.add_run(h6_subsection.full_heading)
                 details_run.bold = h6_subsection.bold
                 details_run.italic = h6_subsection.italic
+            else:
+                details_heading = document.add_heading(h6_subsection.full_heading, level=heading_level)
+                left_indent_paragraph(details_heading, 0.25)  # Keep indentation
+
             processed_elements.add(next_element)
 
         # Bullet points
@@ -880,22 +990,35 @@ def process_project_section(document, project_element, processed_elements):
     return processed_elements
 
 
-def process_job_entry(document, job_element, processed_elements):
+def process_job_entry(document, job_element, processed_elements, paragraph_style_headings=None):
     """Process a job entry (h3) and its related elements
 
     Args:
         document: The Word document object
         job_element: BeautifulSoup element for the job heading
         processed_elements: Set of elements already processed
+        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to
+                                                  boolean values indicating whether to
+                                                  use paragraph style. Defaults to None.
 
     Returns:
         set: Updated set of processed elements
     """
+    if paragraph_style_headings is None:
+        paragraph_style_headings = {}
+
     job_title = job_element.text.strip()
 
-    # Use proper heading style instead of manual paragraph formatting
+    # Check if h3 should use paragraph style
+    use_paragraph_style = paragraph_style_headings.get('h3', False)
     heading_level = MarkdownHeadingLevel.get_level_for_tag(job_element.name)
-    document.add_heading(job_title, level=heading_level)
+
+    add_heading_or_paragraph(
+        document,
+        job_title,
+        heading_level,
+        use_paragraph_style=use_paragraph_style
+    )
 
     # Find company name (h4) if it exists
     next_element = job_element.find_next_sibling()
@@ -904,11 +1027,16 @@ def process_job_entry(document, job_element, processed_elements):
     if next_element and next_element.name == "h4":
         company_name = next_element.text.strip()
 
-        # Use proper heading style for company name
-        company_heading_level = MarkdownHeadingLevel.get_level_for_tag(
-            next_element.name
+        # Check if h4 should use paragraph style
+        use_paragraph_style = paragraph_style_headings.get('h4', False)
+        company_heading_level = MarkdownHeadingLevel.get_level_for_tag(next_element.name)
+
+        add_heading_or_paragraph(
+            document,
+            company_name,
+            company_heading_level,
+            use_paragraph_style=use_paragraph_style
         )
-        document.add_heading(company_name, level=company_heading_level)
 
         # Mark as processed
         processed_elements.add(next_element)
@@ -937,7 +1065,7 @@ def process_job_entry(document, job_element, processed_elements):
     return processed_elements
 
 
-def process_certifications(document, soup, section_type, page_break=False):
+def process_certifications(document, soup, section_type, page_break=False, paragraph_style_headings=None):
     """Process the certifications section with its specific structure
 
     Args:
@@ -945,10 +1073,15 @@ def process_certifications(document, soup, section_type, page_break=False):
         soup: BeautifulSoup object of the HTML content
         section_type: ResumeSection enum value (should be CERTIFICATIONS)
         page_break (bool, optional): Whether to add a page break before the section. Defaults to False.
+        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
+                                                  indicating whether to use paragraph style.
 
     Returns:
         None
     """
+    if paragraph_style_headings is None:
+        paragraph_style_headings = {}
+
     section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
     if not section_h2:
         return
@@ -959,14 +1092,31 @@ def process_certifications(document, soup, section_type, page_break=False):
         run = p.add_run()
         run.add_break(docx.enum.text.WD_BREAK.PAGE)
 
-    document.add_heading(section_type.docx_heading, level=MarkdownHeadingLevel.H2.value)
+    # Add the section heading
+    use_paragraph_style = paragraph_style_headings.get('h2', False)
+    heading_level = MarkdownHeadingLevel.H2.value
+    add_heading_or_paragraph(
+        document,
+        section_type.docx_heading,
+        heading_level,
+        use_paragraph_style=use_paragraph_style
+    )
+
     current_element = section_h2.find_next_sibling()
 
     while current_element and current_element.name != "h2":
         # Process certification name (h3)
         if current_element.name == "h3":
             cert_name = current_element.text.strip()
-            cert_heading = document.add_heading(cert_name, level=MarkdownHeadingLevel.H3.value)
+            use_paragraph_style = paragraph_style_headings.get('h3', False)
+            heading_level = MarkdownHeadingLevel.H3.value
+
+            add_heading_or_paragraph(
+                document,
+                cert_name,
+                heading_level,
+                use_paragraph_style=use_paragraph_style
+            )
 
             # Look for next elements - either blockquote or organization info directly
             next_element = current_element.find_next_sibling()
@@ -974,7 +1124,7 @@ def process_certifications(document, soup, section_type, page_break=False):
             # Handle blockquote (optional)
             if next_element and next_element.name == "blockquote":
                 # Process the blockquote contents
-                process_certification_blockquote(document, next_element)
+                process_certification_blockquote(document, next_element, paragraph_style_headings)
 
             # If no blockquote, look for organization info directly
             elif next_element:
@@ -1007,23 +1157,34 @@ def process_certifications(document, soup, section_type, page_break=False):
         current_element = current_element.find_next_sibling()
 
 
-def process_certification_blockquote(document, blockquote):
+def process_certification_blockquote(document, blockquote, paragraph_style_headings=None):
     """Process the contents of a certification blockquote
 
     Args:
         document: The Word document object
         blockquote: BeautifulSoup blockquote element containing certification details
+        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
+                                                  indicating whether to use paragraph style.
 
     Returns:
         None
     """
+    if paragraph_style_headings is None:
+        paragraph_style_headings = {}
+
     # Process the organization name (first element)
     org_element = blockquote.find(['h4', 'h5', 'h6', 'strong'])
     if org_element:
         if org_element.name.startswith('h'):
             # It's a heading
             heading_level = MarkdownHeadingLevel.get_level_for_tag(org_element.name)
-            document.add_heading(org_element.text.strip(), level=heading_level)
+            use_paragraph_style = paragraph_style_headings.get(org_element.name, False)
+            add_heading_or_paragraph(
+                document,
+                org_element.text.strip(),
+                heading_level,
+                use_paragraph_style=use_paragraph_style
+            )
         elif org_element.name == 'strong':
             # It's bold text
             org_para = document.add_paragraph()
@@ -1040,7 +1201,13 @@ def process_certification_blockquote(document, blockquote):
         # Check if it's a heading (h5, h6, etc.)
         if hasattr(item, 'name') and item.name and item.name.startswith('h') and item != org_element:
             heading_level = MarkdownHeadingLevel.get_level_for_tag(item.name)
-            document.add_heading(item.text.strip(), level=heading_level)
+            use_paragraph_style = paragraph_style_headings.get(item.name, False)
+            add_heading_or_paragraph(
+                document,
+                item.text.strip(),
+                heading_level,
+                use_paragraph_style=use_paragraph_style
+            )
             continue
 
         # Check if it's the date with italics (should be last non-empty element)
@@ -1184,8 +1351,21 @@ if __name__ == "__main__":
         default="My ATS Resume.docx",
         help='Output Word document (default: "My ATS Resume.docx")',
     )
+    parser.add_argument(
+        "-p",
+        "--paragraph-headings",
+        dest="paragraph_headings",
+        nargs="+",
+        choices=["h3", "h4", "h5", "h6"],
+        help="Specify which heading levels to render as paragraphs instead of headings"
+    )
 
     args = parser.parse_args()
+
+    # Convert list to dictionary if provided
+    paragraph_style_headings = {}
+    if args.paragraph_headings:
+        paragraph_style_headings = {h: True for h in args.paragraph_headings}
 
     # Show welcome screen if requested
     if not args.input_file:
@@ -1193,5 +1373,9 @@ if __name__ == "__main__":
         parser.print_help()
     else:
         # Use the parsed arguments
-        result = create_ats_resume(args.input_file, args.output_file)
+        result = create_ats_resume(
+            args.input_file,
+            args.output_file,
+            paragraph_style_headings=paragraph_style_headings
+        )
         print(f"🎉 ATS-friendly resume created: {result} 🎉")
