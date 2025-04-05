@@ -47,15 +47,30 @@ make install
 
 ## Usage 👾
 
+Convert your Markdown resume to a Word document.
+
+> [!TIP]
+> *The help screen can be accessed by running the following:*
+> ```bash
+> python resume_md_to_docx.py -h
+> ```
+
 ### Basic usage 🐍
 
-Convert your Markdown resume to a Word document:
+Run in interactive mode, prompting for inputs:
+
+```bash
+python resume_md_to_docx.py
+```
+
+Run in manual mode, specifying an input file:
+
+> [!NOTE]
+> This will create `My ATS Resume.docx` in the current directory.
 
 ```bash
 python resume_md_to_docx.py -i resume.md
 ```
-
-This will create `My ATS Resume.docx` in the current directory.
 
 ### Advanced usage 🐍
 

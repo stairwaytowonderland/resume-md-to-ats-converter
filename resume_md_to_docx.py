@@ -2,6 +2,8 @@
 # python resume_md_to_docx.py
 
 import argparse
+import os
+import sys
 from enum import Enum
 
 import docx.oxml.shared
@@ -1381,7 +1383,71 @@ def add_space_paragraph(document):
     p.paragraph_format.space_after = Pt(12)
 
 
+def run_interactive_mode():
+    """Run in interactive mode, prompting the user for inputs
+
+    Returns:
+        tuple: (input_file, output_file, paragraph_style_headings)
+    """
+    print("\n🎯 Welcome to Resume Markdown to ATS Converter (Interactive Mode) 🎯\n")
+
+    # Prompt for input file
+    while True:
+        input_file = input("📄 Enter the path to your Markdown resume file: ").strip()
+        if not input_file:
+            print("❌ Input file path cannot be empty. Please try again.")
+            continue
+
+        if not os.path.exists(input_file):
+            print(f"❌ File '{input_file}' does not exist. Please enter a valid path.")
+            continue
+
+        break
+
+    # Prompt for output file
+    default_output = "My ATS Resume.docx"
+    output_prompt = f"📝 Enter the output docx filename (default: '{default_output}'): "
+    output_file = input(output_prompt).strip()
+    if not output_file:
+        output_file = default_output
+        print(f"✅ Using default output: {output_file}")
+
+    # Prompt for paragraph style headings
+    print(
+        "\n🔠 Choose heading levels to render as paragraphs instead of Word headings:"
+    )
+    print("   (Enter numbers separated by space, e.g., '3 4 5 6' for h3, h4, h5, h6)")
+    print("   1. h3 - Job titles")
+    print("   2. h4 - Company names")
+    print("   3. h5 - Subsections (Key Skills, Summary, etc.)")
+    print("   4. h6 - Sub-subsections (Responsibilities, Additional Details)")
+    print("   0. None (use Word heading styles for all)")
+
+    heading_choices = input(
+        "👉 Your choices (e.g., '3 4 5 6' or '0' for none): "
+    ).strip()
+
+    paragraph_style_headings = {}
+    if heading_choices != "0":
+        chosen_numbers = [int(n) for n in heading_choices.split() if n.isdigit()]
+        heading_map = {1: "h3", 2: "h4", 3: "h5", 4: "h6"}
+
+        for num in chosen_numbers:
+            if 1 <= num <= 4:
+                heading_tag = heading_map[num]
+                paragraph_style_headings[heading_tag] = True
+                print(f"✅ Selected {heading_tag} for paragraph styling")
+    else:
+        print("✅ Using Word headings for all levels (no paragraph styling)")
+
+    print("\n⚙️ Processing your resume...\n")
+
+    return input_file, output_file, paragraph_style_headings
+
+
 if __name__ == "__main__":
+    import os
+
     # Create detailed program description and examples
     program_description = """
     Convert a markdown resume to an ATS-friendly Word document.
@@ -1394,6 +1460,9 @@ if __name__ == "__main__":
 
     epilog_text = """
     Examples:
+      python resume_md_to_docx.py
+          - Runs in interactive mode (recommended for new users)
+
       python resume_md_to_docx.py -i resume.md
           - Converts resume.md to "My ATS Resume.docx"
 
@@ -1411,14 +1480,11 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    parser.add_argument(
-        "-i", "--input", dest="input_file", help="Input markdown file (required)"
-    )
+    parser.add_argument("-i", "--input", dest="input_file", help="Input markdown file")
     parser.add_argument(
         "-o",
         "--output",
         dest="output_file",
-        default="My ATS Resume.docx",
         help='Output Word document (default: "My ATS Resume.docx")',
     )
     parser.add_argument(
@@ -1429,23 +1495,43 @@ if __name__ == "__main__":
         choices=["h3", "h4", "h5", "h6"],
         help="Specify which heading levels to render as paragraphs instead of headings",
     )
+    parser.add_argument(
+        "-I",
+        "--interactive",
+        dest="interactive",
+        action="store_true",
+        help="Run in interactive mode, prompting for inputs",
+    )
 
     args = parser.parse_args()
 
-    # Convert list to dictionary if provided
-    paragraph_style_headings = {}
-    if args.paragraph_headings:
-        paragraph_style_headings = {h: True for h in args.paragraph_headings}
-
-    # Show welcome screen if requested
-    if not args.input_file:
-        # display the help message
-        parser.print_help()
+    # Check if we should run in interactive mode
+    # - No arguments were provided at all
+    # - Only -I/--interactive flag was provided
+    if (
+        not (args.input_file or args.output_file or args.paragraph_headings)
+        or args.interactive
+    ):
+        input_file, output_file, paragraph_style_headings = run_interactive_mode()
     else:
-        # Use the parsed arguments
-        result = create_ats_resume(
-            args.input_file,
-            args.output_file,
-            paragraph_style_headings=paragraph_style_headings,
-        )
-        print(f"🎉 ATS-friendly resume created: {result} 🎉")
+        # Use command-line arguments
+        input_file = args.input_file
+        output_file = args.output_file or "My ATS Resume.docx"
+
+        # Convert list to dictionary if provided
+        paragraph_style_headings = {}
+        if args.paragraph_headings:
+            paragraph_style_headings = {h: True for h in args.paragraph_headings}
+
+        # Show help if required arguments are missing
+        if not input_file:
+            parser.print_help()
+            sys.exit(1)
+
+    # Use the arguments to create the resume
+    result = create_ats_resume(
+        input_file,
+        output_file,
+        paragraph_style_headings=paragraph_style_headings,
+    )
+    print(f"🎉 ATS-friendly resume created: {result} 🎉")
