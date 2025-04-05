@@ -6,7 +6,7 @@ A tool to convert your Markdown resume or cv into an ATS-friendly Word document 
 
 This project allows you to maintain your resume in an easily editable Markdown format, then convert it to an ATS (Applicant Tracking System) optimized Word document with proper formatting for better parsing by job application systems.
 
-🎨 **Your Markdown resume *must* use the same ("*Resume Markdown*") style as our [sample template](./sample/resume.sample.md)** 🎨
+🎨 **Your Markdown resume *must* use the same ("*Resume Markdown*") style as the [sample template](./sample/resume.sample.md)** 🎨
 
 *(see the [Sample Template and Exmaple](#sample-template-and-example-) section for more details)*
 
@@ -17,7 +17,7 @@ This project allows you to maintain your resume in an easily editable Markdown f
 - Properly formats projects, skills, and responsibilities
 - Creates an ATS-friendly document that parses well in applicant tracking systems
 
-## Installation 📀
+## Setup and Installation 📀
 
 Set up the project with:
 
@@ -33,6 +33,8 @@ make install
 
 > [!NOTE]
 > See the [Makefile Commands (Basic)](#makefile-commands-basic-%EF%B8%8F) section (below) for more commands.
+
+## Activation 🕹️
 
 🌐 **Remember to *activate* the virtual environment *before* running any Python commands** 🌐
 
@@ -66,7 +68,7 @@ python resume_md_to_docx.py -i resume.md -o your-filename.docx
 Render heading levels as paragraphs instead of Word headings:
 
 ```bash
-python resume_md_to_docx.py -i resume.md -o custom-resume.docx -p h3 h4 h5 h6
+python resume_md_to_docx.py -i ~/Documents/resume.md -o ~/Desktop/custom-resume.docx -p h3 h4 h5 h6
 ```
 
 > [!NOTE]
@@ -99,23 +101,23 @@ The converter maps Markdown headings to ATS-friendly Word document headings usin
 
 If you need to customize these mappings, you can modify the `ResumeSection` enum in [resume_md_to_docx.py](./resume_md_to_docx.py).
 
-## Job Sub Sections 📋
+## Job Sub Sections 💼
 
 Within job entries (particularly in the Experience section), various subsections can be used to structure your information. These are defined by the `JobSubsection` enum which maps markdown elements to properly formatted document sections. The **Markdown headings are *case-insensitive***. The default mappings are
 
-| Markdown Element | Markdown Text | Word Document Heading | Notes |
+| Markdown Element | Markdown Heading | Word Document Heading | Notes |
 |------------------|--------------|---------------------|-------|
+| h3 | highlights | Highlights | Used in the About section for key achievements |
 | h5 | key skills | Technical Skills | Lists skills relevant to a specific role |
 | h5 | summary | Summary | Brief overview of a position |
 | h5 | internal | Internal | Internal project/responsibilities |
 | h5 | project/client | Project/Client | Client project details |
 | h6 | responsibilities overview | Responsibilities: | Project responsibilities |
 | h6 | additional details | Additional Details: | Supplementary information |
-| h3 | highlights | Highlights | Used in the About section for key achievements |
 
 These subsections help structure your job entries in a way that makes them more readable to both humans and ATS systems. For example, under each job, you might include a "Key Skills" subsection to highlight relevant technologies and abilities specific to that role.
 
-## Makefile Commands (Basic) ⚙️
+## Basic Commands ⚙️
 
 | Command | Description |
 |---------|-------------|
@@ -130,7 +132,7 @@ These subsections help structure your job entries in a way that makes them more 
 > [!NOTE]
 > See the [Development](#development-) section (below) for advanced commands.
 
-## Project Structure 🗂️
+## Important Files 🗂️
 
 ```
 <root>/
@@ -145,6 +147,10 @@ These subsections help structure your job entries in a way that makes them more 
 
 - Python 3.x
 - Make
+
+> [!NOTE]
+> The Makefile assumes a [POSIX compliant shell](https://wiki.archlinux.org/title/Command-line_shell) such as Bash, Zsh, or Dash.
+
 
 ## Development 🛠
 
