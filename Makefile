@@ -50,25 +50,25 @@ clean: .uninstall ## Clean up
 check: ## Run linters but don't reformat
 	@( \
   . .venv/bin/activate; \
-  black --check --diff resume_md_to_docx.py --line-length 88; \
-  isort --check-only --diff resume_md_to_docx.py; \
-  autoflake --check --remove-all-unused-imports --remove-unused-variables resume_md_to_docx.py; \
+  black --check --diff . --line-length 88; \
+  isort --check-only --diff .; \
+  autoflake --check --remove-all-unused-imports --remove-unused-variables .; \
 )
 
 .PHONY: lint
 lint: ## Run linters and reformat
 	@( \
   . .venv/bin/activate; \
-  black resume_md_to_docx.py --line-length 88; \
-  isort resume_md_to_docx.py; \
-  autoflake --remove-all-unused-imports --remove-unused-variables resume_md_to_docx.py; \
+  black . --line-length 88; \
+  isort .; \
+  autoflake --remove-all-unused-imports --remove-unused-variables .; \
 )
 
 .venv_reminder:
 	@printf "\n\t📝 \033[1m%s\033[0m: %s\n\t   %s\n\t   %s\n\t   %s.\n\n\t🏄 %s \033[1;92m\`%s\`\033[0m\n\t   %s.\n" "NOTE" "The dependencies are installed" "in a virtual environment which needs" "to be manually activated to run the" "Python command" "Please run" ". .venv/bin/activate" "to activate the virtual environment"
 
 .python_command:
-	@printf "\n\033[1m%s\033[0m (🎮 %s 🎮):\n  \033[1;92m\`%s\`\033[0m # for usage help\n  \033[1;92m\`%s\`\033[0m\n  \033[1;92m\`%s\`\033[0m\n\n" "The Python 🐍 command" "you must manually activate the virtual environment" "python3 resume_md_to_docx.py" "python3 resume_md_to_docx.py -i <input file>" "python3 resume_md_to_docx.py -i <input file> -o <output file>"
+	@printf "\n\033[1m%s\033[0m ... 🕹️  %s 🕹️\n  \033[1;92m\`%s\`\033[0m # for usage help\n  \033[1;92m\`%s\`\033[0m\n  \033[1;92m\`%s\`\033[0m\n\n" "The Python 🐍 command" "you must manually activate the virtual environment" "python3 resume_md_to_docx.py" "python3 resume_md_to_docx.py -i <input file>" "python3 resume_md_to_docx.py -i <input file> -o <output file>"
 
 .init:
 	@deactivate 2>/dev/null || true
