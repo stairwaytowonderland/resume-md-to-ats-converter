@@ -2,6 +2,7 @@
 
 A tool to convert your Markdown resume or cv into an ATS-friendly Word document that looks clean and professional while preserving your carefully crafted content.
 
+
 ## Overview 📚
 
 This project allows you to maintain your resume in an easily editable Markdown format, then convert it to an ATS (Applicant Tracking System) optimized Word document with proper formatting for better parsing by job application systems.
@@ -10,12 +11,14 @@ This project allows you to maintain your resume in an easily editable Markdown f
 
 *(see the [Sample Template and Exmaple](#sample-template-and-example-) section for more details)*
 
+
 ## Key Features ⚡️
 
 - Proper formatting of sections (contact, experience, education, etc.)
 - Maintains hierarchy of job titles, companies, and dates
 - Properly formats projects, skills, and responsibilities
 - Creates an ATS-friendly document that parses well in applicant tracking systems
+
 
 ## Setup and Installation 📀
 
@@ -32,7 +35,8 @@ make install
 ```
 
 > [!NOTE]
-> See the [Makefile Commands (Basic)](#makefile-commands-basic-%EF%B8%8F) section (below) for more commands.
+> See the [Basic Commands](#basic-commands-%EF%B8%8F) section (below) for more commands.
+
 
 ## Activation 🕹️
 
@@ -44,6 +48,7 @@ make install
 
 > [!tip]
 > Run `deactivate` to deactivate the *virtual environment*.
+
 
 ## Usage 👾
 
@@ -57,11 +62,15 @@ Convert your Markdown resume to a Word document.
 
 ### Basic usage 🐍
 
-Run in interactive mode, prompting for inputs:
+**Interactive mode 📱**
+
+Run in **interactive mode**, prompting for inputs:
 
 ```bash
 python resume_md_to_docx.py
 ```
+
+**Manual mode 🎛**
 
 Run in manual mode, specifying an input file:
 
@@ -72,7 +81,7 @@ Run in manual mode, specifying an input file:
 python resume_md_to_docx.py -i resume.md
 ```
 
-### Advanced usage 🐍
+### Advanced usage 🦾
 
 Specify an output filename:
 
@@ -83,7 +92,7 @@ python resume_md_to_docx.py -i resume.md -o your-filename.docx
 Render heading levels as paragraphs instead of Word headings:
 
 ```bash
-python resume_md_to_docx.py -i ~/Documents/resume.md -o ~/Desktop/custom-resume.docx -p h3 h4 h5 h6
+python resume_md_to_docx.py -i ~/Documents/resume.md -o ~/Desktop/"my resume.docx" -p h3 h4 h5 h6
 ```
 
 > [!NOTE]
@@ -97,6 +106,7 @@ A [sample Markdown resume](./sample/resume.sample.md) (`sample/resume.sample.md`
 > For basic functionality, the **`h2`** level headings **should not** be changed; however if you feel so inclined, you can modify the `ResumeSection` *enum* according to your needs (see the [Resume Sections](#resume-sections-) section for more details).
 
 You can [download the example `.docx` document](./sample/example.docx) (`sample/example.docx`) and open it in *Microsoft Word* or *Google Docs* (or another application capable of viewing `.docx` files) to see how the sample Markdown file is rendered.
+
 
 ## Resume Sections 🚀
 
@@ -116,6 +126,7 @@ The converter maps Markdown headings to ATS-friendly Word document headings usin
 
 If you need to customize these mappings, you can modify the `ResumeSection` enum in [resume_md_to_docx.py](./resume_md_to_docx.py).
 
+
 ## Job Sub Sections 💼
 
 Within job entries (particularly in the Experience section), various subsections can be used to structure your information. These are defined by the `JobSubsection` enum which maps markdown elements to properly formatted document sections. The **Markdown headings are *case-insensitive***. The default mappings are
@@ -132,6 +143,19 @@ Within job entries (particularly in the Experience section), various subsections
 
 These subsections help structure your job entries in a way that makes them more readable to both humans and ATS systems. For example, under each job, you might include a "Key Skills" subsection to highlight relevant technologies and abilities specific to that role.
 
+
+## Important Files 🗂️
+
+```
+<root>/
+├── Makefile                    # Contains helpful commands for managing the project
+├── resume_md_to_docx.py        # Main Python script for conversion
+└── sample/
+    ├── resume.sample.md        # Sample resume template
+    └── example.docx            # Example docx ouput from sample with all stages
+```
+
+
 ## Basic Commands ⚙️
 
 | Command | Description |
@@ -147,16 +171,6 @@ These subsections help structure your job entries in a way that makes them more 
 > [!NOTE]
 > See the [Development](#development-) section (below) for advanced commands.
 
-## Important Files 🗂️
-
-```
-<root>/
-├── Makefile                    # Contains helpful commands for managing the project
-├── resume_md_to_docx.py        # Main Python script for conversion
-└── sample/
-    ├── resume.sample.md        # Sample resume template
-    └── example.docx            # Example docx ouput from sample with all stages
-```
 
 ## Requirements ⚙️
 
