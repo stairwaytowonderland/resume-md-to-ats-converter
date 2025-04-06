@@ -193,6 +193,22 @@ For developers wishing to build this project:
 | `make check` | Run linters without reformatting |
 | `make lint` | Reformat code according to style guidelines |
 
+
+
 # Contributing 💻
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for information on contributing to this project.
+
+
+
+# License 🪪
+
+[![CC BY-NC-ND 4.0][cc-by-nc-nd-shield]][cc-by-nc-nd]
+
+[This work](https://github.com/andrewhaller/resume-md-to-ats-converter) © 2025 by [Andrew Haller](https://github.com/andrewhaller) is licensed under [Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International][cc-by-nc-nd].
+
+[![CC BY-NC-ND 4.0][cc-by-nc-nd-image]][cc-by-nc-nd]
+
+[cc-by-nc-nd]: http://creativecommons.org/licenses/by-nc-nd/4.0/
+[cc-by-nc-nd-image]: https://licensebuttons.net/l/by-nc-nd/4.0/88x31.png
+[cc-by-nc-nd-shield]: https://img.shields.io/badge/License-CC%20BY--NC--ND%204.0-lightgrey.svg
