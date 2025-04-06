@@ -84,7 +84,7 @@ Overview of responsibilities for this sub-project.
 - And details about
 - This sub-project
 
-##### Another Project/Client
+##### Project/Client
 
 Another Other Project/Client Name (~length months or years)
 
