@@ -3,6 +3,7 @@
 
 import argparse
 import os
+import re
 import sys
 from enum import Enum
 
@@ -13,6 +14,11 @@ from docx import Document
 from docx.enum.text import WD_BREAK, WD_PARAGRAPH_ALIGNMENT
 from docx.opc.constants import RELATIONSHIP_TYPE
 from docx.shared import Inches, Pt
+
+# Define regex patterns at module level for better performance
+MD_LINK_PATTERN = re.compile(r"\[(.*?)\]\((.*?)\)")
+URL_PATTERN = re.compile(r"https?://[^\s]+|www\.[^\s]+")
+EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 
 
 class ResumeSection(Enum):
@@ -342,10 +348,13 @@ def create_ats_resume(md_file, output_file, paragraph_style_headings=None):
                     elif getattr(child, "name", None) == "em":
                         run = para.add_run(child.text)
                         run.italic = True
+                    # Check if this is a link/anchor element
+                    elif getattr(child, "name", None) == "a" and child.get("href"):
+                        add_hyperlink(para, child.text, child.get("href"))
                     # Otherwise, just add the text as-is
                     else:
-                        if child.string and child.string.strip():
-                            para.add_run(child.string.strip())
+                        if child.string:
+                            process_text_for_hyperlinks(para, child.string)
 
                 processed_elements.add(current_p)
 
@@ -536,7 +545,7 @@ def create_ats_resume(md_file, output_file, paragraph_style_headings=None):
                                     left_indent_paragraph(
                                         bullet_para, 0.5
                                     )  # Keep indentation for bullets
-                                    bullet_para.add_run(li.text)
+                                    process_text_for_hyperlinks(bullet_para, li.text)
                                 processed_elements.add(next_element)
 
                             next_element = next_element.find_next_sibling()
@@ -592,7 +601,8 @@ def create_ats_resume(md_file, output_file, paragraph_style_headings=None):
                         # Get content
                         next_element = current_element.find_next_sibling()
                         if next_element and next_element.name == "p":
-                            document.add_paragraph(next_element.text)
+                            resp_para = document.add_paragraph()
+                            process_text_for_hyperlinks(resp_para, next_element.text)
                             processed_elements.add(next_element)
 
                     # ADDITIONAL_DETAILS subsection (standalone)
@@ -625,7 +635,7 @@ def create_ats_resume(md_file, output_file, paragraph_style_headings=None):
             ):
                 for li in current_element.find_all("li"):
                     bullet_para = document.add_paragraph(style="List Bullet")
-                    bullet_para.add_run(li.text)
+                    process_text_for_hyperlinks(bullet_para, li.text)
 
             current_element = current_element.find_next_sibling()
 
@@ -725,7 +735,8 @@ def left_indent_paragraph(paragraph, inches):
     Returns:
         paragraph: The modified paragraph object
     """
-    paragraph.paragraph_format.left_indent_paragraph = Inches(inches)
+    # paragraph.paragraph_format.left_indent_paragraph = Inches(inches)
+    paragraph.paragraph_format.left_indent = Inches(inches)
     return paragraph
 
 
@@ -742,9 +753,39 @@ def add_bullet_list(document, ul_element, indentation=None):
     """
     for li in ul_element.find_all("li"):
         bullet_para = document.add_paragraph(style="List Bullet")
-        bullet_para.add_run(li.text)
+
+        # Check if this bullet item contains a link
+        link = li.find("a")
+        if link and link.get("href"):
+            # Text before the link
+            prefix = ""
+            if link.previous_sibling:
+                prefix = (
+                    link.previous_sibling.string if link.previous_sibling.string else ""
+                )
+
+            # Text after the link
+            suffix = ""
+            if link.next_sibling:
+                suffix = link.next_sibling.string if link.next_sibling.string else ""
+
+            # Add text before the link if any
+            if prefix.strip():
+                bullet_para.add_run(prefix.strip())
+
+            # Add the hyperlink
+            add_hyperlink(bullet_para, link.text, link.get("href"))
+
+            # Add text after the link if any
+            if suffix.strip():
+                bullet_para.add_run(suffix.strip())
+        else:
+            # No links, process as usual
+            process_text_for_hyperlinks(bullet_para, li.text)
+
         if indentation:
             left_indent_paragraph(bullet_para, indentation)
+
     return bullet_para
 
 
@@ -772,18 +813,26 @@ def add_formatted_paragraph(
         paragraph: The created paragraph object
     """
     para = document.add_paragraph()
-    run = para.add_run(text)
 
-    # Apply formatting
-    run.bold = bold
-    run.italic = italic
+    # Check if text contains URLs, emails, or markdown links
+    is_link = detect_link(text)[0]
 
+    if bold or italic or not is_link:
+        # If bold/italic formatting is needed or no links detected, use simple formatting
+        run = para.add_run(text)
+        run.bold = bold
+        run.italic = italic
+        if font_size:
+            run.font.size = Pt(font_size)
+    else:
+        # Process for hyperlinks
+        process_text_for_hyperlinks(para, text)
+
+    # Apply paragraph-level formatting
     if alignment:
         para.alignment = alignment
     if indentation:
         left_indent_paragraph(para, indentation)
-    if font_size:
-        run.font.size = Pt(font_size)
 
     return para
 
@@ -908,7 +957,7 @@ def process_simple_section(
                     para.add_run(f"{child.text}: ").bold = True
                 else:
                     if child.string and child.string.strip():
-                        para.add_run(child.string.strip())
+                        process_text_for_hyperlinks(para, child.string.strip())
         elif current_element.name == "ul":
             # Handle bullet lists if they appear
             add_bullet_list(document, current_element)
@@ -1007,8 +1056,9 @@ def process_project_section(
             # Get the paragraph with responsibilities
             resp_element = next_element.find_next_sibling()
             if resp_element and resp_element.name == "p":
-                resp_para = document.add_paragraph(resp_element.text)
-                left_indent_paragraph(resp_para, 0.25)  # Keep indentation for content
+                resp_para = document.add_paragraph()
+                process_text_for_hyperlinks(resp_para, resp_element.text)
+                left_indent_paragraph(resp_para, 0.25)
                 processed_elements.add(resp_element)
 
             processed_elements.add(next_element)
@@ -1038,7 +1088,7 @@ def process_project_section(
             for li in next_element.find_all("li"):
                 bullet_para = document.add_paragraph(style="List Bullet")
                 left_indent_paragraph(bullet_para, 0.5)  # Keep indentation for bullets
-                bullet_para.add_run(li.text)
+                process_text_for_hyperlinks(bullet_para, li.text)
             processed_elements.add(next_element)
 
         next_element = next_element.find_next_sibling()
@@ -1298,14 +1348,102 @@ def process_certification_blockquote(
         # Handle normal text content (like "Some details")
         if isinstance(item, str) and item.strip():
             # It's a direct text node
-            document.add_paragraph(item.strip())
+            para = document.add_paragraph()
+            process_text_for_hyperlinks(para, item.strip())
         elif hasattr(item, "name"):
             if item.name == "p":
                 # It's a paragraph
-                document.add_paragraph(item.text.strip())
+                para = document.add_paragraph()
+                process_text_for_hyperlinks(para, item.text.strip())
             elif item.name == "ul":
                 # It's a bullet list
                 add_bullet_list(document, item)
+
+
+def detect_link(text):
+    """Detect if text contains any kind of link (markdown link, URL, or email)
+
+    Args:
+        text (str): Text to check
+
+    Returns:
+        tuple: (is_link, display_text, url, matched_text)
+            - is_link (bool): Whether any link was found
+            - display_text (str): Text to display for the link
+            - url (str): The URL for the hyperlink
+            - matched_text (str): The full text that matched (for extraction)
+    """
+    # Check for markdown links [text](url)
+    md_match = MD_LINK_PATTERN.search(text)
+    if md_match:
+        return True, md_match.group(1), md_match.group(2), md_match.group(0)
+
+    # Check for URLs
+    url_match = URL_PATTERN.search(text)
+    if url_match:
+        url = url_match.group(0)
+        if url.startswith("www."):
+            url = "http://" + url
+        return True, url, url, url
+
+    # Check for emails
+    email_match = EMAIL_PATTERN.search(text)
+    if email_match:
+        email = email_match.group(0)
+        return True, email, f"mailto:{email}", email
+
+    # No link found
+    return False, text, "", ""
+
+
+def process_text_for_hyperlinks(paragraph, text):
+    """Process text to detect and add hyperlinks for Markdown links, URLs and email addresses
+
+    Args:
+        paragraph: The Word paragraph object to add content to
+        text (str): Text to process for Markdown links, URLs and email addresses
+
+    Returns:
+        None: The paragraph is modified in place
+    """
+    # Check if text is None or empty
+    if not text or not text.strip():
+        return
+
+    remaining_text = text
+
+    # Keep finding links/URLs/emails until none remain
+    while remaining_text:
+        is_link, link_text, url, matched_text = detect_link(remaining_text)
+
+        if is_link:
+            # Find the start position of the link
+            link_position = remaining_text.find(matched_text)
+
+            # Add text before the link (including any spaces)
+            if link_position > 0:
+                paragraph.add_run(remaining_text[:link_position])
+
+            # Add the hyperlink with the appropriate text
+            add_hyperlink(paragraph, link_text, url)
+
+            # Check if there's a space right after the link
+            after_link_pos = link_position + len(matched_text)
+            if (
+                after_link_pos < len(remaining_text)
+                and remaining_text[after_link_pos] == " "
+            ):
+                # Add the space separately to preserve it
+                paragraph.add_run(" ")
+                after_link_pos += 1
+
+            # Continue with remaining text - after the full matched text
+            remaining_text = remaining_text[after_link_pos:]
+        else:
+            # No more links, add the remaining text
+            if remaining_text:
+                paragraph.add_run(remaining_text)
+            remaining_text = ""
 
 
 def add_hyperlink(paragraph, text, url):

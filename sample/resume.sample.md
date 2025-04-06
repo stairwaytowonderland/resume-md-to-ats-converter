@@ -10,12 +10,13 @@ A brief introduction.
 
 *A possible line with emphasis, just for example*
 
-This can be multiple paragraphs.
+This can all be multiple paragraphs, and contain [markdown links](https://example.com) or just urls, for example https://example.com.
 
 ### Highlights
 
 - Some additional
 - Bullet points
+- [a bullet link](https://example.com)
 - About my recent
 - Achievements and experiences
 
