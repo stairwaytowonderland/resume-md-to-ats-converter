@@ -10,10 +10,13 @@ from enum import Enum
 import docx.oxml.shared
 import markdown
 from bs4 import BeautifulSoup
+from bs4.element import PageElement as BS4_Element
 from docx import Document
-from docx.enum.text import WD_BREAK, WD_PARAGRAPH_ALIGNMENT
-from docx.opc.constants import RELATIONSHIP_TYPE
+from docx.enum.text import WD_BREAK as DOCX_PAGE_BREAK
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT as DOCX_PARAGRAPH_ALIGN
+from docx.opc.constants import RELATIONSHIP_TYPE as DOCX_REL
 from docx.shared import Inches, Pt
+from docx.text.paragraph import Paragraph as DOCX_Paragraph
 
 ##############################
 # Define regex patterns at module level for better performance
@@ -171,7 +174,7 @@ class MarkdownHeadingLevel(Enum):
         self.font_size = font_size
 
     @classmethod
-    def get_level_for_tag(cls, tag_name):
+    def get_level_for_tag(cls, tag_name) -> int | None:
         """Get the Word document heading level for a given tag name
 
         Args:
@@ -195,11 +198,12 @@ class MarkdownHeadingLevel(Enum):
         return None
 
     @classmethod
-    def get_font_size_for_level(cls, heading_level):
+    def get_font_size_for_level(cls, heading_level, default_size=11) -> int:
         """Get the font size for a given heading level
 
         Args:
             heading_level (int): The heading level (0-5)
+            default_size (int): The default font size to return if not found (default: 11)
 
         Returns:
             int: The font size in points
@@ -207,13 +211,13 @@ class MarkdownHeadingLevel(Enum):
         for level in cls:
             if level.value == heading_level:
                 return level.font_size
-        return 11  # Default font size if not found
+        return default_size  # Default font size if not found
 
 
 ##############################
 # Main Processor
 ##############################
-def create_ats_resume(md_file, output_file, paragraph_style_headings=None):
+def create_ats_resume(md_file, output_file, paragraph_style_headings=None) -> str:
     """Convert markdown resume to ATS-friendly Word document
 
     Args:
@@ -230,6 +234,7 @@ def create_ats_resume(md_file, output_file, paragraph_style_headings=None):
     # Default to using heading styles for all if not specified
     if paragraph_style_headings is None:
         paragraph_style_headings = {}
+
     # Read markdown file
     with open(md_file, "r") as file:
         md_content = file.read()
@@ -287,7 +292,7 @@ def create_ats_resume(md_file, output_file, paragraph_style_headings=None):
 ##############################
 # Section Processors
 ##############################
-def process_header_section(document, soup, paragraph_style_headings=None):
+def process_header_section(document, soup, paragraph_style_headings=None) -> None:
     """Process the header (name and tagline) section
 
     Args:
@@ -306,7 +311,7 @@ def process_header_section(document, soup, paragraph_style_headings=None):
 
     # Add name as document title
     title = document.add_heading(name, MarkdownHeadingLevel.H1.value)
-    title.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    title.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
 
     # Add professional tagline if it exists - first paragraph after h1
     first_p = soup.find("h1").find_next_sibling()
@@ -322,7 +327,7 @@ def process_header_section(document, soup, paragraph_style_headings=None):
             # Always use paragraph style with manual formatting when paragraph_style_headings is active
             if use_paragraph_style:
                 tagline_para = document.add_paragraph()
-                tagline_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                tagline_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
                 tagline_run = tagline_para.add_run(em_tag.text)
                 tagline_run.italic = True
 
@@ -331,7 +336,7 @@ def process_header_section(document, soup, paragraph_style_headings=None):
             else:
                 # Use Word's built-in Subtitle style
                 tagline_para = document.add_paragraph(em_tag.text, style="Subtitle")
-                tagline_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                tagline_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
                 # Keep it italic despite the style
                 for run in tagline_para.runs:
                     run.italic = True
@@ -340,25 +345,25 @@ def process_header_section(document, soup, paragraph_style_headings=None):
             rest_of_p = first_p.text.replace(em_tag.text, "").strip()
             if rest_of_p:
                 rest_para = document.add_paragraph()
-                rest_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                rest_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
                 rest_para.add_run(rest_of_p)
         else:
             # If no emphasis tag, just add the whole paragraph
             if use_paragraph_style:
                 tagline_para = document.add_paragraph()
-                tagline_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                tagline_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
                 tagline_para.add_run(first_p.text)
             else:
                 # Use Word's built-in Subtitle style
                 tagline_para = document.add_paragraph(first_p.text, style="Subtitle")
-                tagline_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                tagline_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
 
         # Check for additional paragraphs before the first h2 that might contain specialty areas
         current_p = first_p.find_next_sibling()
         # Simply process all paragraphs until we hit a non-paragraph element (like h2)
         while current_p and current_p.name == "p":
             specialty_para = document.add_paragraph()
-            specialty_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+            specialty_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
             specialty_para.add_run(current_p.text)
             current_p = current_p.find_next_sibling()
 
@@ -366,7 +371,7 @@ def process_header_section(document, soup, paragraph_style_headings=None):
     _add_horizontal_line_simple(document)
 
 
-def process_about_section(document, soup, paragraph_style_headings=None):
+def process_about_section(document, soup, paragraph_style_headings=None) -> None:
     """Process the About section
 
     Args:
@@ -460,7 +465,7 @@ def process_about_section(document, soup, paragraph_style_headings=None):
         current_element = current_element.find_next_sibling()
 
 
-def process_skills_section(document, soup, paragraph_style_headings=None):
+def process_skills_section(document, soup, paragraph_style_headings=None) -> None:
     """Process the Skills section
 
     Args:
@@ -489,7 +494,7 @@ def process_skills_section(document, soup, paragraph_style_headings=None):
         _add_formatted_paragraph(document, " | ".join(skills))
 
 
-def process_experience_section(document, soup, paragraph_style_headings=None):
+def process_experience_section(document, soup, paragraph_style_headings=None) -> None:
     """Process the Experience section
 
     Args:
@@ -766,7 +771,7 @@ def process_experience_section(document, soup, paragraph_style_headings=None):
 
 def process_education_section(
     document, soup, paragraph_style_headings=None, add_space=False
-):
+) -> None:
     """Process the Education section
 
     Args:
@@ -790,7 +795,7 @@ def process_education_section(
 
 def process_certifications_section(
     document, soup, paragraph_style_headings=None, add_space=False
-):
+) -> None:
     """Process the Certifications section
 
     Args:
@@ -813,7 +818,7 @@ def process_certifications_section(
 
 def process_contact_section(
     document, soup, paragraph_style_headings=None, add_space=False
-):
+) -> None:
     """Process the Contact section
 
     Args:
@@ -838,78 +843,48 @@ def process_contact_section(
 ##############################
 # Primary Helpers
 ##############################
-def _process_job_entry(
-    document, job_element, processed_elements, paragraph_style_headings=None
-):
-    """Process a job entry (h3) and its related elements
+def _prepare_section(
+    document, soup, section_type, paragraph_style_headings=None
+) -> BS4_Element | None:
+    """Universal preliminary section preparation
 
     Args:
         document: The Word document object
-        job_element: BeautifulSoup element for the job heading
-        processed_elements: Set of elements already processed
+        soup: BeautifulSoup object of the HTML content
+        section_type: ResumeSection enum value
         paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
-        set: Updated set of processed elements
+        BeautifulSoup element or None: The section heading element if found, None otherwise
     """
+
     if paragraph_style_headings is None:
         paragraph_style_headings = {}
 
-    job_title = job_element.text.strip()
+    section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
 
-    # Check if h3 should use paragraph style
-    use_paragraph_style = paragraph_style_headings.get("h3", False)
-    heading_level = MarkdownHeadingLevel.get_level_for_tag(job_element.name)
+    if not section_h2:
+        return
 
+    section_page_break = _has_hr_before_section(section_h2)
+
+    # Add page break if requested
+    if section_page_break:
+        p = document.add_paragraph()
+        run = p.add_run()
+        run.add_break(DOCX_PAGE_BREAK.PAGE)
+
+    # Add the section heading
+    use_paragraph_style = paragraph_style_headings.get("h2", False)
+    heading_level = MarkdownHeadingLevel.H2.value
     _add_heading_or_paragraph(
-        document, job_title, heading_level, use_paragraph_style=use_paragraph_style
+        document,
+        section_type.docx_heading,
+        heading_level,
+        use_paragraph_style=use_paragraph_style,
     )
 
-    # Find company name (h4) if it exists
-    next_element = job_element.find_next_sibling()
-
-    # Add company if it exists
-    if next_element and next_element.name == "h4":
-        company_name = next_element.text.strip()
-
-        # Check if h4 should use paragraph style
-        use_paragraph_style = paragraph_style_headings.get("h4", False)
-        company_heading_level = MarkdownHeadingLevel.get_level_for_tag(
-            next_element.name
-        )
-
-        _add_heading_or_paragraph(
-            document,
-            company_name,
-            company_heading_level,
-            use_paragraph_style=use_paragraph_style,
-        )
-
-        # Mark as processed
-        processed_elements.add(next_element)
-
-        # Find date/location
-        date_element = next_element.find_next_sibling()
-        if date_element and date_element.name == "p" and date_element.find("em"):
-            date_period = date_element.text.replace("*", "").strip()
-            date_para = document.add_paragraph()
-            date_run = date_para.add_run(date_period)
-            date_run.italic = True
-
-            # Mark as processed
-            processed_elements.add(date_element)
-    else:
-        # Direct date under h3 (company header case)
-        if next_element and next_element.name == "p" and next_element.find("em"):
-            company_date = next_element.text.replace("*", "").strip()
-            date_para = document.add_paragraph()
-            date_run = date_para.add_run(company_date)
-            date_run.italic = True
-
-            # Mark as processed
-            processed_elements.add(next_element)
-
-    return processed_elements
+    return section_h2
 
 
 def _process_simple_section(
@@ -917,7 +892,7 @@ def _process_simple_section(
     section_h2,
     add_space=False,
     paragraph_style_headings=None,
-):
+) -> None:
     """Process sections with simple paragraph-based content like Education and Contact.
     These sections typically have paragraphs with some bold (strong) elements.
 
@@ -957,7 +932,7 @@ def _process_simple_section(
 
 def _process_project_section(
     document, project_element, processed_elements, paragraph_style_headings=None
-):
+) -> set[BS4_Element]:
     """Process a project/client section and its related elements
 
     Args:
@@ -1081,6 +1056,80 @@ def _process_project_section(
     return processed_elements
 
 
+def _process_job_entry(
+    document, job_element, processed_elements, paragraph_style_headings=None
+) -> set[BS4_Element]:
+    """Process a job entry (h3) and its related elements
+
+    Args:
+        document: The Word document object
+        job_element: BeautifulSoup element for the job heading
+        processed_elements: Set of elements already processed
+        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
+
+    Returns:
+        set: Updated set of processed elements
+    """
+    if paragraph_style_headings is None:
+        paragraph_style_headings = {}
+
+    job_title = job_element.text.strip()
+
+    # Check if h3 should use paragraph style
+    use_paragraph_style = paragraph_style_headings.get("h3", False)
+    heading_level = MarkdownHeadingLevel.get_level_for_tag(job_element.name)
+
+    _add_heading_or_paragraph(
+        document, job_title, heading_level, use_paragraph_style=use_paragraph_style
+    )
+
+    # Find company name (h4) if it exists
+    next_element = job_element.find_next_sibling()
+
+    # Add company if it exists
+    if next_element and next_element.name == "h4":
+        company_name = next_element.text.strip()
+
+        # Check if h4 should use paragraph style
+        use_paragraph_style = paragraph_style_headings.get("h4", False)
+        company_heading_level = MarkdownHeadingLevel.get_level_for_tag(
+            next_element.name
+        )
+
+        _add_heading_or_paragraph(
+            document,
+            company_name,
+            company_heading_level,
+            use_paragraph_style=use_paragraph_style,
+        )
+
+        # Mark as processed
+        processed_elements.add(next_element)
+
+        # Find date/location
+        date_element = next_element.find_next_sibling()
+        if date_element and date_element.name == "p" and date_element.find("em"):
+            date_period = date_element.text.replace("*", "").strip()
+            date_para = document.add_paragraph()
+            date_run = date_para.add_run(date_period)
+            date_run.italic = True
+
+            # Mark as processed
+            processed_elements.add(date_element)
+    else:
+        # Direct date under h3 (company header case)
+        if next_element and next_element.name == "p" and next_element.find("em"):
+            company_date = next_element.text.replace("*", "").strip()
+            date_para = document.add_paragraph()
+            date_run = date_para.add_run(company_date)
+            date_run.italic = True
+
+            # Mark as processed
+            processed_elements.add(next_element)
+
+    return processed_elements
+
+
 def _add_heading_or_paragraph(
     document,
     text,
@@ -1089,7 +1138,7 @@ def _add_heading_or_paragraph(
     bold=True,
     italic=False,
     font_size=None,
-):
+) -> DOCX_Paragraph:
     """Add either a heading or a formatted paragraph based on preference
 
     Args:
@@ -1122,7 +1171,9 @@ def _add_heading_or_paragraph(
         return document.add_heading(text, level=heading_level)
 
 
-def _process_certifications(document, section_h2, paragraph_style_headings=None):
+def _process_certifications(
+    document, section_h2, paragraph_style_headings=None
+) -> None:
     """Process the certifications section with its specific structure
 
     Args:
@@ -1199,7 +1250,7 @@ def _process_certifications(document, section_h2, paragraph_style_headings=None)
 
 def _process_certification_blockquote(
     document, blockquote, paragraph_style_headings=None
-):
+) -> None:
     """Process the contents of a certification blockquote
 
     Args:
@@ -1287,54 +1338,9 @@ def _process_certification_blockquote(
 
 
 ##############################
-# Section Preparation
-##############################
-def _prepare_section(document, soup, section_type, paragraph_style_headings=None):
-    """Universal preliminary section preparation
-
-    Args:
-        document: The Word document object
-        soup: BeautifulSoup object of the HTML content
-        section_type: ResumeSection enum value
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
-
-    Returns:
-        BeautifulSoup element or None: The section heading element if found, None otherwise
-    """
-
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
-    section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
-
-    if not section_h2:
-        return
-
-    section_page_break = _has_hr_before_section(section_h2)
-
-    # Add page break if requested
-    if section_page_break:
-        p = document.add_paragraph()
-        run = p.add_run()
-        run.add_break(docx.enum.text.WD_BREAK.PAGE)
-
-    # Add the section heading
-    use_paragraph_style = paragraph_style_headings.get("h2", False)
-    heading_level = MarkdownHeadingLevel.H2.value
-    _add_heading_or_paragraph(
-        document,
-        section_type.docx_heading,
-        heading_level,
-        use_paragraph_style=use_paragraph_style,
-    )
-
-    return section_h2
-
-
-##############################
 # Inractive Mode Helper
 ##############################
-def run_interactive_mode():
+def run_interactive_mode() -> tuple[str, str, dict[str, bool]]:
     """Run in interactive mode, prompting the user for inputs
 
     Returns:
@@ -1399,7 +1405,7 @@ def run_interactive_mode():
 ##############################
 # Utilities
 ##############################
-def _left_indent_paragraph(paragraph, inches):
+def _left_indent_paragraph(paragraph, inches) -> DOCX_Paragraph:
     """Set the left indentation of a paragraph in inches
 
     Args:
@@ -1414,7 +1420,7 @@ def _left_indent_paragraph(paragraph, inches):
     return paragraph
 
 
-def _add_bullet_list(document, ul_element, indentation=None):
+def _add_bullet_list(document, ul_element, indentation=None) -> DOCX_Paragraph:
     """Add bullet points from an unordered list element
 
     Args:
@@ -1471,7 +1477,7 @@ def _add_formatted_paragraph(
     alignment=None,
     indentation=None,
     font_size=None,
-):
+) -> DOCX_Paragraph:
     """Add a paragraph with consistent formatting
 
     Args:
@@ -1511,7 +1517,7 @@ def _add_formatted_paragraph(
     return para
 
 
-def _has_hr_before_section(section_h2):
+def _has_hr_before_section(section_h2) -> bool:
     """Check if there's a horizontal rule (hr) element before a section heading
 
     Args:
@@ -1532,7 +1538,7 @@ def _has_hr_before_section(section_h2):
     return prev_element and prev_element.name == "hr"
 
 
-def _detect_link(text):
+def _detect_link(text) -> tuple[bool, str, str, str]:
     """Detect if text contains any kind of link (markdown link, URL, or email)
 
     Args:
@@ -1569,7 +1575,7 @@ def _detect_link(text):
     return False, text, "", ""
 
 
-def _format_url(url):
+def _format_url(url) -> str:
     """Format URL to ensure it has proper scheme
 
     Args:
@@ -1583,7 +1589,7 @@ def _format_url(url):
     return url
 
 
-def _process_text_for_hyperlinks(paragraph, text):
+def _process_text_for_hyperlinks(paragraph, text) -> None:
     """Process text to detect and add hyperlinks for Markdown links, URLs and email addresses
 
     Args:
@@ -1633,7 +1639,7 @@ def _process_text_for_hyperlinks(paragraph, text):
             remaining_text = ""
 
 
-def _add_hyperlink(paragraph, text, url):
+def _add_hyperlink(paragraph, text, url) -> docx.oxml.shared.OxmlElement:
     """Add a hyperlink to a paragraph
 
     Args:
@@ -1647,9 +1653,7 @@ def _add_hyperlink(paragraph, text, url):
     # This gets access to the document
     part = paragraph.part
     # Create the relationship
-    r_id = part.relate_to(
-        url, docx.opc.constants.RELATIONSHIP_TYPE.HYPERLINK, is_external=True
-    )
+    r_id = part.relate_to(url, DOCX_REL.HYPERLINK, is_external=True)
 
     # Create the hyperlink element
     hyperlink = docx.oxml.shared.OxmlElement("w:hyperlink")
@@ -1688,7 +1692,7 @@ def _add_horizontal_line_simple(document):
         None
     """
     p = document.add_paragraph()
-    p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    p.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
     p.add_run("_" * 50).bold = True
 
     # Add some space after the line

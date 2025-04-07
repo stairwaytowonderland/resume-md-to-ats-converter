@@ -153,7 +153,7 @@ These Are · The Key · Skills · For My First Role
 
 - Some details about
 - What I did
-- At this particula job
+- At this particular job
 
 ##### Key Skills
 
