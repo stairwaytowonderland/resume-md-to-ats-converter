@@ -1,6 +1,3 @@
-# pip install python-docx markdown beautifulsoup4
-# python resume_md_to_docx.py
-
 import argparse
 import os
 import re
@@ -214,8 +211,24 @@ class MarkdownHeadingLevel(Enum):
         return default_size  # Default font size if not found
 
 
+class PdfConverterPaths(Enum):
+    """Enum to store paths to PDF converter executables on different platforms"""
+
+    # Windows LibreOffice paths
+    LIBREOFFICE_WINDOWS = [
+        r"C:\Program Files\LibreOffice\program\soffice.exe",
+        r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
+    ]
+
+    # macOS LibreOffice path
+    LIBREOFFICE_MACOS = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+
+    # Linux/Unix LibreOffice command name (assumed to be in PATH)
+    LIBREOFFICE_LINUX = "libreoffice"
+
+
 ##############################
-# Main Processor
+# Main Processors
 ##############################
 def create_ats_resume(md_file, output_file, paragraph_style_headings=None) -> str:
     """Convert markdown resume to ATS-friendly Word document
@@ -227,9 +240,10 @@ def create_ats_resume(md_file, output_file, paragraph_style_headings=None) -> st
                                                  ('h3', 'h4', etc.) to boolean values
                                                  indicating whether to use paragraph style
                                                  instead of heading style. Defaults to None.
+        create_pdf (bool, optional): Whether to also create a PDF version. Defaults to False.
 
     Returns:
-        str: Path to the created document
+        str: Path to the created document (DOCX or PDF if PDF creation succeeded)
     """
     # Default to using heading styles for all if not specified
     if paragraph_style_headings is None:
@@ -286,7 +300,43 @@ def create_ats_resume(md_file, output_file, paragraph_style_headings=None) -> st
 
     # Save the document
     document.save(output_file)
+
     return output_file
+
+
+def convert_to_pdf(docx_file, pdf_file=None):
+    """Convert a DOCX file to PDF using available converters
+
+    Args:
+        docx_file (str): Path to the input DOCX file
+        pdf_file (str, optional): Path for the output PDF file. If None,
+                                 replaces the .docx extension with .pdf
+
+    Returns:
+        str: Path to the created PDF file, or None if conversion failed
+    """
+    if pdf_file is None:
+        pdf_file = os.path.splitext(docx_file)[0] + ".pdf"
+
+    # Try multiple conversion methods
+    methods = [
+        _convert_with_docx2pdf,
+        _convert_with_libreoffice,
+        _convert_with_win32com,
+    ]
+
+    for method in methods:
+        try:
+            if method(docx_file, pdf_file):
+                return pdf_file
+        except Exception as e:
+            print(f"Could not convert using {method.__name__}: {str(e)}")
+
+    print("❌ PDF conversion failed. Please install one of the following:")
+    print("   - docx2pdf (pip install docx2pdf)")
+    print("   - LibreOffice (https://www.libreoffice.org/)")
+    print("   - Microsoft Word (Windows only)")
+    return None
 
 
 ##############################
@@ -1340,7 +1390,7 @@ def _process_certification_blockquote(
 ##############################
 # Inractive Mode Helper
 ##############################
-def run_interactive_mode() -> tuple[str, str, dict[str, bool]]:
+def _run_interactive_mode() -> tuple[str, str, dict[str, bool], bool]:
     """Run in interactive mode, prompting the user for inputs
 
     Returns:
@@ -1399,7 +1449,107 @@ def run_interactive_mode() -> tuple[str, str, dict[str, bool]]:
 
     print("\n⚙️ Processing your resume...\n")
 
-    return input_file, output_file, paragraph_style_headings
+    create_pdf = (
+        input("📄 Also create a PDF version? (y/n, default: n): ").strip().lower()
+        == "y"
+    )
+    if create_pdf:
+        print("✅ Will generate PDF output")
+
+    return input_file, output_file, paragraph_style_headings, create_pdf
+
+
+##############################
+# PDF Helpers
+##############################
+def _convert_with_docx2pdf(docx_file, pdf_file) -> bool:
+    """Convert using docx2pdf library"""
+    try:
+        from docx2pdf import convert
+
+        convert(docx_file, pdf_file)
+        return os.path.exists(pdf_file)
+    except ImportError:
+        return False
+
+
+def _convert_with_libreoffice(docx_file, pdf_file) -> bool:
+    """Convert using LibreOffice command line"""
+    import platform
+    import subprocess
+
+    # Find the LibreOffice executable based on platform
+    if platform.system() == "Windows":
+        for path in PdfConverterPaths.LIBREOFFICE_WINDOWS.value:
+            if os.path.exists(path):
+                lo_exec = path
+                break
+        else:
+            return False
+    elif platform.system() == "Darwin":  # macOS
+        lo_exec = PdfConverterPaths.LIBREOFFICE_MACOS.value
+        if not os.path.exists(lo_exec):
+            return False
+    else:  # Linux/Unix
+        lo_exec = PdfConverterPaths.LIBREOFFICE_LINUX.value  # Assume it's in PATH
+
+    try:
+        subprocess.run(
+            [
+                lo_exec,
+                "--headless",
+                "--convert-to",
+                "pdf",
+                "--outdir",
+                os.path.dirname(pdf_file) or ".",
+                docx_file,
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+
+        # LibreOffice saves to the original filename with .pdf extension
+        temp_pdf = os.path.splitext(os.path.basename(docx_file))[0] + ".pdf"
+        temp_pdf_path = os.path.join(os.path.dirname(pdf_file) or ".", temp_pdf)
+
+        # If the output path is different from LibreOffice's default, move the file
+        if os.path.abspath(temp_pdf_path) != os.path.abspath(pdf_file):
+            os.rename(temp_pdf_path, pdf_file)
+
+        return os.path.exists(pdf_file)
+    except (subprocess.SubprocessError, OSError):
+        return False
+
+
+def _convert_with_win32com(docx_file, pdf_file) -> bool:
+    """Convert using Microsoft Word COM automation (Windows only)"""
+    import platform
+
+    if platform.system() != "Windows":
+        return False
+
+    try:
+        import win32com.client
+
+        word = win32com.client.Dispatch("Word.Application")
+        word.Visible = False
+
+        doc = word.Documents.Open(os.path.abspath(docx_file))
+        doc.SaveAs(os.path.abspath(pdf_file), FileFormat=17)  # 17 = PDF
+        doc.Close()
+        word.Quit()
+
+        return os.path.exists(pdf_file)
+    except ImportError:
+        return False
+    except Exception:
+        # Clean up Word process if something went wrong
+        try:
+            doc.Close(False)
+            word.Quit()
+        except:
+            pass
+        return False
 
 
 ##############################
@@ -1739,8 +1889,11 @@ if __name__ == "__main__":
       python resume_md_to_docx.py -i resume.md -o resume.docx
           - Converts resume.md to resume.docx
 
-      python resume_md_to_docx.py --input ~/Documents/resume.md -o resume.docx
-          - Uses a resume from a different location
+      python resume_md_to_docx.py -i resume.md --pdf
+          - Converts resume.md to "My ATS Resume.docx" and "My ATS Resume.pdf"
+
+      python resume_md_to_docx.py -i resume.md -o resume.docx --pdf
+          - Converts resume.md to resume.docx and resume.pdf
     """
 
     # Parse command line arguments with enhanced help
@@ -1766,6 +1919,13 @@ if __name__ == "__main__":
         help="Specify which heading levels to render as paragraphs instead of headings",
     )
     parser.add_argument(
+        "-P",
+        "--pdf",
+        dest="create_pdf",
+        action="store_true",
+        help="Also create a PDF version of the resume",
+    )
+    parser.add_argument(
         "-I",
         "--interactive",
         dest="interactive",
@@ -1782,7 +1942,9 @@ if __name__ == "__main__":
         not (args.input_file or args.output_file or args.paragraph_headings)
         or args.interactive
     ):
-        input_file, output_file, paragraph_style_headings = run_interactive_mode()
+        input_file, output_file, paragraph_style_headings, create_pdf = (
+            _run_interactive_mode()
+        )
     else:
         # Use command-line arguments
         input_file = args.input_file
@@ -1798,10 +1960,19 @@ if __name__ == "__main__":
             parser.print_help()
             sys.exit(1)
 
+        create_pdf = args.create_pdf
+
     # Use the arguments to create the resume
     result = create_ats_resume(
         input_file,
         output_file,
         paragraph_style_headings=paragraph_style_headings,
     )
+
+    # Convert to PDF if requested
+    if create_pdf:
+        pdf_file = os.path.splitext(result)[0] + ".pdf"
+        if convert_to_pdf(result, pdf_file):
+            print(f"✅ Created PDF: {pdf_file}")
+
     print(f"🎉 ATS-friendly resume created: {result} 🎉")

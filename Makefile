@@ -108,6 +108,6 @@ lint: ## Run linters and reformat
 .build:
 	@( \
   . .venv/bin/activate; \
-  set -x; python resume_md_to_docx.py -i sample/resume.sample.md -o sample/example.docx; \
-  set -x; python resume_md_to_docx.py -i sample/resume.sample.md -o sample/example.paragraph-headings.docx -p h3 h4 h5 h6; \
+  set -x; python resume_md_to_docx.py -i sample/resume.sample.md -o sample/example.docx --pdf; \
+  set -x; python resume_md_to_docx.py -i sample/resume.sample.md -o sample/example.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
 )

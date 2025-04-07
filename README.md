@@ -1,6 +1,6 @@
-# Resume/CV Markdown to ATS `.docx` Converter ⭐
+# Resume Markdown ➜ ATS-friendly Document ⭐
 
-A tool to convert your Markdown resume or cv into an ATS-friendly Word document that looks clean and professional while preserving your carefully crafted content.
+A tool to convert your Markdown resume or cv into an ATS-friendly Word document that looks clean and professional while preserving your carefully crafted content. 🚀
 
 
 ## Overview 📚
@@ -62,7 +62,7 @@ Convert your Markdown resume to a Word document.
 
 ### Basic usage 🐍
 
-**Interactive mode 📱**
+✨ **Interactive mode 📱**
 
 Run in **interactive mode**, prompting for inputs:
 
@@ -86,17 +86,29 @@ python resume_md_to_docx.py -i resume.md
 Specify an output filename:
 
 ```bash
-python resume_md_to_docx.py -i resume.md -o your-filename.docx
+python resume_md_to_docx.py -i resume.md -o my-resume.docx
 ```
 
 Render heading levels as paragraphs instead of Word headings:
 
 ```bash
-python resume_md_to_docx.py -i ~/Documents/resume.md -o ~/Desktop/"my resume.docx" -p h3 h4 h5 h6
+python resume_md_to_docx.py -i ~/Documents/resume.md -o ~/Desktop/my\ resume.docx -p h3 h4 h5 h6
 ```
 
 > [!NOTE]
 > The `-p` (or `--paragraph-headings`) option choices are: `h3`, `h4`, `h5`, `h6`
+
+### ✨ Produce a PDF 📕
+
+Add `--pdf` to any of the above commands, to also produce a `.pdf` file:
+
+```bash
+python resume_md_to_docx.py -i resume.md --pdf
+```
+
+> [!NOTE]
+> You don't need to add `--pdf` if running in *interactive mode*.
+
 
 ## Sample Template and Example 🤖
 
