@@ -32,9 +32,9 @@ My Top • Technical • Skills • And Buzzwords • I Want To Highlight
 ## Experience
 
 
-### Role Name/Title
+### Name of Company · (Full Time or Contract)
 
-#### Name of Company · (Full Time or Contract)
+#### Role Name/Title
 
 *StartMonth Year - EndMonth Year · length in mos or yrs* -- *Location*
 
@@ -53,9 +53,9 @@ These · Are · The Key · Skills · That Were Required
 
 
 
-### Another Role Name/Title
+### Another Organization · (Full Time or Contract)
 
-#### Another Organization · (Full Time or Contract)
+#### Another Role Name/Title
 
 *StartMonth Year - EndMonth Year · length in mos or yrs* -- *Location*
 
@@ -145,9 +145,9 @@ These Are · The Key · Skills · For My First Role
 
 
 
-### Another Job At A Different Place
+### Generic Company Name
 
-#### Company Name
+#### Generic Job Title
 
 *StartMonth Year - EndMonth Year · length in mos or yrs* -- *Location*
 
