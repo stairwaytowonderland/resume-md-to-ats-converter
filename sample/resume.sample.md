@@ -42,6 +42,9 @@ My Top • Technical • Skills • And Buzzwords • I Want To Highlight
 
 Overview of responsibilities.
 
+- A list of
+- multiple responsibilities
+
 ###### Additional Details
 
 - Provide additional bullets
@@ -67,6 +70,8 @@ This role had some sub-projects, so provide a summary of the role here.
 - For the role summary
 
 ##### Internal
+
+An optional paragraph here.
 
 - List some things that were done internally, if it applies
 
@@ -151,13 +156,41 @@ These Are · The Key · Skills · For My First Role
 
 *StartMonth Year - EndMonth Year · length in mos or yrs* -- *Location*
 
+##### Summary
+
+This area is optional.
+
+##### Key Skills
+
+Demonstrating · Skills Above · The Responsibilities Area
+
+###### Responsibilities
+
 - Some details about
 - What I did
 - At this particular job
 
+
+
+### Another Generic Company Name
+
+#### A Different Role
+
+*StartMonth Year - EndMonth Year · length in mos or yrs* -- *Location*
+
 ##### Key Skills
 
-The · Skills · That · Were Required
+Demonstrating · Skills Above · The Summary · And Responsibilities Area
+
+##### Summary
+
+This area is optional.
+
+###### Responsibilities
+
+- Some details about
+- What I did
+- At this particular job
 
 
 ---

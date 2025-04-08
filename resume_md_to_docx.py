@@ -136,12 +136,28 @@ class JobSubsection(Enum):
             JobSubsection or None: The matching subsection or None if not found
         """
         text_lower = text.lower().strip()
+
+        # First try exact match
         for subsection in cls:
             if (
                 subsection.markdown_heading_level == tag_name
                 and text_lower == subsection.markdown_text_lower
             ):
                 return subsection
+
+        # If no exact match, try partial match for elements
+        # Create a dictionary of keywords to check against each subsection type
+        if tag_name == "h6":  # Only do partial matching for h6 elements
+            # Group subsections by heading level
+            h6_subsections = [s for s in cls if s.markdown_heading_level == "h6"]
+
+            # Try partial matching against each subsection's keywords
+            for subsection in h6_subsections:
+                # Extract the first word of the markdown_text_lower as the key keyword
+                keyword = subsection.markdown_text_lower.split()[0]
+                if keyword in text_lower:
+                    return subsection
+
         return None
 
 
@@ -240,7 +256,6 @@ def create_ats_resume(md_file, output_file, paragraph_style_headings=None) -> st
                                                  ('h3', 'h4', etc.) to boolean values
                                                  indicating whether to use paragraph style
                                                  instead of heading style. Defaults to None.
-        create_pdf (bool, optional): Whether to also create a PDF version. Defaults to False.
 
     Returns:
         str: Path to the created document (DOCX or PDF if PDF creation succeeded)
@@ -659,6 +674,33 @@ def process_experience_section(document, soup, paragraph_style_headings=None) ->
                         italic=subsection.italic,
                     )
 
+                    # Process elements under this summary section
+                    next_element = current_element.find_next_sibling()
+                    while next_element and next_element.name not in [
+                        "h2",
+                        "h3",
+                        "h4",
+                        "h5",
+                        "h6",
+                    ]:
+                        if next_element.name == "p":
+                            # Process paragraph text
+                            summary_para = document.add_paragraph()
+                            _process_text_for_hyperlinks(
+                                summary_para, next_element.text
+                            )
+                            processed_elements.add(next_element)
+                        elif next_element.name == "ul":
+                            # Process bullet points
+                            for li in next_element.find_all("li"):
+                                bullet_para = document.add_paragraph(
+                                    style="List Bullet"
+                                )
+                                _process_text_for_hyperlinks(bullet_para, li.text)
+                            processed_elements.add(next_element)
+
+                        next_element = next_element.find_next_sibling()
+
                 # INTERNAL subsection
                 elif subsection == JobSubsection.INTERNAL:
                     use_paragraph_style = paragraph_style_headings.get(
@@ -681,7 +723,14 @@ def process_experience_section(document, soup, paragraph_style_headings=None) ->
                         "h4",
                         "h5",
                     ]:
-                        if next_element.name == "ul":
+                        if next_element.name == "p":
+                            # Process paragraph text
+                            internal_para = document.add_paragraph()
+                            _process_text_for_hyperlinks(
+                                internal_para, next_element.text
+                            )
+                            processed_elements.add(next_element)
+                        elif next_element.name == "ul":
                             for li in next_element.find_all("li"):
                                 bullet_para = document.add_paragraph(
                                     style="List Bullet"
@@ -723,21 +772,28 @@ def process_experience_section(document, soup, paragraph_style_headings=None) ->
                             skills_para.add_run(" • ".join(skills_list))
                             processed_elements.add(next_element)
 
-                    # Determine if this is the last role before next job entry (h3)
-                    # by checking if there's another role (h4) before the next job (h3)
+                    # Determine if we need to add a blank line after Key Skills
+                    # We'll only add a blank line if:
+                    # 1. There are no more headings (end of section)
+                    # 2. The next heading is an h3 (new job)
+                    # We won't add a blank line if there's an h4, h5, or h6 after Key Skills
                     looking_ahead = current_element
-                    next_h3_or_h4 = None
+                    next_heading = None
 
-                    # Look for the next h3 or h4 element
-                    while looking_ahead and not next_h3_or_h4:
+                    # Look for the next heading element
+                    while looking_ahead and not next_heading:
                         looking_ahead = looking_ahead.find_next_sibling()
-                        if looking_ahead and looking_ahead.name in ["h3", "h4"]:
-                            next_h3_or_h4 = looking_ahead
+                        if looking_ahead and looking_ahead.name in [
+                            "h3",
+                            "h4",
+                            "h5",
+                            "h6",
+                        ]:
+                            next_heading = looking_ahead
 
-                    # Only add space if this is the last role (no h4 before next h3)
-                    # or if we're at the end of the section
-                    if not next_h3_or_h4 or next_h3_or_h4.name == "h3":
-                        document.add_paragraph()  # Add spacing only before next job or end of section
+                    # Only add space if this is the last role (heading is h3 or no more headings)
+                    # if not next_heading or next_heading.name == "h3":
+                    #     document.add_paragraph()  # Add spacing only before next job or end of section
 
                 # RESPONSIBILITIES subsection (standalone)
                 elif (
@@ -758,10 +814,19 @@ def process_experience_section(document, soup, paragraph_style_headings=None) ->
 
                     # Get content
                     next_element = current_element.find_next_sibling()
-                    if next_element and next_element.name == "p":
-                        resp_para = document.add_paragraph()
-                        _process_text_for_hyperlinks(resp_para, next_element.text)
-                        processed_elements.add(next_element)
+                    if next_element:
+                        if next_element.name == "p":
+                            resp_para = document.add_paragraph()
+                            _process_text_for_hyperlinks(resp_para, next_element.text)
+                            processed_elements.add(next_element)
+                        elif next_element.name == "ul":
+                            # Process bullet list
+                            for li in next_element.find_all("li"):
+                                bullet_para = document.add_paragraph(
+                                    style="List Bullet"
+                                )
+                                _process_text_for_hyperlinks(bullet_para, li.text)
+                            processed_elements.add(next_element)
 
                 # ADDITIONAL_DETAILS subsection (standalone)
                 elif (
@@ -1139,6 +1204,13 @@ def _process_job_entry(
 
     job_title = job_element.text.strip()
 
+    # Check if this is NOT the first h3 after an h2
+    # Look for previous element that is either h2 or h3
+    prev_heading = job_element.find_previous(["h2", "h3"])
+    if prev_heading and prev_heading.name == "h3":
+        # This is not the first h3 after h2, so add a blank line
+        document.add_paragraph()
+
     # Check if h3 should use paragraph style
     use_paragraph_style = paragraph_style_headings.get("h3", False)
     heading_level = MarkdownHeadingLevel.get_level_for_tag(job_element.name)
@@ -1254,6 +1326,7 @@ def _process_certifications(
         paragraph_style_headings = {}
 
     current_element = section_h2.find_next_sibling()
+    first_h3_after_h2 = True  # Track the first h3 after h2
 
     while current_element and current_element.name != "h2":
         # Process certification name (h3)
@@ -1261,6 +1334,12 @@ def _process_certifications(
             cert_name = current_element.text.strip()
             use_paragraph_style = paragraph_style_headings.get("h3", False)
             heading_level = MarkdownHeadingLevel.H3.value
+
+            # Add blank line before h3 except for the first one
+            if not first_h3_after_h2:
+                document.add_paragraph()
+            else:
+                first_h3_after_h2 = False  # After first h3 is processed
 
             _add_heading_or_paragraph(
                 document,

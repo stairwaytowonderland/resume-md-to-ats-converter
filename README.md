@@ -1,4 +1,4 @@
-# Resume Markdown ➜ ATS-friendly Document ⭐
+# ⭐ Resume Markdown ➜ ATS-friendly Document ⭐
 
 A tool to convert your Markdown resume or cv into an ATS-friendly Word document that looks clean and professional while preserving your carefully crafted content. 🚀
 
