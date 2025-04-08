@@ -1,6 +1,7 @@
 python-docx>=1.1.2
 markdown>=3.7
 beautifulsoup4>=4.13.3
+pyyaml>=6.0.2
 
 # Optional PDF conversion libraries
 docx2pdf>=0.1.8; sys_platform == 'win32'   # For Windows

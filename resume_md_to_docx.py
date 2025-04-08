@@ -9,10 +9,11 @@ import markdown
 from bs4 import BeautifulSoup
 from bs4.element import PageElement as BS4_Element
 from docx import Document
+from docx.enum.style import WD_STYLE_TYPE as DOCX_STYLE_TYPE
 from docx.enum.text import WD_BREAK as DOCX_PAGE_BREAK
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT as DOCX_PARAGRAPH_ALIGN
 from docx.opc.constants import RELATIONSHIP_TYPE as DOCX_REL
-from docx.shared import Inches, Pt
+from docx.shared import Inches, Pt, RGBColor
 from docx.text.paragraph import Paragraph as DOCX_Paragraph
 
 ##############################
@@ -21,10 +22,6 @@ from docx.text.paragraph import Paragraph as DOCX_Paragraph
 MD_LINK_PATTERN = re.compile(r"\[(.*?)\]\((.*?)\)")
 URL_PATTERN = re.compile(r"https?://[^\s]+|www\.[^\s]+")
 EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
-
-DEFAULT_POINT_SIZE = 11
-DEFAULT_INDENT_INCHES = 0.25
-BULLET_INDENT_INCHES = 0.5
 
 
 ##############################
@@ -225,14 +222,12 @@ class MarkdownHeadingLevel(Enum):
         return None
 
     @classmethod
-    def get_font_size_for_level(
-        cls, heading_level: str, default_size: int = DEFAULT_POINT_SIZE
-    ) -> int:
+    def get_font_size_for_level(cls, heading_level: str, default_size: int = 11) -> int:
         """Get the font size for a given heading level
 
         Args:
             heading_level (int): The heading level (0-5)
-            default_size (int): The default font size to return if not found (default: DEFAULT_POINT_SIZE (11))
+            default_size (int): The default font size to return if not found (default: 11)
 
         Returns:
             int: The font size in points
@@ -263,7 +258,10 @@ class PdfConverterPaths(Enum):
 # Main Processors
 ##############################
 def create_ats_resume(
-    md_file: str, output_file: str, paragraph_style_headings: dict[str, bool] = None
+    md_file: str,
+    output_file: str,
+    paragraph_style_headings: dict[str, bool] = None,
+    config_file: str = "resume_config.yaml",
 ) -> str:
     """Convert markdown resume to ATS-friendly Word document
 
@@ -271,13 +269,19 @@ def create_ats_resume(
         md_file (str): Path to the markdown resume file
         output_file (str): Path where the output Word document will be saved
         paragraph_style_headings (dict, optional): Dictionary mapping heading tags
-                                                 ('h3', 'h4', etc.) to boolean values
-                                                 indicating whether to use paragraph style
-                                                 instead of heading style. Defaults to None.
+                                                 to boolean values.
+        config_file (str, optional): Path to YAML configuration file.
+                                   Defaults to 'resume_config.yaml'.
 
     Returns:
-        str: Path to the created document (DOCX or PDF if PDF creation succeeded)
+        str: Path to the created document
     """
+    # Load configuration
+    config = load_config(config_file)
+    doc_defaults = config["document_defaults"]
+    style_constants = config["style_constants"]
+    document_styles = config["document_styles"]
+
     # Default to using heading styles for all if not specified
     if paragraph_style_headings is None:
         paragraph_style_headings = {}
@@ -292,44 +296,50 @@ def create_ats_resume(
 
     # Create document with standard margins
     document = Document()
+
+    # Apply styles from configuration
+    _apply_document_styles(document, document_styles, style_constants)
+
     for section in document.sections:
-        section.top_margin = Inches(0.7)
-        section.bottom_margin = Inches(0.7)
-        section.left_margin = Inches(0.8)
-        section.right_margin = Inches(0.8)
+        section.page_width = Inches(doc_defaults["page_width"])
+        section.page_height = Inches(doc_defaults["page_height"])
+        section.top_margin = Inches(doc_defaults["margin_top_bottom"])
+        section.bottom_margin = Inches(doc_defaults["margin_top_bottom"])
+        section.left_margin = Inches(doc_defaults["margin_left_right"])
+        section.right_margin = Inches(doc_defaults["margin_left_right"])
 
     # Define section processors with their specific processing functions
     section_processors = [
         (ResumeSection.ABOUT, process_header_section),
         (
             ResumeSection.ABOUT,
-            lambda doc, soup, ps: process_about_section(doc, soup, ps),
+            lambda doc, soup, sc, ps: process_about_section(doc, soup, sc, ps),
         ),
         (
             ResumeSection.SKILLS,
-            lambda doc, soup, ps: process_skills_section(doc, soup, ps),
+            lambda doc, soup, sc, ps: process_skills_section(doc, soup, sc, ps),
         ),
         (
             ResumeSection.EXPERIENCE,
-            lambda doc, soup, ps: process_experience_section(doc, soup, ps),
+            lambda doc, soup, sc, ps: process_experience_section(doc, soup, sc, ps),
         ),
         (
             ResumeSection.EDUCATION,
-            lambda doc, soup, ps: process_education_section(doc, soup, ps),
+            lambda doc, soup, sc, ps: process_education_section(doc, soup, sc, ps),
         ),
         (
             ResumeSection.CERTIFICATIONS,
-            lambda doc, soup, ps: process_certifications_section(doc, soup, ps),
+            lambda doc, soup, sc, ps: process_certifications_section(doc, soup, sc, ps),
         ),
         (
             ResumeSection.CONTACT,
-            lambda doc, soup, ps: process_contact_section(doc, soup, ps),
+            lambda doc, soup, sc, ps: process_contact_section(doc, soup, sc, ps),
         ),
     ]
 
     # Process each section
     for section_type, processor in section_processors:
-        processor(document, soup, paragraph_style_headings)
+        processor(document, soup, style_constants, paragraph_style_headings)
 
     # Save the document
     document.save(output_file)
@@ -372,12 +382,118 @@ def convert_to_pdf(docx_file: str, pdf_file: str = None):
     return None
 
 
+def load_config(
+    config_file: str = "resume_config.yaml", print_success_msg: bool = False
+) -> dict:
+    """Load configuration from YAML file
+
+    Args:
+        config_file (str): Path to configuration file.
+                            Defaults to 'resume_config.yaml' in same directory.
+
+    Returns:
+        dict: Configuration dictionary with defaults applied
+    """
+    import yaml
+    from yaml.parser import ParserError
+
+    # Default empty configuration structure
+    config = {
+        "document_defaults": {
+            "output_filename": "My ATS Resume.docx",
+            "pdf_file_extension": ".pdf",
+            "margin_top_bottom": 0.7,
+            "margin_left_right": 0.8,
+            "page_width": 8.5,
+            "page_height": 11.0,
+        },
+        "style_constants": {
+            "font_size_pts": 11,
+            "indent_inches": 0.25,
+            "bullet_indent_inches": 0.5,
+            "horizontal_line_char": "_",
+            "horizontal_line_length": 50,
+            "bullet_separator": " • ",
+        },
+        "document_styles": {},
+    }
+
+    # Try to load the YAML config file
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, "r") as f:
+                yaml_config = yaml.safe_load(f)
+
+            # Use the YAML values directly if they exist
+            if yaml_config and isinstance(yaml_config, dict):
+                # Replace document_defaults if provided
+                if "document_defaults" in yaml_config:
+                    config["document_defaults"] = yaml_config["document_defaults"]
+
+                # Replace style_constants if provided
+                if "style_constants" in yaml_config:
+                    config["style_constants"] = yaml_config["style_constants"]
+
+                # Process document styles - need to handle RGBColor and Pt objects
+                if "document_styles" in yaml_config:
+                    document_styles = {}
+                    for style_name, properties in yaml_config[
+                        "document_styles"
+                    ].items():
+                        style_props = {}
+
+                        # Convert font_size to Pt objects
+                        if "font_size" in properties and isinstance(
+                            properties["font_size"], (int, float)
+                        ):
+                            style_props["font_size"] = Pt(properties["font_size"])
+
+                        # Convert color to RGBColor objects
+                        if "color" in properties and isinstance(
+                            properties["color"], str
+                        ):
+                            style_props["color"] = RGBColor.from_string(
+                                properties["color"]
+                            )
+
+                        # Convert indent values to Inches
+                        for indent_key in ["indent_left", "indent_right"]:
+                            if indent_key in properties and isinstance(
+                                properties[indent_key], (int, float)
+                            ):
+                                style_props[indent_key] = Inches(properties[indent_key])
+
+                        # Copy over all other properties directly
+                        for key, value in properties.items():
+                            if key not in [
+                                "font_size",
+                                "color",
+                                "indent_left",
+                                "indent_right",
+                            ]:
+                                style_props[key] = value
+
+                        document_styles[style_name] = style_props
+
+                    config["document_styles"] = document_styles
+
+                if print_success_msg:
+                    print(f"✅ Config loaded from {config_file}")
+        except (ParserError, Exception) as e:
+            print(
+                f"❌ Error loading config file: {str(e)}, using default configuration"
+            )
+
+    return config
+
+
 ##############################
 # Section Processors
 ##############################
 def process_header_section(
     document: Document,
     soup: BeautifulSoup,
+    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the header (name and tagline) section
@@ -385,6 +501,7 @@ def process_header_section(
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
+        style_constants (dict): Dictionary containing style constants
         paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
@@ -455,12 +572,13 @@ def process_header_section(
             current_p = current_p.find_next_sibling()
 
     # Add horizontal line
-    _add_horizontal_line_simple(document)
+    _add_horizontal_line_simple(document, style_constants)
 
 
 def process_about_section(
     document: Document,
     soup: BeautifulSoup,
+    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the About section
@@ -559,6 +677,7 @@ def process_about_section(
 def process_skills_section(
     document: Document,
     soup: BeautifulSoup,
+    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Skills section
@@ -592,6 +711,7 @@ def process_skills_section(
 def process_experience_section(
     document: Document,
     soup: BeautifulSoup,
+    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Experience section
@@ -599,6 +719,7 @@ def process_experience_section(
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
+        style_constants (dict): Dictionary containing style constants
         paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
@@ -622,6 +743,8 @@ def process_experience_section(
 
     # Get the add_space_before_h3 setting from the section type
     add_space_before_h3 = ResumeSection.EXPERIENCE.add_space_before_h3
+
+    bullet_indent_inches = style_constants.get("bullet_indent_inches")
 
     while current_element and current_element.name != "h2":
         # Skip if already processed
@@ -695,6 +818,7 @@ def process_experience_section(
                         document,
                         current_element,
                         processed_elements,
+                        style_constants,
                         paragraph_style_headings=paragraph_style_headings,
                     )
 
@@ -747,7 +871,7 @@ def process_experience_section(
                                     style="List Bullet"
                                 )
                                 _left_indent_paragraph(
-                                    bullet_para, BULLET_INDENT_INCHES
+                                    bullet_para, bullet_indent_inches
                                 )  # Keep indentation for bullets
                                 _process_text_for_hyperlinks(bullet_para, li.text)
                             processed_elements.add(next_element)
@@ -780,7 +904,11 @@ def process_experience_section(
                             skills_list = []
                             for li in next_element.find_all("li"):
                                 skills_list.append(li.text.strip())
-                            skills_para.add_run(" • ".join(skills_list))
+                            skills_para.add_run(
+                                style_constants.get("bullet_separator").join(
+                                    skills_list
+                                )
+                            )
                             processed_elements.add(next_element)
 
                     # Determine if we need to add a blank line after Key Skills
@@ -913,6 +1041,7 @@ def process_experience_section(
 def process_education_section(
     document: Document,
     soup: BeautifulSoup,
+    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Education section
@@ -920,6 +1049,7 @@ def process_education_section(
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
+        style_constants (dict, optional): Dictionary containing style constants
         paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
@@ -931,6 +1061,7 @@ def process_education_section(
     _process_simple_section(
         document,
         section_h2,
+        style_constants,
         add_space=ResumeSection.EDUCATION.add_space_before_h3,
         paragraph_style_headings=paragraph_style_headings,
     )
@@ -939,6 +1070,7 @@ def process_education_section(
 def process_certifications_section(
     document: Document,
     soup: BeautifulSoup,
+    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Certifications section
@@ -964,6 +1096,7 @@ def process_certifications_section(
 def process_contact_section(
     document: Document,
     soup: BeautifulSoup,
+    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Contact section
@@ -971,6 +1104,7 @@ def process_contact_section(
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
+        style_constants (dict, optional): Dictionary containing style constants
         paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
@@ -982,6 +1116,7 @@ def process_contact_section(
     _process_simple_section(
         document,
         section_h2,
+        style_constants,
         add_space=ResumeSection.CONTACT.add_space_before_h3,
         paragraph_style_headings=paragraph_style_headings,
     )
@@ -990,6 +1125,83 @@ def process_contact_section(
 ##############################
 # Primary Helpers
 ##############################
+def _apply_document_styles(
+    document: Document, styles: dict = None, style_constants: dict = None
+) -> None:
+    """Apply style settings to document using values from config
+
+    Args:
+        document: The Word document object
+        styles: Dictionary of style settings from config
+        style_constants: Dictionary of style constants from config
+    """
+    if styles is None or style_constants is None:
+        print("Warning: No styles or style constants provided, using defaults")
+        return
+
+    if "Hyperlink" in styles and "Hyperlink" not in document.styles:
+        hyperlink_props = styles["Hyperlink"]
+        try:
+            hyperlink_style = document.styles.add_style(
+                "Hyperlink", DOCX_STYLE_TYPE.CHARACTER
+            )
+
+            # Apply font properties from the config
+            if "font_name" in hyperlink_props:
+                hyperlink_style.font.name = hyperlink_props["font_name"]
+            if "font_size" in hyperlink_props:
+                hyperlink_style.font.size = hyperlink_props["font_size"]
+            if "underline" in hyperlink_props:
+                hyperlink_style.font.underline = hyperlink_props["underline"]
+            if "color" in hyperlink_props and isinstance(hyperlink_props["color"], str):
+                hyperlink_style.font.color.rgb = RGBColor.from_string(
+                    hyperlink_props["color"]
+                )
+        except Exception as e:
+            print(f"Warning: Could not create Hyperlink style: {str(e)}")
+
+    for style_name, properties in styles.items():
+
+        if style_name == "Hyperlink" and style_name not in document.styles:
+            continue  # Already handled above
+
+        try:
+            # Get the style object from document
+            style = document.styles[style_name]
+
+            # Apply font properties
+            if "font_name" in properties:
+                style.font.name = properties["font_name"]
+            if "font_size" in properties:
+                style.font.size = properties["font_size"]
+            if "bold" in properties:
+                style.font.bold = properties["bold"]
+            if "italic" in properties:
+                style.font.italic = properties["italic"]
+            if "underline" in properties:
+                style.font.underline = properties["underline"]
+            if "color" in properties:
+                style.font.color.rgb = properties["color"]
+
+            # Apply paragraph format properties
+            if hasattr(style, "paragraph_format"):
+                if "line_spacing" in properties:
+                    style.paragraph_format.line_spacing = properties["line_spacing"]
+                if "space_after" in properties:
+                    style.paragraph_format.space_after = properties["space_after"]
+                if "indent_left" in properties:
+                    style.paragraph_format.left_indent = properties["indent_left"]
+                if "indent_right" in properties:
+                    style.paragraph_format.right_indent = properties["indent_right"]
+                if "alignment" in properties:
+                    style.paragraph_format.alignment = properties["alignment"]
+
+        except (KeyError, AttributeError) as e:
+            print(
+                f"Warning: Could not apply all properties to '{style_name}': {str(e)}"
+            )
+
+
 def _prepare_section(
     document: Document,
     soup: BeautifulSoup,
@@ -1040,6 +1252,7 @@ def _prepare_section(
 def _process_simple_section(
     document: Document,
     section_h2: BS4_Element,
+    style_constants: dict,
     add_space: bool = False,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
@@ -1049,6 +1262,7 @@ def _process_simple_section(
     Args:
         document: The Word document object
         section_h2: The BeautifulSoup h2 element for the section
+        style_constants (dict, optional): Dictionary containing style constants
         add_space (bool, optional): Whether to add a space paragraph after the section. Defaults to False.
         paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
@@ -1077,13 +1291,14 @@ def _process_simple_section(
 
     # Add an extra space after the section if requested
     if add_space:
-        _add_space_paragraph(document)
+        _add_space_paragraph(document, style_constants.get("font_size_pts"))
 
 
 def _process_project_section(
     document: Document,
     project_element: BS4_Element,
     processed_elements: set[BS4_Element],
+    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> set[BS4_Element]:
     """Process a project/client section and its related elements
@@ -1092,6 +1307,7 @@ def _process_project_section(
         document: The Word document object
         project_element: BeautifulSoup element for the project heading
         processed_elements: Set of elements already processed
+        style_constants (dict, optional): Dictionary containing style constants
         paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
@@ -1099,6 +1315,8 @@ def _process_project_section(
     """
     if paragraph_style_headings is None:
         paragraph_style_headings = {}
+
+    bullet_indent_inches = style_constants.get("bullet_indent_inches")
 
     # Get the next element to see if it contains the project details
     next_element = project_element.find_next_sibling()
@@ -1201,7 +1419,7 @@ def _process_project_section(
             for li in next_element.find_all("li"):
                 bullet_para = document.add_paragraph(style="List Bullet")
                 _left_indent_paragraph(
-                    bullet_para, BULLET_INDENT_INCHES
+                    bullet_para, bullet_indent_inches
                 )  # Keep indentation for bullets
                 _process_text_for_hyperlinks(bullet_para, li.text)
             processed_elements.add(next_element)
@@ -1522,13 +1740,27 @@ def _process_certification_blockquote(
 ##############################
 # Inractive Mode Helper
 ##############################
-def _run_interactive_mode() -> tuple[str, str, dict[str, bool], bool]:
+def _run_interactive_mode() -> tuple[str, str, dict[str, bool], bool, str]:
     """Run in interactive mode, prompting the user for inputs
 
     Returns:
-        tuple: (input_file, output_file, paragraph_style_headings)
+        tuple: (input_file, output_file, paragraph_style_headings, create_pdf, config_file)
     """
     print("\n🎯 Welcome to Resume Markdown to ATS Converter (Interactive Mode) 🎯\n")
+
+    # Prompt for config file first
+    default_config = "resume_config.yaml"
+    config_prompt = (
+        f"⚙️ Enter path to configuration file (default: '{default_config}'): "
+    )
+    config_file = input(config_prompt).strip()
+    if not config_file:
+        config_file = default_config
+        print(f"✅ Using default configuration: {config_file}")
+
+    # Load configuration using specified config file
+    config = load_config(config_file)  # Don't print success message
+    doc_defaults = config["document_defaults"]
 
     # Prompt for input file
     while True:
@@ -1544,7 +1776,7 @@ def _run_interactive_mode() -> tuple[str, str, dict[str, bool], bool]:
         break
 
     # Prompt for output file
-    default_output = "My ATS Resume.docx"
+    default_output = doc_defaults["output_filename"]  # Use from config
     output_prompt = f"📝 Enter the output docx filename (default: '{default_output}'): "
     output_file = input(output_prompt).strip()
     if not output_file:
@@ -1688,7 +1920,7 @@ def _convert_with_win32com(docx_file: str, pdf_file: str) -> bool:
 # Utilities
 ##############################
 def _left_indent_paragraph(
-    paragraph: DOCX_Paragraph, inches: float = DEFAULT_INDENT_INCHES
+    paragraph: DOCX_Paragraph, inches: float = 0.25
 ) -> DOCX_Paragraph:
     """Set the left indentation of a paragraph in inches
 
@@ -1928,7 +2160,7 @@ def _process_text_for_hyperlinks(paragraph: DOCX_Paragraph, text: str) -> None:
 def _add_hyperlink(
     paragraph: DOCX_Paragraph, text: str, url: str
 ) -> docx.oxml.shared.OxmlElement:
-    """Add a hyperlink to a paragraph
+    """Add a hyperlink to a paragraph using direct formatting instead of style reference
 
     Args:
         paragraph: The paragraph to add the hyperlink to
@@ -1936,9 +2168,9 @@ def _add_hyperlink(
         url (str): The URL to link to
 
     Returns:
-        Run: The created run object
+        OxmlElement: The created hyperlink element
     """
-    # This gets access to the document
+    # Get access to the document
     part = paragraph.part
     # Create the relationship
     r_id = part.relate_to(url, DOCX_REL.HYPERLINK, is_external=True)
@@ -1951,17 +2183,20 @@ def _add_hyperlink(
     new_run = docx.oxml.shared.OxmlElement("w:r")
     rPr = docx.oxml.shared.OxmlElement("w:rPr")
 
-    # Add text style for hyperlinks (blue and underlined)
-    color = docx.oxml.shared.OxmlElement("w:color")
-    color.set(docx.oxml.shared.qn("w:val"), "0000FF")
-    rPr.append(color)
+    # Create a run inside the hyperlink
+    new_run = docx.oxml.shared.OxmlElement("w:r")
+    rPr = docx.oxml.shared.OxmlElement("w:rPr")
 
-    u = docx.oxml.shared.OxmlElement("w:u")
-    u.set(docx.oxml.shared.qn("w:val"), "single")
-    rPr.append(u)
+    # Apply the Hyperlink style by referencing it
+    style_id = docx.oxml.shared.OxmlElement("w:rStyle")
+    style_id.set(docx.oxml.shared.qn("w:val"), "Hyperlink")
+    rPr.append(style_id)
 
+    # Add the run properties to the run
     new_run.append(rPr)
+    # Set the text
     new_run.text = text
+    # Add the run to the hyperlink
     hyperlink.append(new_run)
 
     # Add the hyperlink to the paragraph
@@ -1970,31 +2205,37 @@ def _add_hyperlink(
     return hyperlink
 
 
-def _add_horizontal_line_simple(document: Document) -> None:
+def _add_horizontal_line_simple(
+    document: Document, style_constants: dict = None
+) -> None:
     """Add a simple horizontal line to the document using underscores
 
     Args:
         document: The Word document object
+        style_constants (dict, optional): Dictionary containing style constants. Defaults to None.
 
     Returns:
         None
     """
+    # Use defaults if no style_constants provided
+    if style_constants is None:
+        style_constants = {}
+
+    # Get values from config with fallbacks
+    line_char = style_constants.get("horizontal_line_char", "_")
+    line_length = style_constants.get("horizontal_line_length", 50)
+
     p = document.add_paragraph()
     p.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
-    p.add_run("_" * 50).bold = True
-
-    # Add some space after the line
-    # _add_space_paragraph(document)
+    p.add_run(line_char * line_length).bold = True
 
 
-def _add_space_paragraph(
-    document: Document, font_size: int = DEFAULT_POINT_SIZE
-) -> None:
+def _add_space_paragraph(document: Document, font_size: int = None) -> None:
     """Add a paragraph with extra space after it
 
     Args:
         document: The Word document object
-        font_size (int): Controls both the spacing after paragraph and the font size of the run. Defaults to 12.
+        font_size (int, optional): Controls spacing after paragraph and run font size.
 
     Returns:
         None
@@ -2007,7 +2248,6 @@ def _add_space_paragraph(
 # Main Entry
 ##############################
 if __name__ == "__main__":
-    import os
 
     # Create detailed program description and examples
     program_description = """
@@ -2046,6 +2286,13 @@ if __name__ == "__main__":
 
     parser.add_argument("-i", "--input", dest="input_file", help="Input markdown file")
     parser.add_argument(
+        "-c",
+        "--config",
+        dest="config_file",
+        help="Path to YAML configuration file",
+        default="resume_config.yaml",
+    )
+    parser.add_argument(
         "-o",
         "--output",
         dest="output_file",
@@ -2076,9 +2323,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # Load configuration before processing arguments
+    config = load_config(args.config_file, True)
+    doc_defaults = config["document_defaults"]
+
     # Check if we should run in interactive mode
-    # - No arguments were provided at all
-    # - Only -I/--interactive flag was provided
     if (
         not (args.input_file or args.output_file or args.paragraph_headings)
         or args.interactive
@@ -2089,7 +2338,9 @@ if __name__ == "__main__":
     else:
         # Use command-line arguments
         input_file = args.input_file
-        output_file = args.output_file or "My ATS Resume.docx"
+        output_file = (
+            args.output_file or doc_defaults["output_filename"]
+        )  # Use from config
 
         # Convert list to dictionary if provided
         paragraph_style_headings = {}
@@ -2108,11 +2359,14 @@ if __name__ == "__main__":
         input_file,
         output_file,
         paragraph_style_headings=paragraph_style_headings,
+        config_file=args.config_file,  # Pass config file to use
     )
 
     # Convert to PDF if requested
     if create_pdf:
-        pdf_file = os.path.splitext(result)[0] + ".pdf"
+        pdf_file = (
+            os.path.splitext(result)[0] + doc_defaults["pdf_file_extension"]
+        )  # Use from config
         if convert_to_pdf(result, pdf_file):
             print(f"✅ Created PDF: {pdf_file}")
 

@@ -1,0 +1,93 @@
+# This file defines all document styling and formatting options
+
+# Document defaults - controls margins and page size
+document_defaults:
+  output_filename: "My ATS Resume.docx"
+  pdf_file_extension: ".pdf"
+  margin_top_bottom: 0.7  # in inches
+  margin_left_right: 0.8  # in inches
+  page_width: 8.5  # in inches (US Letter)
+  page_height: 11.0  # in inches (US Letter)
+
+# Style constants - general formatting preferences
+style_constants:
+  font_size_pts: 11
+  indent_inches: 0.25
+  bullet_indent_inches: 0.5
+  horizontal_line_char: "_"  # Character for horizontal lines
+  horizontal_line_length: 50  # Length of horizontal line
+  bullet_separator: " • "  # Separator for inline bullet lists
+
+# Document styles - Word document style definitions
+document_styles:
+  Normal:
+    # font_name: "Arial"
+    font_size: 11
+    # line_spacing: 1.15
+    # space_after: 6
+    # indent_left: 0.25
+    # indent_right: 0.25
+
+  Title:  # Used for your name at the top
+    # font_name: "Arial"
+    # font_size: 26
+    # alignment: CENTER (1)
+    color: "17365D"
+
+  Subtitle:  # Used for tagline under name
+    # font_name: "Arial"
+    # font_size: 12
+    # italic: true
+    # alignment: CENTER (1)
+    color: "17365D"
+
+  Heading 1:  # H1 - Name at top
+    # font_name: "Arial"
+    # font_size: 16
+    # bold: true
+    # underline: true
+    color: "365F91"
+
+  Heading 2:  # H2 - Main section headings
+    # font_name: "Arial"
+    # font_size: 14
+    # bold: true
+    color: "4F81BD"
+
+  Heading 3:  # H3 - Company names
+    # font_name: "Arial"
+    # font_size: 12
+    # bold: true
+    color: "4F81BD"
+
+  Heading 4:  # H4 - Role titles
+    # font_name: "Arial"
+    # font_size: 11
+    # bold: true
+    color: "4F81BD"
+
+  Heading 5:  # H5 - Subsections (Key Skills, etc.)
+    # font_name: "Arial"
+    # font_size: 11
+    # bold: true
+    # italic: true
+    color: "243F60"
+
+  Heading 6:  # H6 - Responsibilities, Details
+    # font_name: "Arial"
+    # font_size: 11
+    # bold: true
+    italic: true
+    color: "243F60"
+
+  Hyperlink:
+    # font_name: "Arial"
+    # font_size: 11
+    underline: true
+    color: "038cfc"
+
+  # List Bullet:
+    # font_name: "Arial"
+    # font_size: 11
+    # indent_left: 0.5
+    # indent_right: 0.5
