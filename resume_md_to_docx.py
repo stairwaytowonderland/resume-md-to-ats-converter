@@ -723,7 +723,21 @@ def process_experience_section(document, soup, paragraph_style_headings=None) ->
                             skills_para.add_run(" • ".join(skills_list))
                             processed_elements.add(next_element)
 
-                    document.add_paragraph()  # Add spacing
+                    # Determine if this is the last role before next job entry (h3)
+                    # by checking if there's another role (h4) before the next job (h3)
+                    looking_ahead = current_element
+                    next_h3_or_h4 = None
+
+                    # Look for the next h3 or h4 element
+                    while looking_ahead and not next_h3_or_h4:
+                        looking_ahead = looking_ahead.find_next_sibling()
+                        if looking_ahead and looking_ahead.name in ["h3", "h4"]:
+                            next_h3_or_h4 = looking_ahead
+
+                    # Only add space if this is the last role (no h4 before next h3)
+                    # or if we're at the end of the section
+                    if not next_h3_or_h4 or next_h3_or_h4.name == "h3":
+                        document.add_paragraph()  # Add spacing only before next job or end of section
 
                 # RESPONSIBILITIES subsection (standalone)
                 elif (
