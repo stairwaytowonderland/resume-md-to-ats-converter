@@ -3,6 +3,7 @@ import os
 import re
 import sys
 from enum import Enum
+from pathlib import Path
 
 import docx.oxml.shared
 import markdown
@@ -32,16 +33,185 @@ EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 ##############################
 # Configs
 ##############################
+class ResumeSection(Enum):
+    """Maps markdown heading titles to their corresponding document headings
+
+    Properties:
+        markdown_heading (str): The text of the h2 heading in the markdown file
+        docx_heading (str): The text to use as a heading in the Word document
+        add_space_before_h3 (bool): Whether to add a blank line before each h3 heading
+                                   (except the first after h2)
+    """
+
+    ABOUT = ("About", "PROFESSIONAL SUMMARY", False)
+    SKILLS = ("Top Skills", "CORE SKILLS", False)
+    EXPERIENCE = ("Experience", "PROFESSIONAL EXPERIENCE", True)
+    EDUCATION = ("Education", "EDUCATION", True)
+    CERTIFICATIONS = ("Licenses & certifications", "LICENSES & CERTIFICATIONS", True)
+    CONTACT = ("Contact", "CONTACT INFORMATION", False)
+
+    def __init__(
+        self,
+        markdown_heading: str,
+        docx_heading: str,
+        add_space_before_h3: bool = False,
+    ):
+        """Initialize ResumeSection enum
+
+        Args:
+            markdown_heading (str): The text of the h2 heading in the markdown file
+            docx_heading (str): The text to use as a heading in the Word document
+            add_space_before_h3 (bool): Whether to add a blank line before each h3 heading
+                                       (except the first after h2). Defaults to False.
+        """
+        self.markdown_heading = markdown_heading
+        self.docx_heading = docx_heading
+        self.markdown_heading_lower = markdown_heading.lower()
+        self.add_space_before_h3 = add_space_before_h3
+
+    def matches(self, text):
+        """Check if the given text matches this section's markdown_heading (case insensitive)
+
+        Args:
+            text (str): Text to compare against markdown_heading
+
+        Returns:
+            bool: True if text matches markdown_heading (case insensitive), False otherwise
+        """
+        return text.lower() == self.markdown_heading_lower
+
+
+class JobSubsection(Enum):
+    """Maps markdown subsection headings to their corresponding document headings
+
+    Properties:
+        markdown_heading_level (str): The HTML tag name (e.g., 'h5', 'h6') in markdown
+        markdown_text_lower (str): The lowercase text content of the heading to match
+        docx_heading (str): The text to use as a heading in the Word document
+        separator (str): Optional separator to append after the heading (default: "")
+        bold (bool): Whether the heading should be bold (default: True)
+        italic (bool): Whether the heading should be italic (default: False)
+    """
+
+    KEY_SKILLS = ("h5", "key skills", "Technical Skills", ":", True, False)
+    SUMMARY = ("h5", "summary", "Summary", ":", True, False)
+    INTERNAL = ("h5", "internal", "Internal", ":", True, False)
+    PROJECT_CLIENT = ("h5", "project/client", "Project/Client", ": ", True, True)
+    RESPONSIBILITIES = (
+        "h6",
+        "responsibilities overview",
+        "Responsibilities",
+        ":",
+        True,
+        False,
+    )
+    ADDITIONAL_DETAILS = (
+        "h6",
+        "additional details",
+        "Additional Details",
+        ":",
+        True,
+        False,
+    )
+    HIGHLIGHTS = ("h3", "highlights", "Highlights", "", True, False)
+
+    def __init__(
+        self,
+        markdown_heading_level: str,
+        markdown_text_lower: str,
+        docx_heading: str,
+        separator: str = "",
+        bold: bool = True,
+        italic: bool = False,
+    ):
+        """Initialize the JobSubsection with its properties"""
+        self.markdown_heading_level = markdown_heading_level
+        self.markdown_text_lower = markdown_text_lower
+        self.docx_heading = docx_heading
+        self.separator = separator
+        self.bold = bold
+        self.italic = italic
+
+    @property
+    def full_heading(self):
+        """Return the full heading with separator
+
+        Returns:
+            str: The complete heading text with separator
+        """
+        return f"{self.docx_heading}{self.separator}"
+
+    @classmethod
+    def find_by_tag_and_text(cls, tag_name: str, text: str):
+        """Find a JobSubsection by tag name and text content (case insensitive)
+
+        Args:
+            tag_name (str): HTML tag name to match (e.g., 'h5', 'h6')
+            text (str): Text content to match (case insensitive)
+
+        Returns:
+            JobSubsection or None: The matching subsection or None if not found
+        """
+        text_lower = text.lower().strip()
+
+        # First try exact match
+        for subsection in cls:
+            if (
+                subsection.markdown_heading_level == tag_name
+                and text_lower == subsection.markdown_text_lower
+            ):
+                return subsection
+
+        # If no exact match, try partial match for elements
+        # Create a dictionary of keywords to check against each subsection type
+        if tag_name in [
+            "h5",
+            "h6",
+        ]:  # Allow partial matching for both h5 and h6 elements
+            # Group subsections by heading level
+            matching_subsections = [
+                s for s in cls if s.markdown_heading_level == tag_name
+            ]
+
+            # Try partial matching against each subsection's keywords
+            for subsection in matching_subsections:
+                # Extract the first word of the markdown_text_lower as the key keyword
+                keyword = subsection.markdown_text_lower.split()[0]
+                if keyword in text_lower:
+                    return subsection
+
+        return None
+
+
+class PdfConverterPaths(Enum):
+    """Enum to store paths to PDF converter executables on different platforms"""
+
+    # Windows LibreOffice paths
+    LIBREOFFICE_WINDOWS = [
+        r"C:\Program Files\LibreOffice\program\soffice.exe",
+        r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
+    ]
+
+    # macOS LibreOffice path
+    LIBREOFFICE_MACOS = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+
+    # Linux/Unix LibreOffice command name (assumed to be in PATH)
+    LIBREOFFICE_LINUX = "libreoffice"
+
+
+##############################
+# Helper Classes
+##############################
 class ConfigLoader:
     """Class for loading and accessing configuration from YAML file"""
 
     def __init__(
-        self, config_file: str = DEFAULT_CONFIG_FILE, print_success_msg: bool = False
+        self, config_file: Path = DEFAULT_CONFIG_FILE, print_success_msg: bool = True
     ):
         """Initialize by loading configuration from YAML file
 
         Args:
-            config_file (str): Path to configuration file.
+            config_file (Path): Path to configuration file.
                              Defaults to 'resume_config.yaml' in same directory.
             print_success_msg (bool): Whether to print success message after loading.
                                    Defaults to False.
@@ -65,7 +235,9 @@ class ConfigLoader:
                 "bullet_indent_inches": 0.5,
                 "horizontal_line_char": "_",
                 "horizontal_line_length": 50,
+                "top_skills_separator": " | ",
                 "bullet_separator": " • ",
+                "paragraph_after_h4_line_spacing": 0.20,
             },
             "document_styles": {},
             "markdown_headings": {
@@ -291,10 +463,13 @@ class HeadingsHelper:
 
     # Class-level storage for the heading configuration
     _heading_map = {}
+    _paragraph_style_headings = {}
     _initialized = False
 
     @classmethod
-    def init(cls, config: dict) -> None:
+    def init(
+        cls, config: dict, paragraph_style_headings: dict[str, bool] = None
+    ) -> None:
         """Initialize the heading map from configuration
 
         Args:
@@ -302,7 +477,31 @@ class HeadingsHelper:
         """
         # Simply assign the markdown_headings from config
         cls._heading_map = config["markdown_headings"]
+        cls._paragraph_style_headings = paragraph_style_headings or {}
         cls._initialized = True
+
+    @classmethod
+    def should_use_paragraph_style(cls, tag_name: str) -> bool:
+        """Check if a heading tag should use paragraph style instead of heading style
+
+        Args:
+            tag_name (str): HTML tag name (e.g., 'h1', 'h2', etc.)
+
+        Returns:
+            bool: True if tag should use paragraph style, False otherwise
+        """
+        cls._check_initialized()
+        return cls._paragraph_style_headings.get(tag_name, False)
+
+    @classmethod
+    def any_heading_uses_paragraph_style(cls) -> bool:
+        """Check if any heading level uses paragraph style
+
+        Returns:
+            bool: True if any heading level has paragraph styling enabled, False otherwise
+        """
+        cls._check_initialized()
+        return bool(cls._paragraph_style_headings)
 
     @classmethod
     def get_level_for_tag(cls, tag_name: str) -> int | None:
@@ -367,180 +566,19 @@ class HeadingsHelper:
             )
 
 
-class ResumeSection(Enum):
-    """Maps markdown heading titles to their corresponding document headings
-
-    Properties:
-        markdown_heading (str): The text of the h2 heading in the markdown file
-        docx_heading (str): The text to use as a heading in the Word document
-        add_space_before_h3 (bool): Whether to add a blank line before each h3 heading
-                                   (except the first after h2)
-    """
-
-    ABOUT = ("About", "PROFESSIONAL SUMMARY", False)
-    SKILLS = ("Top Skills", "CORE SKILLS", False)
-    EXPERIENCE = ("Experience", "PROFESSIONAL EXPERIENCE", True)
-    EDUCATION = ("Education", "EDUCATION", True)
-    CERTIFICATIONS = ("Licenses & certifications", "LICENSES & CERTIFICATIONS", True)
-    CONTACT = ("Contact", "CONTACT INFORMATION", False)
-
-    def __init__(
-        self,
-        markdown_heading: str,
-        docx_heading: str,
-        add_space_before_h3: bool = False,
-    ):
-        """Initialize ResumeSection enum
-
-        Args:
-            markdown_heading (str): The text of the h2 heading in the markdown file
-            docx_heading (str): The text to use as a heading in the Word document
-            add_space_before_h3 (bool): Whether to add a blank line before each h3 heading
-                                       (except the first after h2). Defaults to False.
-        """
-        self.markdown_heading = markdown_heading
-        self.docx_heading = docx_heading
-        self.markdown_heading_lower = markdown_heading.lower()
-        self.add_space_before_h3 = add_space_before_h3
-
-    def matches(self, text):
-        """Check if the given text matches this section's markdown_heading (case insensitive)
-
-        Args:
-            text (str): Text to compare against markdown_heading
-
-        Returns:
-            bool: True if text matches markdown_heading (case insensitive), False otherwise
-        """
-        return text.lower() == self.markdown_heading_lower
-
-
-class JobSubsection(Enum):
-    """Maps markdown subsection headings to their corresponding document headings
-
-    Properties:
-        markdown_heading_level (str): The HTML tag name (e.g., 'h5', 'h6') in markdown
-        markdown_text_lower (str): The lowercase text content of the heading to match
-        docx_heading (str): The text to use as a heading in the Word document
-        separator (str): Optional separator to append after the heading (default: "")
-        bold (bool): Whether the heading should be bold (default: True)
-        italic (bool): Whether the heading should be italic (default: False)
-    """
-
-    KEY_SKILLS = ("h5", "key skills", "Technical Skills", "", True, False)
-    SUMMARY = ("h5", "summary", "Summary", "", True, False)
-    INTERNAL = ("h5", "internal", "Internal", "", True, False)
-    PROJECT_CLIENT = ("h5", "project/client", "Project/Client", ": ", True, True)
-    RESPONSIBILITIES = (
-        "h6",
-        "responsibilities overview",
-        "Responsibilities",
-        "",
-        True,
-        False,
-    )
-    ADDITIONAL_DETAILS = (
-        "h6",
-        "additional details",
-        "Additional Details",
-        "",
-        True,
-        False,
-    )
-    HIGHLIGHTS = ("h3", "highlights", "Highlights", "", True, False)
-
-    def __init__(
-        self,
-        markdown_heading_level: str,
-        markdown_text_lower: str,
-        docx_heading: str,
-        separator: str = "",
-        bold: bool = True,
-        italic: bool = False,
-    ):
-        """Initialize the JobSubsection with its properties"""
-        self.markdown_heading_level = markdown_heading_level
-        self.markdown_text_lower = markdown_text_lower
-        self.docx_heading = docx_heading
-        self.separator = separator
-        self.bold = bold
-        self.italic = italic
-
-    @property
-    def full_heading(self):
-        """Return the full heading with separator
-
-        Returns:
-            str: The complete heading text with separator
-        """
-        return f"{self.docx_heading}{self.separator}"
-
-    @classmethod
-    def find_by_tag_and_text(cls, tag_name: str, text: str):
-        """Find a JobSubsection by tag name and text content (case insensitive)
-
-        Args:
-            tag_name (str): HTML tag name to match (e.g., 'h5', 'h6')
-            text (str): Text content to match (case insensitive)
-
-        Returns:
-            JobSubsection or None: The matching subsection or None if not found
-        """
-        text_lower = text.lower().strip()
-
-        # First try exact match
-        for subsection in cls:
-            if (
-                subsection.markdown_heading_level == tag_name
-                and text_lower == subsection.markdown_text_lower
-            ):
-                return subsection
-
-        # If no exact match, try partial match for elements
-        # Create a dictionary of keywords to check against each subsection type
-        if tag_name == "h6":  # Only do partial matching for h6 elements
-            # Group subsections by heading level
-            h6_subsections = [s for s in cls if s.markdown_heading_level == "h6"]
-
-            # Try partial matching against each subsection's keywords
-            for subsection in h6_subsections:
-                # Extract the first word of the markdown_text_lower as the key keyword
-                keyword = subsection.markdown_text_lower.split()[0]
-                if keyword in text_lower:
-                    return subsection
-
-        return None
-
-
-class PdfConverterPaths(Enum):
-    """Enum to store paths to PDF converter executables on different platforms"""
-
-    # Windows LibreOffice paths
-    LIBREOFFICE_WINDOWS = [
-        r"C:\Program Files\LibreOffice\program\soffice.exe",
-        r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
-    ]
-
-    # macOS LibreOffice path
-    LIBREOFFICE_MACOS = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
-
-    # Linux/Unix LibreOffice command name (assumed to be in PATH)
-    LIBREOFFICE_LINUX = "libreoffice"
-
-
 ##############################
 # Main Processors
 ##############################
 def create_ats_resume(
-    md_file: str,
-    output_file: str,
+    md_file: Path,
+    output_file: Path,
     config_loader: ConfigLoader,
     paragraph_style_headings: dict[str, bool] = None,
-) -> str:
+) -> Path:
     """Convert markdown resume to ATS-friendly Word document
 
     Args:
-        md_file (str): Path to the markdown resume file
+        md_file (Path): Path to the markdown resume file
         output_file (str): Path where the output Word document will be saved
         config_loader (ConfigLoader, optional): ConfigLoader instance with configuration.
                                                If None, creates with default config file.
@@ -548,20 +586,20 @@ def create_ats_resume(
                                                  to boolean values.
 
     Returns:
-        str: Path to the created document
+        Path: Path to the created document
     """
+    # Default to using heading styles for all if not specified
+    if paragraph_style_headings is None:
+        paragraph_style_headings = {}
+
     # Initialize ConfigHelper and HeadingsHelper with config
     ConfigHelper.init(config_loader.config)
-    HeadingsHelper.init(config_loader.config)
+    HeadingsHelper.init(config_loader.config, paragraph_style_headings)
 
     # Access config sections directly through properties
     doc_defaults = config_loader.document_defaults
     style_constants = config_loader.style_constants
     document_styles = config_loader.document_styles
-
-    # Default to using heading styles for all if not specified
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
 
     # Read markdown file
     with open(md_file, "r") as file:
@@ -590,55 +628,50 @@ def create_ats_resume(
         (ResumeSection.ABOUT, process_header_section),
         (
             ResumeSection.ABOUT,
-            lambda doc, soup, ps: process_about_section(
-                document=doc, soup=soup, paragraph_style_headings=ps
-            ),
+            lambda doc, soup: process_about_section(document=doc, soup=soup),
         ),
         (
             ResumeSection.SKILLS,
-            lambda doc, soup, ps: process_skills_section(doc, soup, ps),
+            lambda doc, soup: process_skills_section(doc, soup),
         ),
         (
             ResumeSection.EXPERIENCE,
-            lambda doc, soup, ps: process_experience_section(doc, soup, ps),
+            lambda doc, soup: process_experience_section(doc, soup),
         ),
         (
             ResumeSection.EDUCATION,
-            lambda doc, soup, ps: process_education_section(doc, soup, ps),
+            lambda doc, soup: process_education_section(doc, soup),
         ),
         (
             ResumeSection.CERTIFICATIONS,
-            lambda doc, soup, ps: process_certifications_section(doc, soup, ps),
+            lambda doc, soup: process_certifications_section(doc, soup),
         ),
         (
             ResumeSection.CONTACT,
-            lambda doc, soup, ps: process_contact_section(doc, soup, ps),
+            lambda doc, soup: process_contact_section(doc, soup),
         ),
     ]
 
     # Process each section
     for section_type, processor in section_processors:
-        processor(document, soup, paragraph_style_headings)
+        processor(document, soup)
 
     # Save the document
     document.save(output_file)
 
-    return output_file
+    return Path(output_file)
 
 
-def convert_to_pdf(docx_file: str, pdf_file: str = None):
+def convert_to_pdf(docx_file: Path) -> Path | None:
     """Convert a DOCX file to PDF using available converters
 
     Args:
-        docx_file (str): Path to the input DOCX file
-        pdf_file (str, optional): Path for the output PDF file. If None,
-                                 replaces the .docx extension with .pdf
+        docx_file (Path): Path to the input DOCX file
 
     Returns:
-        str: Path to the created PDF file, or None if conversion failed
+        Path: Path to the created PDF file, or None if conversion failed
     """
-    if pdf_file is None:
-        pdf_file = os.path.splitext(docx_file)[0] + ".pdf"
+    pdf_file = docx_file.with_suffix(".pdf")
 
     # Try multiple conversion methods
     methods = [
@@ -650,7 +683,7 @@ def convert_to_pdf(docx_file: str, pdf_file: str = None):
     for method in methods:
         try:
             if method(docx_file, pdf_file):
-                return pdf_file
+                return Path(pdf_file)
         except Exception as e:
             print(f"Could not convert using {method.__name__}: {str(e)}")
 
@@ -667,21 +700,16 @@ def convert_to_pdf(docx_file: str, pdf_file: str = None):
 def process_header_section(
     document: Document,
     soup: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the header (name and tagline) section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     # Extract header (name)
     name = soup.find("h1").text
 
@@ -693,8 +721,8 @@ def process_header_section(
     first_p = soup.find("h1").find_next_sibling()
     if first_p and first_p.name == "p":
         # Check if ANY paragraph headings are specified, which indicates preference for simpler styling
-        use_paragraph_style = bool(
-            paragraph_style_headings
+        use_paragraph_style = (
+            HeadingsHelper.any_heading_uses_paragraph_style()
         )  # True if any heading levels use paragraph style
 
         # Check if the paragraph contains emphasis (italics)
@@ -750,24 +778,17 @@ def process_header_section(
 def process_about_section(
     document: Document,
     soup: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the About section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
-    section_h2 = _prepare_section(
-        document, soup, ResumeSection.ABOUT, paragraph_style_headings
-    )
+    section_h2 = _prepare_section(document, soup, ResumeSection.ABOUT)
 
     if not section_h2:
         return
@@ -824,8 +845,8 @@ def process_about_section(
                 if current_element.name.startswith("h")
                 else None
             )
-            use_paragraph_style = paragraph_style_headings.get(
-                current_element.name, False
+            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+                current_element.name
             )
             _add_heading_or_paragraph(
                 document,
@@ -848,24 +869,17 @@ def process_about_section(
 def process_skills_section(
     document: Document,
     soup: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Skills section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
-    section_h2 = _prepare_section(
-        document, soup, ResumeSection.SKILLS, paragraph_style_headings
-    )
+    section_h2 = _prepare_section(document, soup, ResumeSection.SKILLS)
 
     if not section_h2:
         return
@@ -873,101 +887,69 @@ def process_skills_section(
     current_element = section_h2.find_next_sibling()
 
     if current_element and current_element.name == "p":
-        skills = [s.strip() for s in current_element.text.split("•")]
+        input_separator = ConfigHelper.get_style_constant(
+            "top_skills_separator_markdown", " • "
+        )
+        skills = [
+            s.strip() for s in current_element.text.split(input_separator.strip())
+        ]
         skills = [s for s in skills if s]
-        _add_formatted_paragraph(document, " | ".join(skills))
+        output_separator = ConfigHelper.get_style_constant(
+            "top_skills_separator", " | "
+        )
+        _add_formatted_paragraph(document, output_separator.join(skills))
 
 
 def process_experience_section(
     document: Document,
     soup: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Experience section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
-    section_h2 = _prepare_section(
-        document, soup, ResumeSection.EXPERIENCE, paragraph_style_headings
-    )
+    section_h2 = _prepare_section(document, soup, ResumeSection.EXPERIENCE)
 
     if not section_h2:
         return
 
     # Find all job entries (h3 headings under Experience)
     current_element = section_h2.find_next_sibling()
-
-    # Track for additional processing
+    # Use a set of element IDs instead of element objects
+    processed_element_ids = set()
     processed_elements = set()
-
-    # Get the add_space_before_h3 setting from the section type
     add_space_before_h3 = ResumeSection.EXPERIENCE.add_space_before_h3
 
-    bullet_indent_inches = ConfigHelper.get_style_constant("bullet_indent_inches")
-
     while current_element and current_element.name != "h2":
-        # Skip if already processed
-        if current_element in processed_elements:
+        # Get unique ID for this element
+        element_id = id(current_element)
+
+        # Skip if already processed (except h3 elements)
+        if element_id in processed_element_ids and current_element.name != "h3":
             current_element = current_element.find_next_sibling()
             continue
 
-        # New job title (h3)
+        # Process based on element type
         if current_element.name == "h3":
+            # Process job entry and mark as processed
             processed_elements = _process_job_entry(
-                document,
-                current_element,
-                processed_elements,
-                paragraph_style_headings,
-                add_space_before_h3,
+                document, current_element, set(), add_space_before_h3
             )
+            processed_element_ids.add(element_id)
+        elif current_element.name == "h4" and element_id not in processed_element_ids:
+            # Process position and mark as processed
+            processed_elements = _process_position(document, current_element, set())
+            processed_element_ids.add(element_id)
 
-        # Position titles under a company (h4)
-        elif current_element.name == "h4" and current_element not in processed_elements:
-            position_title = current_element.text.strip()
-
-            # Check if this h4 is part of a company name after job title
-            prev_h3 = current_element.find_previous_sibling("h3")
-            next_after_h3 = prev_h3.find_next_sibling() if prev_h3 else None
-
-            # Only process if this isn't a company name directly after job title
-            if prev_h3 and next_after_h3 and next_after_h3 != current_element:
-                # Use proper heading for position title
-                heading_level = HeadingsHelper.get_level_for_tag(current_element.name)
-                use_paragraph_style = paragraph_style_headings.get(
-                    current_element.name, False
-                )
-                _add_heading_or_paragraph(
-                    document,
-                    position_title,
-                    heading_level,
-                    use_paragraph_style=use_paragraph_style,
-                )
-
-                # Find date if available
-                date_element = current_element.find_next_sibling()
-                if (
-                    date_element
-                    and date_element.name == "p"
-                    and date_element.find("em")
-                ):
-                    position_date = date_element.text.replace("*", "").strip()
-                    date_para = document.add_paragraph()
-                    date_run = date_para.add_run(position_date)
-                    date_run.italic = True
-
-                    # Mark as processed
-                    processed_elements.add(date_element)
-
-        elif current_element.name in ["h5", "h6"]:
+        elif (
+            current_element.name in ["h5", "h6"]
+            and element_id not in processed_element_ids
+        ):
             # Find matching subsection type
             subsection = JobSubsection.find_by_tag_and_text(
                 current_element.name, current_element.text
@@ -981,45 +963,41 @@ def process_experience_section(
                     subsection == JobSubsection.PROJECT_CLIENT
                     and current_element not in processed_elements
                 ):
-                    processed_elements = _process_project_section(
+                    project_processed = _process_project_section(
                         document,
                         current_element,
                         processed_elements,
-                        paragraph_style_headings=paragraph_style_headings,
                     )
 
-                # SUMMARY subsection
+                    # Add all elements processed by the project handler to our tracking
+                    processed_elements.update(project_processed)
+
+                    # Also update element IDs
+                    for element in project_processed:
+                        processed_element_ids.add(id(element))
+
+                # Generic subsection processing for SUMMARY, INTERNAL, etc.
                 elif (
-                    subsection == JobSubsection.SUMMARY
+                    subsection in [JobSubsection.SUMMARY, JobSubsection.INTERNAL]
                     and current_element not in processed_elements
                 ):
-                    processed_elements = _process_subsection(
+                    project_processed = _process_subsection(
                         document,
                         current_element,
                         subsection,
                         heading_level,
                         processed_elements,
-                        paragraph_style_headings,
                     )
 
-                # INTERNAL subsection
-                elif (
-                    subsection == JobSubsection.INTERNAL
-                    and current_element not in processed_elements
-                ):
-                    processed_elements = _process_subsection(
-                        document,
-                        current_element,
-                        subsection,
-                        heading_level,
-                        processed_elements,
-                        paragraph_style_headings,
-                    )
+                    # Update tracking
+                    processed_elements.update(project_processed)
+                    for element in project_processed:
+                        processed_element_ids.add(id(element))
 
                 # KEY_SKILLS subsection
                 elif subsection == JobSubsection.KEY_SKILLS:
-                    use_paragraph_style = paragraph_style_headings.get(
-                        current_element.name, False
+                    use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+                        current_element.name
                     )
                     skills_heading = _add_heading_or_paragraph(
                         document,
@@ -1035,18 +1013,20 @@ def process_experience_section(
                     next_element = current_element.find_next_sibling()
                     if next_element:
                         if next_element.name == "p":
-                            skills_text = next_element.text.strip()
-                            skills_para.add_run(skills_text)
-                            processed_elements.add(next_element)
-                        elif next_element.name == "ul":
-                            skills_list = []
-                            for li in next_element.find_all("li"):
-                                skills_list.append(li.text.strip())
-                            skills_para.add_run(
-                                ConfigHelper.get_style_constant(
-                                    "bullet_separator"
-                                ).join(skills_list)
+                            input_separator = ConfigHelper.get_style_constant(
+                                "key_skills_separator_markdown", " • "
                             )
+                            skills = [
+                                s.strip()
+                                for s in next_element.text.split(
+                                    input_separator.strip()
+                                )
+                            ]
+                            skills = [s for s in skills if s]
+                            output_separator = ConfigHelper.get_style_constant(
+                                "key_skills_separator", " • "
+                            )
+                            skills_para.add_run(output_separator.join(skills))
                             processed_elements.add(next_element)
 
                     # Determine if we need to add a blank line after Key Skills
@@ -1078,8 +1058,8 @@ def process_experience_section(
                     subsection == JobSubsection.RESPONSIBILITIES
                     and current_element not in processed_elements
                 ):
-                    use_paragraph_style = paragraph_style_headings.get(
-                        current_element.name, False
+                    use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+                        current_element.name
                     )
                     _add_heading_or_paragraph(
                         document,
@@ -1103,7 +1083,9 @@ def process_experience_section(
                                 bullet_para = document.add_paragraph(
                                     style="List Bullet"
                                 )
-                                _process_text_for_hyperlinks(bullet_para, li.text)
+                                _process_text_for_hyperlinks(
+                                    bullet_para, li.text, ensure_sentence_ending=True
+                                )
                             processed_elements.add(next_element)
 
                 # ADDITIONAL_DETAILS subsection (standalone)
@@ -1111,8 +1093,8 @@ def process_experience_section(
                     subsection == JobSubsection.ADDITIONAL_DETAILS
                     and current_element not in processed_elements
                 ):
-                    use_paragraph_style = paragraph_style_headings.get(
-                        current_element.name, False
+                    use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+                        current_element.name
                     )
                     _add_heading_or_paragraph(
                         document,
@@ -1162,16 +1144,19 @@ def process_experience_section(
                                     bullet_para.add_run(suffix.strip())
                             else:
                                 # No HTML links, process for markdown links or plain text
-                                _process_text_for_hyperlinks(bullet_para, li.text)
+                                _process_text_for_hyperlinks(
+                                    bullet_para, li.text, ensure_sentence_ending=True
+                                )
 
                         processed_elements.add(next_element)
 
         # Standalone bullet points
         elif current_element.name == "ul" and current_element not in processed_elements:
+            # Process standalone bullet list
             for li in current_element.find_all("li"):
                 bullet_para = document.add_paragraph(style="List Bullet")
                 _process_text_for_hyperlinks(bullet_para, li.text)
-            processed_elements.add(current_element)
+            processed_element_ids.add(element_id)
 
         current_element = current_element.find_next_sibling()
 
@@ -1179,77 +1164,74 @@ def process_experience_section(
 def process_education_section(
     document: Document,
     soup: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Education section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
     section_h2 = _prepare_section(
-        document, soup, ResumeSection.EDUCATION, paragraph_style_headings
+        document,
+        soup,
+        ResumeSection.EDUCATION,
     )
     _process_simple_section(
         document,
         section_h2,
         add_space=ResumeSection.EDUCATION.add_space_before_h3,
-        paragraph_style_headings=paragraph_style_headings,
     )
 
 
 def process_certifications_section(
     document: Document,
     soup: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Certifications section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
     section_h2 = _prepare_section(
-        document, soup, ResumeSection.CERTIFICATIONS, paragraph_style_headings
+        document,
+        soup,
+        ResumeSection.CERTIFICATIONS,
     )
     _process_certifications(
         document,
         section_h2,
-        paragraph_style_headings=paragraph_style_headings,
     )
 
 
 def process_contact_section(
     document: Document,
     soup: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Contact section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
     section_h2 = _prepare_section(
-        document, soup, ResumeSection.CONTACT, paragraph_style_headings
+        document,
+        soup,
+        ResumeSection.CONTACT,
     )
     _process_simple_section(
         document,
         section_h2,
         add_space=ResumeSection.CONTACT.add_space_before_h3,
-        paragraph_style_headings=paragraph_style_headings,
     )
 
 
@@ -1337,7 +1319,6 @@ def _prepare_section(
     document: Document,
     soup: BeautifulSoup,
     section_type: ResumeSection,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> BS4_Element | None:
     """Universal preliminary section preparation
 
@@ -1345,15 +1326,10 @@ def _prepare_section(
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
         section_type: ResumeSection enum value
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         BeautifulSoup element or None: The section heading element if found, None otherwise
     """
-
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
 
     if not section_h2:
@@ -1368,7 +1344,7 @@ def _prepare_section(
         run.add_break(DOCX_PAGE_BREAK.PAGE)
 
     # Add the section heading
-    use_paragraph_style = paragraph_style_headings.get("h2", False)
+    use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h2")
     heading_level = HeadingsHelper.get_level_for_tag("h2")
     _add_heading_or_paragraph(
         document,
@@ -1384,7 +1360,6 @@ def _process_simple_section(
     document: Document,
     section_h2: BS4_Element,
     add_space: bool = False,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process sections with simple paragraph-based content like Education and Contact.
     These sections typically have paragraphs with some bold (strong) elements.
@@ -1393,14 +1368,10 @@ def _process_simple_section(
         document: The Word document object
         section_h2: The BeautifulSoup h2 element for the section
         add_space (bool, optional): Whether to add a space paragraph after the section. Defaults to False.
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     current_element = section_h2.find_next_sibling()
 
     while current_element and current_element.name != "h2":
@@ -1427,7 +1398,6 @@ def _process_project_section(
     document: Document,
     project_element: BS4_Element,
     processed_elements: set[BS4_Element],
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> set[BS4_Element]:
     """Process a project/client section and its related elements
 
@@ -1435,14 +1405,10 @@ def _process_project_section(
         document: The Word document object
         project_element: BeautifulSoup element for the project heading
         processed_elements: Set of elements already processed
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         set: Updated set of processed elements
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     bullet_indent_inches = ConfigHelper.get_style_constant("bullet_indent_inches")
 
     # Get the next element to see if it contains the project details
@@ -1463,7 +1429,9 @@ def _process_project_section(
         subsection = JobSubsection.PROJECT_CLIENT  # Fallback
 
     heading_level = HeadingsHelper.get_level_for_tag(project_element.name)
-    use_paragraph_style = paragraph_style_headings.get(project_element.name, False)
+    use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+        project_element.name
+    )
 
     # Prepare the project text
     project_text = subsection.full_heading
@@ -1486,6 +1454,15 @@ def _process_project_section(
         and next_element.name not in ["h2", "h3", "h4"]
         and not (next_element.name == "h5")
     ):
+        if next_element.name == "p" and not next_element.find("h6"):
+            # Process regular paragraph text
+            para = document.add_paragraph()
+            _process_text_for_hyperlinks(para, next_element.text.strip())
+            _left_indent_paragraph(para, bullet_indent_inches / 2)
+            processed_elements.add(next_element)
+            next_element = next_element.find_next_sibling()
+            continue
+
         # Find subsection for h6 elements
         h6_subsection = None
         if next_element.name == "h6":
@@ -1496,7 +1473,9 @@ def _process_project_section(
         # Responsibilities Overview
         if h6_subsection == JobSubsection.RESPONSIBILITIES:
             heading_level = HeadingsHelper.get_level_for_tag(next_element.name)
-            use_paragraph_style = paragraph_style_headings.get(next_element.name, False)
+            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+                next_element.name
+            )
 
             # Add the heading or paragraph
             if use_paragraph_style:
@@ -1524,7 +1503,9 @@ def _process_project_section(
         # Additional Details
         elif h6_subsection == JobSubsection.ADDITIONAL_DETAILS:
             heading_level = HeadingsHelper.get_level_for_tag(next_element.name)
-            use_paragraph_style = paragraph_style_headings.get(next_element.name, False)
+            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+                next_element.name
+            )
 
             # Add the heading or paragraph
             if use_paragraph_style:
@@ -1548,7 +1529,9 @@ def _process_project_section(
                 _left_indent_paragraph(
                     bullet_para, bullet_indent_inches
                 )  # Keep indentation for bullets
-                _process_text_for_hyperlinks(bullet_para, li.text)
+                _process_text_for_hyperlinks(
+                    bullet_para, li.text, ensure_sentence_ending=True
+                )
             processed_elements.add(next_element)
 
         next_element = next_element.find_next_sibling()
@@ -1560,7 +1543,6 @@ def _process_job_entry(
     document: Document,
     job_element: BS4_Element,
     processed_elements: set[BS4_Element],
-    paragraph_style_headings: dict[str, bool] = None,
     add_space_before_h3: bool = False,
 ) -> set[BS4_Element]:
     """Process a job entry (h3) and its related elements
@@ -1569,69 +1551,48 @@ def _process_job_entry(
         document: The Word document object
         job_element: BeautifulSoup element for the job heading
         processed_elements: Set of elements already processed
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
-        add_space_before_h3 (bool, optional): Whether to add a blank line before each h3 heading
-                                           (except the first after h2). Defaults to False.
+        add_space_before_h3: Whether to add space before h3 headings (except first)
 
     Returns:
-        set: Updated set of processed elements
+        Updated set of processed elements
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     job_title = job_element.text.strip()
 
-    # Check if this is NOT the first h3 after an h2
-    # Only add space if the add_space_before_h3 parameter is True
-    if add_space_before_h3:
-        prev_heading = job_element.find_previous(["h2", "h3"])
-        if prev_heading and prev_heading.name == "h3":
-            # This is not the first h3 after h2, so add a blank line
-            document.add_paragraph()
+    # Add spacing between jobs if needed
+    prev_heading = job_element.find_previous(["h2", "h3"])
+    if prev_heading and prev_heading.name == "h3":
+        document.add_paragraph()
 
-    # Check if h3 should use paragraph style
-    use_paragraph_style = paragraph_style_headings.get("h3", False)
-    heading_level = HeadingsHelper.get_level_for_tag(job_element.name)
-
+    # Add the company name as h3
+    use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h3")
+    heading_level = HeadingsHelper.get_level_for_tag("h3")
     _add_heading_or_paragraph(
         document, job_title, heading_level, use_paragraph_style=use_paragraph_style
     )
 
-    # Find company name (h4) if it exists
+    # Mark the h3 as processed
+    processed_elements.add(job_element)
+
+    # Check for the paragraph immediately after h3
     next_element = job_element.find_next_sibling()
 
-    # Add company if it exists
-    if next_element and next_element.name == "h4":
-        company_name = next_element.text.strip()
+    # Process paragraph with duration text if it exists
+    if next_element and next_element.name == "p":
+        duration_para = document.add_paragraph()
 
-        # Check if h4 should use paragraph style
-        use_paragraph_style = paragraph_style_headings.get("h4", False)
-        company_heading_level = HeadingsHelper.get_level_for_tag(next_element.name)
+        # Check for both bold and italic formatting
+        has_strong = next_element.find("strong")
+        has_em = next_element.find("em")
 
-        _add_heading_or_paragraph(
-            document,
-            company_name,
-            company_heading_level,
-            use_paragraph_style=use_paragraph_style,
-        )
+        duration_text = next_element.text.replace("*", "").replace("_", "").strip()
+        duration_run = duration_para.add_run(duration_text)
 
-        # Mark as processed
+        if has_strong:
+            duration_run.bold = True
+        if has_em:
+            duration_run.italic = True
+
         processed_elements.add(next_element)
-
-        # Find date/location
-        element = next_element.find_next_sibling()
-    else:
-        # Direct date under h3 (company header case)
-        element = next_element
-
-    if element and element.name == "p" and element.find("em"):
-        date_period = element.text.replace("*", "").strip()
-        date_para = document.add_paragraph()
-        date_run = date_para.add_run(date_period)
-        date_run.italic = True
-
-        # Mark as processed
-        processed_elements.add(element)
 
     return processed_elements
 
@@ -1642,7 +1603,6 @@ def _process_subsection(
     subsection: JobSubsection,
     heading_level: int,
     processed_elements: set[BS4_Element],
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> set[BS4_Element]:
     """Generic function to process any subsection (Summary, Internal, Responsibilities, etc.)
 
@@ -1652,22 +1612,18 @@ def _process_subsection(
         subsection: The JobSubsection enum value
         heading_level: The heading level from HeadingsHelper
         processed_elements: Set of elements already processed
-        paragraph_style_headings: Dictionary mapping heading tags to boolean values
 
     Returns:
         Updated set of processed elements
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
-    # Mark this specific heading element as processed
-    # if subsection != JobSubsection.SUMMARY and subsection != JobSubsection.INTERNAL:
-    #     processed_elements.add(current_element)
-
     if current_element not in processed_elements:
 
+        processed_elements.add(current_element)
+
         # Add the subsection heading
-        use_paragraph_style = paragraph_style_headings.get(current_element.name, False)
+        use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+            current_element.name
+        )
         _add_heading_or_paragraph(
             document,
             subsection.full_heading,
@@ -1689,10 +1645,104 @@ def _process_subsection(
             elif next_element.name == "ul":
                 for li in next_element.find_all("li"):
                     bullet_para = document.add_paragraph(style="List Bullet")
-                    _process_text_for_hyperlinks(bullet_para, li.text)
+                    _process_text_for_hyperlinks(
+                        bullet_para, li.text, ensure_sentence_ending=True
+                    )
                 processed_elements.add(next_element)
 
             next_element = next_element.find_next_sibling()
+
+    return processed_elements
+
+
+def _process_position(
+    document: Document,
+    element: BS4_Element,
+    processed_elements: set[BS4_Element],
+) -> set[BS4_Element]:
+    """Process a position entry (h4) and its related elements
+
+    Args:
+        document: The Word document object
+        job: BeautifulSoup element
+        processed_elements: Set of elements already processed
+
+    Returns:
+        Updated set of processed elements
+    """
+    position_title = element.text.strip()
+
+    # Add the position heading
+    heading_level = HeadingsHelper.get_level_for_tag(element.name)
+    use_paragraph_style = HeadingsHelper.should_use_paragraph_style(element.name)
+    _add_heading_or_paragraph(
+        document,
+        position_title,
+        heading_level,
+        use_paragraph_style=use_paragraph_style,
+    )
+
+    processed_elements.add(element)
+    next_element = element.find_next_sibling()
+
+    # Process date and location elements (either h6 or p format)
+    if next_element:
+        # Handle paragraph date/location format
+        # Handle paragraph with combined date and location on single line
+        if next_element.name == "p":
+            if next_element.find("strong") or next_element.find("em"):
+
+                # Check if next paragraph is location
+                next_next_element = next_element.find_next_sibling()
+                if (
+                    next_next_element
+                    and next_next_element.name == "p"
+                    and (
+                        next_next_element.find("strong") or next_next_element.find("em")
+                    )
+                ):
+                    # Create a single paragraph with both date and location
+                    date_text = (
+                        next_element.text.replace("*", "").replace("_", "").strip()
+                    )
+                    location_text = (
+                        next_next_element.text.replace("*", "").replace("_", "").strip()
+                    )
+
+                    reduced_spacing = float(
+                        ConfigHelper.get_style_constant(
+                            "paragraph_after_h4_line_spacing", 0.80
+                        )
+                    )
+                    combo_para = document.add_paragraph()
+                    combo_para.paragraph_format.line_spacing = reduced_spacing
+
+                    # Get font size from config
+                    date_loc_font_size = ConfigHelper.get_style_constant(
+                        "paragraph_after_h4_font_size", None
+                    )
+
+                    # Add date with appropriate formatting
+                    date_run = combo_para.add_run(date_text + " - ")
+                    if next_element.find("strong"):
+                        date_run.bold = True
+                    if next_element.find("em"):
+                        date_run.italic = True
+                    if date_loc_font_size:
+                        date_run.font.size = Pt(date_loc_font_size)
+
+                    # Add location with appropriate formatting
+                    location_run = combo_para.add_run(location_text)
+                    if next_next_element.find("strong"):
+                        location_run.bold = True
+                    if next_next_element.find("em"):
+                        location_run.italic = True
+                    if date_loc_font_size:
+                        location_run.font.size = Pt(date_loc_font_size)
+
+                    processed_elements.add(next_element)
+                    processed_elements.add(next_next_element)
+                    next_element = next_next_element.find_next_sibling()
 
     return processed_elements
 
@@ -1741,21 +1791,16 @@ def _add_heading_or_paragraph(
 def _process_certifications(
     document: Document,
     section_h2: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the certifications section with its specific structure
 
     Args:
         document: The Word document object
         section_h2: BeautifulSoup h2 element for the section
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     # Get the add_space_before_h3 setting from the section type
     add_space_before_h3 = ResumeSection.CERTIFICATIONS.add_space_before_h3
 
@@ -1766,7 +1811,7 @@ def _process_certifications(
         # Process certification name (h3)
         if current_element.name == "h3":
             cert_name = current_element.text.strip()
-            use_paragraph_style = paragraph_style_headings.get("h3", False)
+            use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h3")
             heading_level = HeadingsHelper.get_level_for_tag("h3")
 
             # Add blank line before h3 except for the first one
@@ -1789,9 +1834,7 @@ def _process_certifications(
             # Handle blockquote (optional)
             if next_element and next_element.name == "blockquote":
                 # Process the blockquote contents
-                _process_certification_blockquote(
-                    document, next_element, paragraph_style_headings
-                )
+                _process_certification_blockquote(document, next_element)
 
             # If no blockquote, look for organization info directly
             elif next_element:
@@ -1829,28 +1872,25 @@ def _process_certifications(
 def _process_certification_blockquote(
     document: Document,
     blockquote: BS4_Element,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the contents of a certification blockquote
 
     Args:
         document: The Word document object
         blockquote: BeautifulSoup blockquote element containing certification details
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     # Process the organization name (first element)
     org_element = blockquote.find(["h4", "h5", "h6", "strong"])
     if org_element:
         if org_element.name.startswith("h"):
             # It's a heading
             heading_level = HeadingsHelper.get_level_for_tag(org_element.name)
-            use_paragraph_style = paragraph_style_headings.get(org_element.name, False)
+            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+                org_element.name
+            )
             _add_heading_or_paragraph(
                 document,
                 org_element.text.strip(),
@@ -1878,7 +1918,7 @@ def _process_certification_blockquote(
             and item != org_element
         ):
             heading_level = HeadingsHelper.get_level_for_tag(item.name)
-            use_paragraph_style = paragraph_style_headings.get(item.name, False)
+            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(item.name)
             _add_heading_or_paragraph(
                 document,
                 item.text.strip(),
@@ -1940,10 +1980,6 @@ def _run_interactive_mode() -> tuple[str, str, dict[str, bool], bool, ConfigLoad
 
     # Create ConfigLoader with the specified config file
     config_loader = ConfigLoader(config_file)
-
-    # Initialize ConfigHelper and HeadingsHelper
-    ConfigHelper.init(config_loader.config)
-    HeadingsHelper.init(config_loader.config)
 
     # Prompt for input file
     while True:
@@ -2136,34 +2172,8 @@ def _add_bullet_list(
     for li in ul_element.find_all("li"):
         bullet_para = document.add_paragraph(style="List Bullet")
 
-        # Check if this bullet item contains a link
-        link = li.find("a")
-        if link and link.get("href"):
-            # Text before the link
-            prefix = ""
-            if link.previous_sibling:
-                prefix = (
-                    link.previous_sibling.string if link.previous_sibling.string else ""
-                )
-
-            # Text after the link
-            suffix = ""
-            if link.next_sibling:
-                suffix = link.next_sibling.string if link.next_sibling.string else ""
-
-            # Add text before the link if any
-            if prefix.strip():
-                bullet_para.add_run(prefix.strip())
-
-            # Add the hyperlink
-            _add_hyperlink(bullet_para, link.text, link.get("href"))
-
-            # Add text after the link if any
-            if suffix.strip():
-                bullet_para.add_run(suffix.strip())
-        else:
-            # No links, process as usual
-            _process_text_for_hyperlinks(bullet_para, li.text)
+        # Process for hyperlinks WITH sentence ending
+        _process_text_for_hyperlinks(bullet_para, li.text, ensure_sentence_ending=True)
 
         if indentation:
             _left_indent_paragraph(bullet_para, indentation)
@@ -2291,12 +2301,15 @@ def _format_url(url: str) -> str:
     return url
 
 
-def _process_text_for_hyperlinks(paragraph: DOCX_Paragraph, text: str) -> None:
+def _process_text_for_hyperlinks(
+    paragraph: DOCX_Paragraph, text: str, ensure_sentence_ending: bool = False
+) -> None:
     """Process text to detect and add hyperlinks for Markdown links, URLs and email addresses
 
     Args:
         paragraph: The Word paragraph object to add content to
         text (str): Text to process for Markdown links, URLs and email addresses
+        ensure_sentence_ending (bool): Whether to add period at the end if missing
 
     Returns:
         None: The paragraph is modified in place
@@ -2306,8 +2319,9 @@ def _process_text_for_hyperlinks(paragraph: DOCX_Paragraph, text: str) -> None:
         return
 
     remaining_text = text
+    fragments = []  # Store all text fragments and links
 
-    # Keep finding links/URLs/emails until none remain
+    # First pass: Identify all links and text segments
     while remaining_text:
         is_link, link_text, url, matched_text = _detect_link(remaining_text)
 
@@ -2315,30 +2329,43 @@ def _process_text_for_hyperlinks(paragraph: DOCX_Paragraph, text: str) -> None:
             # Find the start position of the link
             link_position = remaining_text.find(matched_text)
 
-            # Add text before the link (including any spaces)
+            # Add text before the link as a text fragment
             if link_position > 0:
-                paragraph.add_run(remaining_text[:link_position])
+                fragments.append(("text", remaining_text[:link_position]))
 
-            # Add the hyperlink with the appropriate text
-            _add_hyperlink(paragraph, link_text, url)
+            # Add the link as a link fragment
+            fragments.append(("link", link_text, url))
 
-            # Check if there's a space right after the link
+            # Handle space after link
             after_link_pos = link_position + len(matched_text)
             if (
                 after_link_pos < len(remaining_text)
                 and remaining_text[after_link_pos] == " "
             ):
-                # Add the space separately to preserve it
-                paragraph.add_run(" ")
+                fragments.append(("text", " "))
                 after_link_pos += 1
 
-            # Continue with remaining text - after the full matched text
+            # Continue with remaining text
             remaining_text = remaining_text[after_link_pos:]
         else:
-            # No more links, add the remaining text
+            # No more links, add all remaining text
             if remaining_text:
-                paragraph.add_run(remaining_text)
+                fragments.append(("text", remaining_text))
             remaining_text = ""
+
+    # Only add period to the very last text fragment if requested
+    if ensure_sentence_ending and fragments and fragments[-1][0] == "text":
+        last_idx = len(fragments) - 1
+        text_content = fragments[last_idx][1]
+        fragments[last_idx] = ("text", _ensure_sentence_ending(text_content))
+
+    # Second pass: Add all fragments to paragraph
+    for fragment in fragments:
+        if fragment[0] == "text":
+            paragraph.add_run(fragment[1])
+        else:  # It's a link
+            _, link_text, url = fragment
+            _add_hyperlink(paragraph, link_text, url)
 
 
 def _add_hyperlink(
@@ -2421,6 +2448,29 @@ def _add_space_paragraph(document: Document, font_size: int = None) -> None:
     p.paragraph_format.space_after = Pt(font_size)
 
 
+def _ensure_sentence_ending(text: str) -> str:
+    """Ensures text ends with a period, question mark, or exclamation point
+
+    Args:
+        text (str): The text to check
+
+    Returns:
+        str: Text with proper sentence ending
+    """
+    if not text:
+        return text
+
+    # Strip trailing whitespace
+    text = text.rstrip()
+
+    # If already ends with sentence-ending punctuation, return as-is
+    if text and text[-1] in [".", "!", "?", ":", ";"]:
+        return text
+
+    # Add a period
+    return text + "."
+
+
 ##############################
 # Main Entry
 ##############################
@@ -2499,9 +2549,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Load configuration using ConfigLoader
-    config_loader = ConfigLoader(args.config_file, print_success_msg=True)
-
     # Check if we should run in interactive mode
     if (
         not (args.input_file or args.output_file or args.paragraph_headings)
@@ -2512,6 +2559,8 @@ if __name__ == "__main__":
             _run_interactive_mode()
         )
     else:
+        config_loader = ConfigLoader(args.config_file)
+
         # Use command-line arguments
         input_file = args.input_file
         output_file = (
@@ -2540,11 +2589,8 @@ if __name__ == "__main__":
 
     # Convert to PDF if requested
     if create_pdf:
-        pdf_file = (
-            os.path.splitext(result)[0]
-            + config_loader.document_defaults["pdf_file_extension"]
-        )
-        if convert_to_pdf(result, pdf_file):
+        pdf_file = convert_to_pdf(result)
+        if pdf_file:
             print(f"✅ Created PDF: {pdf_file}")
 
     print(f"🎉 ATS-friendly resume created: {result} 🎉")

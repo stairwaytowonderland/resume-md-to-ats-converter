@@ -28,17 +28,25 @@ Perhaps something more personal about yourself here, such as interests and hobbi
 
 My Top • Technical • Skills • And Buzzwords • I Want To Highlight
 
+
+
 ---
 ## Experience
 
 
-### Name of Company · (Full Time or Contract)
+### Name of Company
 
 #### Role Name/Title
 
-*StartMonth Year - EndMonth Year · length in mos or yrs* -- *Location*
+**StartMonth Year - EndMonth Year**
 
-###### Responsibilities Overview
+*Remote*
+
+##### Key Skills
+
+These • Are • The Key • Skills • That Were Required • At Least • Seven • Should • Be Listed
+
+##### Summary
 
 Overview of responsibilities.
 
@@ -50,17 +58,19 @@ Overview of responsibilities.
 - Provide additional bullets
 - And details about accomplishments
 
-##### Key Skills
-
-These · Are · The Key · Skills · That Were Required
 
 
-
-### Another Organization · (Full Time or Contract)
+### Another Organization
 
 #### Another Role Name/Title
 
-*StartMonth Year - EndMonth Year · length in mos or yrs* -- *Location*
+**StartMonth Year - EndMonth Year**
+
+*Location, Location*
+
+##### Key Skills
+
+These • Are • The • Key Skills • For The • Entire Role • List As • Many • As Possible
 
 ##### Summary
 
@@ -77,13 +87,9 @@ An optional paragraph here.
 
 ##### Project/Client
 
-Project/Client Name (~length months or years)
-
-###### Responsibilities Overview
+**Project/Client Name *(~length months or years)***
 
 Overview of responsibilities for this sub-project.
-
-###### Additional Details
 
 - Provide additional bullets
 - And details about
@@ -91,62 +97,68 @@ Overview of responsibilities for this sub-project.
 
 ##### Project/Client
 
-Another Other Project/Client Name (~length months or years)
-
-###### Responsibilities Overview
+**Another Other Project/Client Name *(~length months or years)***
 
 Overview of responsibilities for another sub-project.
-
-###### Additional Details
 
 - Provide additional bullets
 - And details about
 - This other sub-project
 
-##### Key Skills
 
-These · Are · The · Key Skills · For The · Entire Role
-
-
-### Another Employer, Company or Organization Name
-
-*Length in mos or yrs* -- *Location*
+### ACME Corporation
 
 #### Last Promoted Role
 
-*StartMonth Year - EndMonth Year · length in mos or yrs*
+**StartMonth Year - EndMonth Year**
+
+*Location*
+
+##### Key Skills
+
+These Are • The Key Skills • For This • Role • More Than • Seven • Should Also • Be Listed Here
+
+##### Summary
 
 - Some bullet points
 - About this role
 - At this employer
 
-##### Key Skills
-
-These Are · The Key Skills · For This · Role
+### ACME Corporation
 
 #### Role Prior To Last Promotion
 
-*StartMonth Year - EndMonth Year · length in mos or yrs*
+**StartMonth Year - EndMonth Year**
+
+*Location*
+
+##### Key Skills
+
+These • Are • The • Key Skills • For The • Entire Role • List As • Many • As Possible
+
+##### Summary
 
 - Some bullet points
 - About your previous role
 - At this employer
 
-##### Key Skills
-
-These Are The · Key Skills · For · My Previous Role
+### ACME Corporation
 
 #### My First Role At This Employer
 
-*StartMonth Year - EndMonth Year · length in mos or yrs*
+***StartMonth Year - EndMonth Year***
+
+**Location**
+
+##### Key Skills
+
+And Finally • These Are • The Key Skills • For This • Role • And More Than • Seven • Should Also • Be Listed Here
+
+##### Summary
 
 - Some bullet points
 - About your first role
 - At this employer
-
-##### Key Skills
-
-These Are · The Key · Skills · For My First Role
 
 
 
@@ -154,42 +166,24 @@ These Are · The Key · Skills · For My First Role
 
 #### Generic Job Title
 
-*StartMonth Year - EndMonth Year · length in mos or yrs* -- *Location*
+**StartMonth Year - EndMonth Year**
+
+*Location*
+
+##### Key Skills
+
+These Are • The Key Skills • For This • Role • More Than • Seven • Should Also • Be Listed Here
 
 ##### Summary
 
 This area is optional.
 
-##### Key Skills
-
-Demonstrating · Skills Above · The Responsibilities Area
-
-###### Responsibilities
+###### Responsibilities overview
 
 - Some details about
 - What I did
 - At this particular job
 
-
-### Another Generic Company Name
-
-#### A Different Role
-
-*StartMonth Year - EndMonth Year · length in mos or yrs* -- *Location*
-
-##### Key Skills
-
-Demonstrating · Skills Above · The Summary · And Responsibilities Area
-
-##### Summary
-
-This area is optional.
-
-###### Responsibilities
-
-- Some details about
-- What I did
-- At this particular job
 
 
 ---
@@ -207,13 +201,13 @@ Another Degree
 ### Certification Name
 
 > #### Certifying Organization
-> [*Issued Month Year · Expires Month Year*](https://www.example.com/)
+> [*Issued Month Year • Expires Month Year*](https://www.example.com/)
 
 ### Another Certification Name
 
 > **This Certifying Organization**
 >
-> *Issued Month Year · Expires Month Year*
+> *Issued Month Year • Expires Month Year*
 
 ### A 3rd Cert
 
@@ -221,7 +215,7 @@ Another Degree
 > ##### Alternate Name • Something after a bullet
 > Some details
 >
-> *Issued Month Year · Expires Month Year*
+> *Issued Month Year • Expires Month Year*
 
 ### Number Four
 
@@ -235,7 +229,7 @@ Another Degree
 >
 > Another paragraph of details
 >
-> [*Issued Month Year · Expires Month Year*](https://www.example.com/)
+> [*Issued Month Year • Expires Month Year*](https://www.example.com/)
 
 
 ## Contact

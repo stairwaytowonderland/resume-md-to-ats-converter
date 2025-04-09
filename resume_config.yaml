@@ -16,78 +16,80 @@ style_constants:
   bullet_indent_inches: 0.5
   horizontal_line_char: "_"  # Character for horizontal lines
   horizontal_line_length: 50  # Length of horizontal line
-  bullet_separator: " • "  # Separator for inline bullet lists
+  top_skills_separator_markdown: " • "  # Separator for top skills area
+  top_skills_separator: " ○ "  # Separator for top skills area
+  key_skills_separator_markdown: " • "  # Separator for key skills area
+  key_skills_separator: " · "  # Separator for key skills area
+  paragraph_after_h4_line_spacing: 1.35  # Line spacing for date/location line
+  paragraph_after_h4_font_size: 10  # Font size for date/location line
 
 # Document styles - Word document style definitions
 document_styles:
   Normal:
-    # font_name: "Arial"
+    font_name: "Helvetica Neue"
     font_size: 11
-    # line_spacing: 1.15
+    line_spacing: 1.15
     # space_after: 6
     # indent_left: 0.25
     # indent_right: 0.25
 
   Title:  # Used for your name at the top
-    # font_name: "Arial"
-    # font_size: 26
+    font_name: "Helvetica Neue"
+    font_size: 26
     # alignment: CENTER (1)
     color: "17365D"
 
   Subtitle:  # Used for tagline under name
-    # font_name: "Arial"
-    # font_size: 12
+    font_name: "Times New Roman"
+    font_size: 12
     # italic: true
     # alignment: CENTER (1)
     color: "17365D"
 
-  Heading 1:  # H1 - Name at top
-    # font_name: "Arial"
-    # font_size: 16
+  Heading 1:  # H1 - Main section headings
+    # font_name: "Helvetica Neue"
+    font_size: 16
     # bold: true
     # underline: true
     color: "365F91"
 
-  Heading 2:  # H2 - Main section headings
-    # font_name: "Arial"
-    # font_size: 14
+  Heading 2:  # H2 - Company names
+    # font_name: "Helvetica Neue"
+    font_size: 14
     # bold: true
+    # italic: false
     color: "4F81BD"
 
-  Heading 3:  # H3 - Company names
-    # font_name: "Arial"
-    # font_size: 12
+  Heading 3:  # H3 - Role titles
+    # font_name: "Helvetica Neue"
+    font_size: 13
+    line_spacing: 1.25
     # bold: true
+    # italic: false
     color: "4F81BD"
 
-  Heading 4:  # H4 - Role titles
-    # font_name: "Arial"
-    # font_size: 11
-    # bold: true
-    color: "4F81BD"
-
-  Heading 5:  # H5 - Subsections (Key Skills, etc.)
-    # font_name: "Arial"
-    # font_size: 11
+  Heading 4:  # H4 - Subsections
+    # font_name: "Helvetica Neue"
+    font_size: 12
     # bold: true
     # italic: true
-    color: "243F60"
+    color: "4F81BD"
 
-  Heading 6:  # H6 - Responsibilities, Details
-    # font_name: "Arial"
-    # font_size: 11
+  Heading 5:  # H5 - Responsibilities, Details
+    # font_name: "Helvetica Neue"
+    font_size: 12
     # bold: true
-    italic: true
+    # italic: false
     color: "243F60"
 
   Hyperlink:
-    # font_name: "Arial"
+    # font_name: "Helvetica Neue"
     # font_size: 11
     underline: true
     color: "038cfc"
 
   # List Bullet:
-    # font_name: "Arial"
+    # font_name: "Helvetica Neue"
     # font_size: 11
     # indent_left: 0.5
     # indent_right: 0.5
