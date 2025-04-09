@@ -17,6 +17,11 @@ from docx.shared import Inches, Pt, RGBColor
 from docx.text.paragraph import Paragraph as DOCX_Paragraph
 
 ##############################
+# Define default config file since it's referenced a few times
+##############################
+DEFAULT_CONFIG_FILE = "resume_config.yaml"
+
+##############################
 # Define some defaults at module level for better performance
 ##############################
 MD_LINK_PATTERN = re.compile(r"\[(.*?)\]\((.*?)\)")
@@ -27,6 +32,341 @@ EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 ##############################
 # Configs
 ##############################
+class ConfigLoader:
+    """Class for loading and accessing configuration from YAML file"""
+
+    def __init__(
+        self, config_file: str = DEFAULT_CONFIG_FILE, print_success_msg: bool = False
+    ):
+        """Initialize by loading configuration from YAML file
+
+        Args:
+            config_file (str): Path to configuration file.
+                             Defaults to 'resume_config.yaml' in same directory.
+            print_success_msg (bool): Whether to print success message after loading.
+                                   Defaults to False.
+        """
+        import yaml
+        from yaml.parser import ParserError
+
+        # Default empty configuration structure
+        self._config = {
+            "document_defaults": {
+                "output_filename": "My ATS Resume.docx",
+                "pdf_file_extension": ".pdf",
+                "margin_top_bottom": 0.7,
+                "margin_left_right": 0.8,
+                "page_width": 8.5,
+                "page_height": 11.0,
+            },
+            "style_constants": {
+                "font_size_pts": 11,
+                "indent_inches": 0.25,
+                "bullet_indent_inches": 0.5,
+                "horizontal_line_char": "_",
+                "horizontal_line_length": 50,
+                "bullet_separator": " • ",
+            },
+            "document_styles": {},
+            "markdown_headings": {
+                "h1": {"level": 0, "paragraph_heading_size": 24},
+                "h2": {"level": 1, "paragraph_heading_size": 16},
+                "h3": {"level": 2, "paragraph_heading_size": 14},
+                "h4": {"level": 3, "paragraph_heading_size": 12},
+                "h5": {"level": 4, "paragraph_heading_size": 11},
+                "h6": {"level": 5, "paragraph_heading_size": 10},
+            },
+        }
+
+        # Try to load the YAML config file
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, "r") as f:
+                    yaml_config = yaml.safe_load(f)
+
+                # Use the YAML values directly if they exist
+                if yaml_config and isinstance(yaml_config, dict):
+                    # Replace document_defaults if provided
+                    if "document_defaults" in yaml_config:
+                        self._config["document_defaults"] = yaml_config[
+                            "document_defaults"
+                        ]
+
+                    # Replace style_constants if provided
+                    if "style_constants" in yaml_config:
+                        self._config["style_constants"] = yaml_config["style_constants"]
+
+                    # Replace markdown_headings if provided
+                    if "markdown_headings" in yaml_config:
+                        self._config["markdown_headings"] = yaml_config[
+                            "markdown_headings"
+                        ]
+
+                    # Process document styles - need to handle RGBColor and Pt objects
+                    if "document_styles" in yaml_config:
+                        document_styles = {}
+                        for style_name, properties in yaml_config[
+                            "document_styles"
+                        ].items():
+                            style_props = {}
+
+                            # Convert font_size to Pt objects
+                            if "font_size" in properties and isinstance(
+                                properties["font_size"], (int, float)
+                            ):
+                                style_props["font_size"] = Pt(properties["font_size"])
+
+                            # Convert color to RGBColor objects
+                            if "color" in properties and isinstance(
+                                properties["color"], str
+                            ):
+                                style_props["color"] = RGBColor.from_string(
+                                    properties["color"]
+                                )
+
+                            # Convert indent values to Inches
+                            for indent_key in ["indent_left", "indent_right"]:
+                                if indent_key in properties and isinstance(
+                                    properties[indent_key], (int, float)
+                                ):
+                                    style_props[indent_key] = Inches(
+                                        properties[indent_key]
+                                    )
+
+                            # Copy over all other properties directly
+                            for key, value in properties.items():
+                                if key not in [
+                                    "font_size",
+                                    "color",
+                                    "indent_left",
+                                    "indent_right",
+                                ]:
+                                    style_props[key] = value
+
+                            document_styles[style_name] = style_props
+
+                        self._config["document_styles"] = document_styles
+
+                    if print_success_msg:
+                        print(f"✅ Config loaded from {config_file}")
+            except (ParserError, Exception) as e:
+                print(
+                    f"❌ Error loading config file: {str(e)}, using default configuration"
+                )
+
+    @property
+    def config(self) -> dict:
+        """Get the entire configuration dictionary
+
+        Returns:
+            dict: Complete configuration dictionary
+        """
+        return self._config
+
+    @property
+    def document_defaults(self) -> dict:
+        """Get document default settings
+
+        Returns:
+            dict: Document defaults configuration
+        """
+        return self._config.get("document_defaults", {})
+
+    @property
+    def style_constants(self) -> dict:
+        """Get style constants
+
+        Returns:
+            dict: Style constants configuration
+        """
+        return self._config.get("style_constants", {})
+
+    @property
+    def document_styles(self) -> dict:
+        """Get document styles
+
+        Returns:
+            dict: Document styles configuration
+        """
+        return self._config.get("document_styles", {})
+
+    @property
+    def markdown_headings(self) -> dict:
+        """Get markdown headings configuration
+
+        Returns:
+            dict: Markdown headings configuration
+        """
+        return self._config.get("markdown_headings", {})
+
+    def get_style_constant(self, key: str, default=None):
+        """Get a specific style constant value
+
+        Args:
+            key (str): Style constant key to retrieve
+            default: Default value if key is not found
+
+        Returns:
+            Value for the requested style constant or default if not found
+        """
+        return self.style_constants.get(key, default)
+
+
+class ConfigHelper:
+    """Static helper class for accessing configuration values globally"""
+
+    # Class-level storage for configuration
+    _config = None
+    _initialized = False
+
+    @classmethod
+    def init(cls, config: dict) -> None:
+        """Initialize configuration store
+
+        Args:
+            config (dict): Complete configuration dictionary
+        """
+        cls._config = config
+        cls._initialized = True
+
+    @classmethod
+    def get_document_defaults(cls) -> dict:
+        """Get document default settings
+
+        Returns:
+            dict: Document defaults configuration
+        """
+        cls._check_initialized()
+        return cls._config.get("document_defaults", {})
+
+    @classmethod
+    def get_style_constants(cls) -> dict:
+        """Get style constants
+
+        Returns:
+            dict: Style constants configuration
+        """
+        cls._check_initialized()
+        return cls._config.get("style_constants", {})
+
+    @classmethod
+    def get_document_styles(cls) -> dict:
+        """Get document styles
+
+        Returns:
+            dict: Document styles configuration
+        """
+        cls._check_initialized()
+        return cls._config.get("document_styles", {})
+
+    @classmethod
+    def get_style_constant(cls, key: str, default=None):
+        """Get a specific style constant value
+
+        Args:
+            key (str): Style constant key to retrieve
+            default: Default value if key is not found
+
+        Returns:
+            Value for the requested style constant or default if not found
+        """
+        cls._check_initialized()
+        return cls._config.get("style_constants", {}).get(key, default)
+
+    @classmethod
+    def _check_initialized(cls) -> None:
+        """Check if the configuration has been initialized
+
+        Raises:
+            RuntimeError: If the configuration has not been initialized
+        """
+        if not cls._initialized:
+            raise RuntimeError(
+                "ConfigHelper has not been initialized. Call ConfigHelper.init() first."
+            )
+
+
+class HeadingsHelper:
+    """Helper class for managing markdown headings based on configuration"""
+
+    # Class-level storage for the heading configuration
+    _heading_map = {}
+    _initialized = False
+
+    @classmethod
+    def init(cls, config: dict) -> None:
+        """Initialize the heading map from configuration
+
+        Args:
+            config (dict): Configuration dictionary with markdown_headings
+        """
+        # Simply assign the markdown_headings from config
+        cls._heading_map = config["markdown_headings"]
+        cls._initialized = True
+
+    @classmethod
+    def get_level_for_tag(cls, tag_name: str) -> int | None:
+        """Get the Word document heading level for a given tag name
+
+        Args:
+            tag_name (str): HTML tag name (e.g., 'h1', 'h2', etc.)
+
+        Returns:
+            int or None: The corresponding Word document heading level or None if not found
+        """
+        cls._check_initialized()
+        if tag_name.lower() in cls._heading_map:
+            return cls._heading_map[tag_name.lower()]["level"]
+        return None
+
+    @classmethod
+    def get_font_size_for_level(cls, heading_level: int, default_size: int = 11) -> int:
+        """Get the font size for a given heading level
+
+        Args:
+            heading_level (int): The heading level (0-5)
+            default_size (int): The default font size to return if not found
+
+        Returns:
+            int: The font size in points
+        """
+        cls._check_initialized()
+        # Find the heading tag that corresponds to this level
+        for tag, props in cls._heading_map.items():
+            if props["level"] == heading_level:
+                return props["paragraph_heading_size"]
+        return default_size
+
+    @classmethod
+    def get_font_size_for_tag(cls, tag_name: str, default_size: int = 11) -> int:
+        """Get the font size for a given tag name directly
+
+        Args:
+            tag_name (str): HTML tag name (e.g., 'h1', 'h2', etc.)
+            default_size (int): The default font size to return if not found
+
+        Returns:
+            int: The font size in points for the tag
+        """
+        cls._check_initialized()
+        tag_name = tag_name.lower()
+        if tag_name in cls._heading_map:
+            return cls._heading_map[tag_name]["paragraph_heading_size"]
+        return default_size
+
+    @classmethod
+    def _check_initialized(cls) -> None:
+        """Check if the configuration has been initialized
+
+        Raises:
+            RuntimeError: If the configuration has not been initialized
+        """
+        if not cls._initialized:
+            raise RuntimeError(
+                "ConfigHelper has not been initialized. Call ConfigHelper.init() first."
+            )
+
+
 class ResumeSection(Enum):
     """Maps markdown heading titles to their corresponding document headings
 
@@ -172,72 +512,6 @@ class JobSubsection(Enum):
         return None
 
 
-class MarkdownHeadingLevel(Enum):
-    """Maps markdown heading levels to their corresponding document heading levels
-
-    Properties:
-        value (int): The Word document heading level (0-5) to use
-        font_size (int): The font size in points for paragraph style formatting
-    """
-
-    H1 = (0, 16)  # Used for name at top
-    H2 = (1, 14)  # Main section headings (About, Experience, etc.)
-    H3 = (2, 14)  # Job titles
-    H4 = (3, 12)  # Company names or role titles
-    H5 = (4, 11)  # Subsections (Key Skills, Summary, etc.)
-    H6 = (5, 10)  # Sub-subsections (Responsibilities, Additional Details)
-
-    def __init__(self, value: str, font_size: str) -> None:
-        """Initialize with heading level and font size
-
-        Args:
-            value (int): The Word document heading level (0-5) to use
-            font_size (int): The font size in points for paragraph style formatting
-        """
-        self._value_ = value
-        self.font_size = font_size
-
-    @classmethod
-    def get_level_for_tag(cls, tag_name: str) -> int | None:
-        """Get the Word document heading level for a given tag name
-
-        Args:
-            tag_name (str): HTML tag name (e.g., 'h1', 'h2', etc.)
-
-        Returns:
-            int or None: The corresponding Word document heading level (0-5) or None if not found
-        """
-        if tag_name == "h1":
-            return cls.H1.value
-        elif tag_name == "h2":
-            return cls.H2.value
-        elif tag_name == "h3":
-            return cls.H3.value
-        elif tag_name == "h4":
-            return cls.H4.value
-        elif tag_name == "h5":
-            return cls.H5.value
-        elif tag_name == "h6":
-            return cls.H6.value
-        return None
-
-    @classmethod
-    def get_font_size_for_level(cls, heading_level: str, default_size: int = 11) -> int:
-        """Get the font size for a given heading level
-
-        Args:
-            heading_level (int): The heading level (0-5)
-            default_size (int): The default font size to return if not found (default: 11)
-
-        Returns:
-            int: The font size in points
-        """
-        for level in cls:
-            if level.value == heading_level:
-                return level.font_size
-        return default_size  # Default font size if not found
-
-
 class PdfConverterPaths(Enum):
     """Enum to store paths to PDF converter executables on different platforms"""
 
@@ -260,27 +534,30 @@ class PdfConverterPaths(Enum):
 def create_ats_resume(
     md_file: str,
     output_file: str,
+    config_loader: ConfigLoader,
     paragraph_style_headings: dict[str, bool] = None,
-    config_file: str = "resume_config.yaml",
 ) -> str:
     """Convert markdown resume to ATS-friendly Word document
 
     Args:
         md_file (str): Path to the markdown resume file
         output_file (str): Path where the output Word document will be saved
+        config_loader (ConfigLoader, optional): ConfigLoader instance with configuration.
+                                               If None, creates with default config file.
         paragraph_style_headings (dict, optional): Dictionary mapping heading tags
                                                  to boolean values.
-        config_file (str, optional): Path to YAML configuration file.
-                                   Defaults to 'resume_config.yaml'.
 
     Returns:
         str: Path to the created document
     """
-    # Load configuration
-    config = load_config(config_file)
-    doc_defaults = config["document_defaults"]
-    style_constants = config["style_constants"]
-    document_styles = config["document_styles"]
+    # Initialize ConfigHelper and HeadingsHelper with config
+    ConfigHelper.init(config_loader.config)
+    HeadingsHelper.init(config_loader.config)
+
+    # Access config sections directly through properties
+    doc_defaults = config_loader.document_defaults
+    style_constants = config_loader.style_constants
+    document_styles = config_loader.document_styles
 
     # Default to using heading styles for all if not specified
     if paragraph_style_headings is None:
@@ -313,33 +590,35 @@ def create_ats_resume(
         (ResumeSection.ABOUT, process_header_section),
         (
             ResumeSection.ABOUT,
-            lambda doc, soup, sc, ps: process_about_section(doc, soup, sc, ps),
+            lambda doc, soup, ps: process_about_section(
+                document=doc, soup=soup, paragraph_style_headings=ps
+            ),
         ),
         (
             ResumeSection.SKILLS,
-            lambda doc, soup, sc, ps: process_skills_section(doc, soup, sc, ps),
+            lambda doc, soup, ps: process_skills_section(doc, soup, ps),
         ),
         (
             ResumeSection.EXPERIENCE,
-            lambda doc, soup, sc, ps: process_experience_section(doc, soup, sc, ps),
+            lambda doc, soup, ps: process_experience_section(doc, soup, ps),
         ),
         (
             ResumeSection.EDUCATION,
-            lambda doc, soup, sc, ps: process_education_section(doc, soup, sc, ps),
+            lambda doc, soup, ps: process_education_section(doc, soup, ps),
         ),
         (
             ResumeSection.CERTIFICATIONS,
-            lambda doc, soup, sc, ps: process_certifications_section(doc, soup, sc, ps),
+            lambda doc, soup, ps: process_certifications_section(doc, soup, ps),
         ),
         (
             ResumeSection.CONTACT,
-            lambda doc, soup, sc, ps: process_contact_section(doc, soup, sc, ps),
+            lambda doc, soup, ps: process_contact_section(doc, soup, ps),
         ),
     ]
 
     # Process each section
     for section_type, processor in section_processors:
-        processor(document, soup, style_constants, paragraph_style_headings)
+        processor(document, soup, paragraph_style_headings)
 
     # Save the document
     document.save(output_file)
@@ -382,118 +661,12 @@ def convert_to_pdf(docx_file: str, pdf_file: str = None):
     return None
 
 
-def load_config(
-    config_file: str = "resume_config.yaml", print_success_msg: bool = False
-) -> dict:
-    """Load configuration from YAML file
-
-    Args:
-        config_file (str): Path to configuration file.
-                            Defaults to 'resume_config.yaml' in same directory.
-
-    Returns:
-        dict: Configuration dictionary with defaults applied
-    """
-    import yaml
-    from yaml.parser import ParserError
-
-    # Default empty configuration structure
-    config = {
-        "document_defaults": {
-            "output_filename": "My ATS Resume.docx",
-            "pdf_file_extension": ".pdf",
-            "margin_top_bottom": 0.7,
-            "margin_left_right": 0.8,
-            "page_width": 8.5,
-            "page_height": 11.0,
-        },
-        "style_constants": {
-            "font_size_pts": 11,
-            "indent_inches": 0.25,
-            "bullet_indent_inches": 0.5,
-            "horizontal_line_char": "_",
-            "horizontal_line_length": 50,
-            "bullet_separator": " • ",
-        },
-        "document_styles": {},
-    }
-
-    # Try to load the YAML config file
-    if os.path.exists(config_file):
-        try:
-            with open(config_file, "r") as f:
-                yaml_config = yaml.safe_load(f)
-
-            # Use the YAML values directly if they exist
-            if yaml_config and isinstance(yaml_config, dict):
-                # Replace document_defaults if provided
-                if "document_defaults" in yaml_config:
-                    config["document_defaults"] = yaml_config["document_defaults"]
-
-                # Replace style_constants if provided
-                if "style_constants" in yaml_config:
-                    config["style_constants"] = yaml_config["style_constants"]
-
-                # Process document styles - need to handle RGBColor and Pt objects
-                if "document_styles" in yaml_config:
-                    document_styles = {}
-                    for style_name, properties in yaml_config[
-                        "document_styles"
-                    ].items():
-                        style_props = {}
-
-                        # Convert font_size to Pt objects
-                        if "font_size" in properties and isinstance(
-                            properties["font_size"], (int, float)
-                        ):
-                            style_props["font_size"] = Pt(properties["font_size"])
-
-                        # Convert color to RGBColor objects
-                        if "color" in properties and isinstance(
-                            properties["color"], str
-                        ):
-                            style_props["color"] = RGBColor.from_string(
-                                properties["color"]
-                            )
-
-                        # Convert indent values to Inches
-                        for indent_key in ["indent_left", "indent_right"]:
-                            if indent_key in properties and isinstance(
-                                properties[indent_key], (int, float)
-                            ):
-                                style_props[indent_key] = Inches(properties[indent_key])
-
-                        # Copy over all other properties directly
-                        for key, value in properties.items():
-                            if key not in [
-                                "font_size",
-                                "color",
-                                "indent_left",
-                                "indent_right",
-                            ]:
-                                style_props[key] = value
-
-                        document_styles[style_name] = style_props
-
-                    config["document_styles"] = document_styles
-
-                if print_success_msg:
-                    print(f"✅ Config loaded from {config_file}")
-        except (ParserError, Exception) as e:
-            print(
-                f"❌ Error loading config file: {str(e)}, using default configuration"
-            )
-
-    return config
-
-
 ##############################
 # Section Processors
 ##############################
 def process_header_section(
     document: Document,
     soup: BeautifulSoup,
-    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the header (name and tagline) section
@@ -501,7 +674,6 @@ def process_header_section(
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        style_constants (dict): Dictionary containing style constants
         paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
@@ -514,7 +686,7 @@ def process_header_section(
     name = soup.find("h1").text
 
     # Add name as document title
-    title = document.add_heading(name, MarkdownHeadingLevel.H1.value)
+    title = document.add_heading(name, HeadingsHelper.get_level_for_tag("h1"))
     title.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
 
     # Add professional tagline if it exists - first paragraph after h1
@@ -536,7 +708,7 @@ def process_header_section(
                 tagline_run.italic = True
 
                 # Set the font size to match heading style
-                tagline_run.font.size = Pt(MarkdownHeadingLevel.H4.font_size)
+                tagline_run.font.size = Pt(HeadingsHelper.get_font_size_for_tag("h4"))
             else:
                 # Use Word's built-in Subtitle style
                 tagline_para = document.add_paragraph(em_tag.text, style="Subtitle")
@@ -572,13 +744,12 @@ def process_header_section(
             current_p = current_p.find_next_sibling()
 
     # Add horizontal line
-    _add_horizontal_line_simple(document, style_constants)
+    _add_horizontal_line_simple(document)
 
 
 def process_about_section(
     document: Document,
     soup: BeautifulSoup,
-    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the About section
@@ -649,7 +820,7 @@ def process_about_section(
         # Handle highlights subsection found in a paragraph or heading
         elif highlights_subsection:
             heading_level = (
-                MarkdownHeadingLevel.get_level_for_tag(current_element.name)
+                HeadingsHelper.get_level_for_tag(current_element.name)
                 if current_element.name.startswith("h")
                 else None
             )
@@ -677,7 +848,6 @@ def process_about_section(
 def process_skills_section(
     document: Document,
     soup: BeautifulSoup,
-    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Skills section
@@ -711,7 +881,6 @@ def process_skills_section(
 def process_experience_section(
     document: Document,
     soup: BeautifulSoup,
-    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Experience section
@@ -719,7 +888,6 @@ def process_experience_section(
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        style_constants (dict): Dictionary containing style constants
         paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
@@ -744,7 +912,7 @@ def process_experience_section(
     # Get the add_space_before_h3 setting from the section type
     add_space_before_h3 = ResumeSection.EXPERIENCE.add_space_before_h3
 
-    bullet_indent_inches = style_constants.get("bullet_indent_inches")
+    bullet_indent_inches = ConfigHelper.get_style_constant("bullet_indent_inches")
 
     while current_element and current_element.name != "h2":
         # Skip if already processed
@@ -773,9 +941,7 @@ def process_experience_section(
             # Only process if this isn't a company name directly after job title
             if prev_h3 and next_after_h3 and next_after_h3 != current_element:
                 # Use proper heading for position title
-                heading_level = MarkdownHeadingLevel.get_level_for_tag(
-                    current_element.name
-                )
+                heading_level = HeadingsHelper.get_level_for_tag(current_element.name)
                 use_paragraph_style = paragraph_style_headings.get(
                     current_element.name, False
                 )
@@ -808,75 +974,47 @@ def process_experience_section(
             )
 
             if subsection:
-                heading_level = MarkdownHeadingLevel.get_level_for_tag(
-                    current_element.name
-                )
+                heading_level = HeadingsHelper.get_level_for_tag(current_element.name)
 
                 # PROJECT/CLIENT requires special handling with its own function
-                if subsection == JobSubsection.PROJECT_CLIENT:
+                if (
+                    subsection == JobSubsection.PROJECT_CLIENT
+                    and current_element not in processed_elements
+                ):
                     processed_elements = _process_project_section(
                         document,
                         current_element,
                         processed_elements,
-                        style_constants,
                         paragraph_style_headings=paragraph_style_headings,
                     )
 
                 # SUMMARY subsection
-                elif subsection == JobSubsection.SUMMARY:
-                    use_paragraph_style = paragraph_style_headings.get(
-                        current_element.name, False
-                    )
-                    _add_heading_or_paragraph(
+                elif (
+                    subsection == JobSubsection.SUMMARY
+                    and current_element not in processed_elements
+                ):
+                    processed_elements = _process_subsection(
                         document,
-                        subsection.full_heading,
+                        current_element,
+                        subsection,
                         heading_level,
-                        use_paragraph_style=use_paragraph_style,
-                        bold=subsection.bold,
-                        italic=subsection.italic,
+                        processed_elements,
+                        paragraph_style_headings,
                     )
 
                 # INTERNAL subsection
-                elif subsection == JobSubsection.INTERNAL:
-                    use_paragraph_style = paragraph_style_headings.get(
-                        current_element.name, False
-                    )
-                    _add_heading_or_paragraph(
+                elif (
+                    subsection == JobSubsection.INTERNAL
+                    and current_element not in processed_elements
+                ):
+                    processed_elements = _process_subsection(
                         document,
-                        subsection.full_heading,
+                        current_element,
+                        subsection,
                         heading_level,
-                        use_paragraph_style=use_paragraph_style,
-                        bold=subsection.bold,
-                        italic=subsection.italic,
+                        processed_elements,
+                        paragraph_style_headings,
                     )
-
-                    # Process elements under this internal section
-                    next_element = current_element.find_next_sibling()
-                    while next_element and next_element.name not in [
-                        "h2",
-                        "h3",
-                        "h4",
-                        "h5",
-                    ]:
-                        if next_element.name == "p":
-                            # Process paragraph text
-                            internal_para = document.add_paragraph()
-                            _process_text_for_hyperlinks(
-                                internal_para, next_element.text
-                            )
-                            processed_elements.add(next_element)
-                        elif next_element.name == "ul":
-                            for li in next_element.find_all("li"):
-                                bullet_para = document.add_paragraph(
-                                    style="List Bullet"
-                                )
-                                _left_indent_paragraph(
-                                    bullet_para, bullet_indent_inches
-                                )  # Keep indentation for bullets
-                                _process_text_for_hyperlinks(bullet_para, li.text)
-                            processed_elements.add(next_element)
-
-                        next_element = next_element.find_next_sibling()
 
                 # KEY_SKILLS subsection
                 elif subsection == JobSubsection.KEY_SKILLS:
@@ -905,9 +1043,9 @@ def process_experience_section(
                             for li in next_element.find_all("li"):
                                 skills_list.append(li.text.strip())
                             skills_para.add_run(
-                                style_constants.get("bullet_separator").join(
-                                    skills_list
-                                )
+                                ConfigHelper.get_style_constant(
+                                    "bullet_separator"
+                                ).join(skills_list)
                             )
                             processed_elements.add(next_element)
 
@@ -1041,7 +1179,6 @@ def process_experience_section(
 def process_education_section(
     document: Document,
     soup: BeautifulSoup,
-    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Education section
@@ -1049,7 +1186,6 @@ def process_education_section(
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        style_constants (dict, optional): Dictionary containing style constants
         paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
@@ -1061,7 +1197,6 @@ def process_education_section(
     _process_simple_section(
         document,
         section_h2,
-        style_constants,
         add_space=ResumeSection.EDUCATION.add_space_before_h3,
         paragraph_style_headings=paragraph_style_headings,
     )
@@ -1070,7 +1205,6 @@ def process_education_section(
 def process_certifications_section(
     document: Document,
     soup: BeautifulSoup,
-    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Certifications section
@@ -1096,7 +1230,6 @@ def process_certifications_section(
 def process_contact_section(
     document: Document,
     soup: BeautifulSoup,
-    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Contact section
@@ -1104,7 +1237,6 @@ def process_contact_section(
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        style_constants (dict, optional): Dictionary containing style constants
         paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
@@ -1116,7 +1248,6 @@ def process_contact_section(
     _process_simple_section(
         document,
         section_h2,
-        style_constants,
         add_space=ResumeSection.CONTACT.add_space_before_h3,
         paragraph_style_headings=paragraph_style_headings,
     )
@@ -1238,7 +1369,7 @@ def _prepare_section(
 
     # Add the section heading
     use_paragraph_style = paragraph_style_headings.get("h2", False)
-    heading_level = MarkdownHeadingLevel.H2.value
+    heading_level = HeadingsHelper.get_level_for_tag("h2")
     _add_heading_or_paragraph(
         document,
         section_type.docx_heading,
@@ -1252,7 +1383,6 @@ def _prepare_section(
 def _process_simple_section(
     document: Document,
     section_h2: BS4_Element,
-    style_constants: dict,
     add_space: bool = False,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
@@ -1262,7 +1392,6 @@ def _process_simple_section(
     Args:
         document: The Word document object
         section_h2: The BeautifulSoup h2 element for the section
-        style_constants (dict, optional): Dictionary containing style constants
         add_space (bool, optional): Whether to add a space paragraph after the section. Defaults to False.
         paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
@@ -1291,14 +1420,13 @@ def _process_simple_section(
 
     # Add an extra space after the section if requested
     if add_space:
-        _add_space_paragraph(document, style_constants.get("font_size_pts"))
+        _add_space_paragraph(document, ConfigHelper.get_style_constant("font_size_pts"))
 
 
 def _process_project_section(
     document: Document,
     project_element: BS4_Element,
     processed_elements: set[BS4_Element],
-    style_constants: dict,
     paragraph_style_headings: dict[str, bool] = None,
 ) -> set[BS4_Element]:
     """Process a project/client section and its related elements
@@ -1307,7 +1435,6 @@ def _process_project_section(
         document: The Word document object
         project_element: BeautifulSoup element for the project heading
         processed_elements: Set of elements already processed
-        style_constants (dict, optional): Dictionary containing style constants
         paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
@@ -1316,7 +1443,7 @@ def _process_project_section(
     if paragraph_style_headings is None:
         paragraph_style_headings = {}
 
-    bullet_indent_inches = style_constants.get("bullet_indent_inches")
+    bullet_indent_inches = ConfigHelper.get_style_constant("bullet_indent_inches")
 
     # Get the next element to see if it contains the project details
     next_element = project_element.find_next_sibling()
@@ -1335,7 +1462,7 @@ def _process_project_section(
     if not subsection:
         subsection = JobSubsection.PROJECT_CLIENT  # Fallback
 
-    heading_level = MarkdownHeadingLevel.get_level_for_tag(project_element.name)
+    heading_level = HeadingsHelper.get_level_for_tag(project_element.name)
     use_paragraph_style = paragraph_style_headings.get(project_element.name, False)
 
     # Prepare the project text
@@ -1368,7 +1495,7 @@ def _process_project_section(
 
         # Responsibilities Overview
         if h6_subsection == JobSubsection.RESPONSIBILITIES:
-            heading_level = MarkdownHeadingLevel.get_level_for_tag(next_element.name)
+            heading_level = HeadingsHelper.get_level_for_tag(next_element.name)
             use_paragraph_style = paragraph_style_headings.get(next_element.name, False)
 
             # Add the heading or paragraph
@@ -1396,7 +1523,7 @@ def _process_project_section(
 
         # Additional Details
         elif h6_subsection == JobSubsection.ADDITIONAL_DETAILS:
-            heading_level = MarkdownHeadingLevel.get_level_for_tag(next_element.name)
+            heading_level = HeadingsHelper.get_level_for_tag(next_element.name)
             use_paragraph_style = paragraph_style_headings.get(next_element.name, False)
 
             # Add the heading or paragraph
@@ -1464,7 +1591,7 @@ def _process_job_entry(
 
     # Check if h3 should use paragraph style
     use_paragraph_style = paragraph_style_headings.get("h3", False)
-    heading_level = MarkdownHeadingLevel.get_level_for_tag(job_element.name)
+    heading_level = HeadingsHelper.get_level_for_tag(job_element.name)
 
     _add_heading_or_paragraph(
         document, job_title, heading_level, use_paragraph_style=use_paragraph_style
@@ -1479,9 +1606,7 @@ def _process_job_entry(
 
         # Check if h4 should use paragraph style
         use_paragraph_style = paragraph_style_headings.get("h4", False)
-        company_heading_level = MarkdownHeadingLevel.get_level_for_tag(
-            next_element.name
-        )
+        company_heading_level = HeadingsHelper.get_level_for_tag(next_element.name)
 
         _add_heading_or_paragraph(
             document,
@@ -1494,25 +1619,80 @@ def _process_job_entry(
         processed_elements.add(next_element)
 
         # Find date/location
-        date_element = next_element.find_next_sibling()
-        if date_element and date_element.name == "p" and date_element.find("em"):
-            date_period = date_element.text.replace("*", "").strip()
-            date_para = document.add_paragraph()
-            date_run = date_para.add_run(date_period)
-            date_run.italic = True
-
-            # Mark as processed
-            processed_elements.add(date_element)
+        element = next_element.find_next_sibling()
     else:
         # Direct date under h3 (company header case)
-        if next_element and next_element.name == "p" and next_element.find("em"):
-            company_date = next_element.text.replace("*", "").strip()
-            date_para = document.add_paragraph()
-            date_run = date_para.add_run(company_date)
-            date_run.italic = True
+        element = next_element
 
-            # Mark as processed
-            processed_elements.add(next_element)
+    if element and element.name == "p" and element.find("em"):
+        date_period = element.text.replace("*", "").strip()
+        date_para = document.add_paragraph()
+        date_run = date_para.add_run(date_period)
+        date_run.italic = True
+
+        # Mark as processed
+        processed_elements.add(element)
+
+    return processed_elements
+
+
+def _process_subsection(
+    document: Document,
+    current_element: BS4_Element,
+    subsection: JobSubsection,
+    heading_level: int,
+    processed_elements: set[BS4_Element],
+    paragraph_style_headings: dict[str, bool] = None,
+) -> set[BS4_Element]:
+    """Generic function to process any subsection (Summary, Internal, Responsibilities, etc.)
+
+    Args:
+        document: The Word document object
+        current_element: The subsection heading element
+        subsection: The JobSubsection enum value
+        heading_level: The heading level from HeadingsHelper
+        processed_elements: Set of elements already processed
+        paragraph_style_headings: Dictionary mapping heading tags to boolean values
+
+    Returns:
+        Updated set of processed elements
+    """
+    if paragraph_style_headings is None:
+        paragraph_style_headings = {}
+
+    # Mark this specific heading element as processed
+    # if subsection != JobSubsection.SUMMARY and subsection != JobSubsection.INTERNAL:
+    #     processed_elements.add(current_element)
+
+    if current_element not in processed_elements:
+
+        # Add the subsection heading
+        use_paragraph_style = paragraph_style_headings.get(current_element.name, False)
+        _add_heading_or_paragraph(
+            document,
+            subsection.full_heading,
+            heading_level,
+            use_paragraph_style=use_paragraph_style,
+            bold=subsection.bold,
+            italic=subsection.italic,
+        )
+
+        # Process elements under this subsection until we hit another heading
+        next_element = current_element.find_next_sibling()
+        stop_tags = ["h2", "h3", "h4", "h5", "h6"]
+
+        while next_element and next_element.name not in stop_tags:
+            if next_element.name == "p":
+                para = document.add_paragraph()
+                _process_text_for_hyperlinks(para, next_element.text.strip())
+                processed_elements.add(next_element)
+            elif next_element.name == "ul":
+                for li in next_element.find_all("li"):
+                    bullet_para = document.add_paragraph(style="List Bullet")
+                    _process_text_for_hyperlinks(bullet_para, li.text)
+                processed_elements.add(next_element)
+
+            next_element = next_element.find_next_sibling()
 
     return processed_elements
 
@@ -1546,9 +1726,9 @@ def _add_heading_or_paragraph(
         run.bold = bold
         run.italic = italic
 
-        # Apply appropriate font size from the MarkdownHeadingLevel enum if not explicitly provided
+        # Apply appropriate font size from HeadingsHelper if not explicitly provided
         if font_size is None:
-            size_pt = MarkdownHeadingLevel.get_font_size_for_level(heading_level)
+            size_pt = HeadingsHelper.get_font_size_for_level(heading_level)
             run.font.size = Pt(size_pt)
         else:
             run.font.size = Pt(font_size)
@@ -1587,7 +1767,7 @@ def _process_certifications(
         if current_element.name == "h3":
             cert_name = current_element.text.strip()
             use_paragraph_style = paragraph_style_headings.get("h3", False)
-            heading_level = MarkdownHeadingLevel.H3.value
+            heading_level = HeadingsHelper.get_level_for_tag("h3")
 
             # Add blank line before h3 except for the first one
             # Only add space if add_space_before_h3 is True
@@ -1669,7 +1849,7 @@ def _process_certification_blockquote(
     if org_element:
         if org_element.name.startswith("h"):
             # It's a heading
-            heading_level = MarkdownHeadingLevel.get_level_for_tag(org_element.name)
+            heading_level = HeadingsHelper.get_level_for_tag(org_element.name)
             use_paragraph_style = paragraph_style_headings.get(org_element.name, False)
             _add_heading_or_paragraph(
                 document,
@@ -1697,7 +1877,7 @@ def _process_certification_blockquote(
             and item.name.startswith("h")
             and item != org_element
         ):
-            heading_level = MarkdownHeadingLevel.get_level_for_tag(item.name)
+            heading_level = HeadingsHelper.get_level_for_tag(item.name)
             use_paragraph_style = paragraph_style_headings.get(item.name, False)
             _add_heading_or_paragraph(
                 document,
@@ -1740,16 +1920,16 @@ def _process_certification_blockquote(
 ##############################
 # Inractive Mode Helper
 ##############################
-def _run_interactive_mode() -> tuple[str, str, dict[str, bool], bool, str]:
+def _run_interactive_mode() -> tuple[str, str, dict[str, bool], bool, ConfigLoader]:
     """Run in interactive mode, prompting the user for inputs
 
     Returns:
-        tuple: (input_file, output_file, paragraph_style_headings, create_pdf, config_file)
+        tuple: (input_file, output_file, paragraph_style_headings, create_pdf, config_loader)
     """
     print("\n🎯 Welcome to Resume Markdown to ATS Converter (Interactive Mode) 🎯\n")
 
     # Prompt for config file first
-    default_config = "resume_config.yaml"
+    default_config = DEFAULT_CONFIG_FILE
     config_prompt = (
         f"⚙️ Enter path to configuration file (default: '{default_config}'): "
     )
@@ -1758,9 +1938,12 @@ def _run_interactive_mode() -> tuple[str, str, dict[str, bool], bool, str]:
         config_file = default_config
         print(f"✅ Using default configuration: {config_file}")
 
-    # Load configuration using specified config file
-    config = load_config(config_file)  # Don't print success message
-    doc_defaults = config["document_defaults"]
+    # Create ConfigLoader with the specified config file
+    config_loader = ConfigLoader(config_file)
+
+    # Initialize ConfigHelper and HeadingsHelper
+    ConfigHelper.init(config_loader.config)
+    HeadingsHelper.init(config_loader.config)
 
     # Prompt for input file
     while True:
@@ -1776,7 +1959,7 @@ def _run_interactive_mode() -> tuple[str, str, dict[str, bool], bool, str]:
         break
 
     # Prompt for output file
-    default_output = doc_defaults["output_filename"]  # Use from config
+    default_output = config_loader.document_defaults["output_filename"]
     output_prompt = f"📝 Enter the output docx filename (default: '{default_output}'): "
     output_file = input(output_prompt).strip()
     if not output_file:
@@ -1820,7 +2003,8 @@ def _run_interactive_mode() -> tuple[str, str, dict[str, bool], bool, str]:
     if create_pdf:
         print("✅ Will generate PDF output")
 
-    return input_file, output_file, paragraph_style_headings, create_pdf
+    # Return the ConfigLoader object directly instead of just the config_file path
+    return input_file, output_file, paragraph_style_headings, create_pdf, config_loader
 
 
 ##############################
@@ -2205,25 +2389,18 @@ def _add_hyperlink(
     return hyperlink
 
 
-def _add_horizontal_line_simple(
-    document: Document, style_constants: dict = None
-) -> None:
+def _add_horizontal_line_simple(document: Document) -> None:
     """Add a simple horizontal line to the document using underscores
 
     Args:
         document: The Word document object
-        style_constants (dict, optional): Dictionary containing style constants. Defaults to None.
 
     Returns:
         None
     """
-    # Use defaults if no style_constants provided
-    if style_constants is None:
-        style_constants = {}
-
     # Get values from config with fallbacks
-    line_char = style_constants.get("horizontal_line_char", "_")
-    line_length = style_constants.get("horizontal_line_length", 50)
+    line_char = ConfigHelper.get_style_constant("horizontal_line_char", "_")
+    line_length = ConfigHelper.get_style_constant("horizontal_line_length", 50)
 
     p = document.add_paragraph()
     p.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
@@ -2248,7 +2425,6 @@ def _add_space_paragraph(document: Document, font_size: int = None) -> None:
 # Main Entry
 ##############################
 if __name__ == "__main__":
-
     # Create detailed program description and examples
     program_description = """
     Convert a markdown resume to an ATS-friendly Word document.
@@ -2290,7 +2466,7 @@ if __name__ == "__main__":
         "--config",
         dest="config_file",
         help="Path to YAML configuration file",
-        default="resume_config.yaml",
+        default=DEFAULT_CONFIG_FILE,
     )
     parser.add_argument(
         "-o",
@@ -2323,24 +2499,24 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Load configuration before processing arguments
-    config = load_config(args.config_file, True)
-    doc_defaults = config["document_defaults"]
+    # Load configuration using ConfigLoader
+    config_loader = ConfigLoader(args.config_file, print_success_msg=True)
 
     # Check if we should run in interactive mode
     if (
         not (args.input_file or args.output_file or args.paragraph_headings)
         or args.interactive
     ):
-        input_file, output_file, paragraph_style_headings, create_pdf = (
+        # Now we get the config_loader object directly from _run_interactive_mode
+        input_file, output_file, paragraph_style_headings, create_pdf, config_loader = (
             _run_interactive_mode()
         )
     else:
         # Use command-line arguments
         input_file = args.input_file
         output_file = (
-            args.output_file or doc_defaults["output_filename"]
-        )  # Use from config
+            args.output_file or config_loader.document_defaults["output_filename"]
+        )
 
         # Convert list to dictionary if provided
         paragraph_style_headings = {}
@@ -2354,19 +2530,20 @@ if __name__ == "__main__":
 
         create_pdf = args.create_pdf
 
-    # Use the arguments to create the resume
+    # Use the arguments to create the resume, passing config_loader
     result = create_ats_resume(
         input_file,
         output_file,
         paragraph_style_headings=paragraph_style_headings,
-        config_file=args.config_file,  # Pass config file to use
+        config_loader=config_loader,  # Pass config_loader object instead of string
     )
 
     # Convert to PDF if requested
     if create_pdf:
         pdf_file = (
-            os.path.splitext(result)[0] + doc_defaults["pdf_file_extension"]
-        )  # Use from config
+            os.path.splitext(result)[0]
+            + config_loader.document_defaults["pdf_file_extension"]
+        )
         if convert_to_pdf(result, pdf_file):
             print(f"✅ Created PDF: {pdf_file}")
 

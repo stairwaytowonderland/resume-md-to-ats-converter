@@ -91,3 +91,23 @@ document_styles:
     # font_size: 11
     # indent_left: 0.5
     # indent_right: 0.5
+
+markdown_headings:
+  h1:
+    level: 0
+    paragraph_heading_size: 24
+  h2:
+    level: 1
+    paragraph_heading_size: 16
+  h3:
+    level: 2
+    paragraph_heading_size: 14
+  h4:
+    level: 3
+    paragraph_heading_size: 12
+  h5:
+    level: 4
+    paragraph_heading_size: 11
+  h6:
+    level: 5
+    paragraph_heading_size: 10

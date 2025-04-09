@@ -171,7 +171,6 @@ Demonstrating · Skills Above · The Responsibilities Area
 - At this particular job
 
 
-
 ### Another Generic Company Name
 
 #### A Different Role
