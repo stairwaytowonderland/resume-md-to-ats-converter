@@ -36,7 +36,7 @@ class ConfigLoader:
     """Class for loading and accessing configuration from YAML file"""
 
     def __init__(
-        self, config_file: str = DEFAULT_CONFIG_FILE, print_success_msg: bool = False
+        self, config_file: str = DEFAULT_CONFIG_FILE, print_success_msg: bool = True
     ):
         """Initialize by loading configuration from YAML file
 
@@ -291,10 +291,13 @@ class HeadingsHelper:
 
     # Class-level storage for the heading configuration
     _heading_map = {}
+    _paragraph_style_headings = {}
     _initialized = False
 
     @classmethod
-    def init(cls, config: dict) -> None:
+    def init(
+        cls, config: dict, paragraph_style_headings: dict[str, bool] = None
+    ) -> None:
         """Initialize the heading map from configuration
 
         Args:
@@ -302,7 +305,31 @@ class HeadingsHelper:
         """
         # Simply assign the markdown_headings from config
         cls._heading_map = config["markdown_headings"]
+        cls._paragraph_style_headings = paragraph_style_headings or {}
         cls._initialized = True
+
+    @classmethod
+    def should_use_paragraph_style(cls, tag_name: str) -> bool:
+        """Check if a heading tag should use paragraph style instead of heading style
+
+        Args:
+            tag_name (str): HTML tag name (e.g., 'h1', 'h2', etc.)
+
+        Returns:
+            bool: True if tag should use paragraph style, False otherwise
+        """
+        cls._check_initialized()
+        return cls._paragraph_style_headings.get(tag_name, False)
+
+    @classmethod
+    def any_heading_uses_paragraph_style(cls) -> bool:
+        """Check if any heading level uses paragraph style
+
+        Returns:
+            bool: True if any heading level has paragraph styling enabled, False otherwise
+        """
+        cls._check_initialized()
+        return bool(cls._paragraph_style_headings)
 
     @classmethod
     def get_level_for_tag(cls, tag_name: str) -> int | None:
@@ -550,18 +577,18 @@ def create_ats_resume(
     Returns:
         str: Path to the created document
     """
+    # Default to using heading styles for all if not specified
+    if paragraph_style_headings is None:
+        paragraph_style_headings = {}
+
     # Initialize ConfigHelper and HeadingsHelper with config
     ConfigHelper.init(config_loader.config)
-    HeadingsHelper.init(config_loader.config)
+    HeadingsHelper.init(config_loader.config, paragraph_style_headings)
 
     # Access config sections directly through properties
     doc_defaults = config_loader.document_defaults
     style_constants = config_loader.style_constants
     document_styles = config_loader.document_styles
-
-    # Default to using heading styles for all if not specified
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
 
     # Read markdown file
     with open(md_file, "r") as file:
@@ -590,35 +617,33 @@ def create_ats_resume(
         (ResumeSection.ABOUT, process_header_section),
         (
             ResumeSection.ABOUT,
-            lambda doc, soup, ps: process_about_section(
-                document=doc, soup=soup, paragraph_style_headings=ps
-            ),
+            lambda doc, soup: process_about_section(document=doc, soup=soup),
         ),
         (
             ResumeSection.SKILLS,
-            lambda doc, soup, ps: process_skills_section(doc, soup, ps),
+            lambda doc, soup: process_skills_section(doc, soup),
         ),
         (
             ResumeSection.EXPERIENCE,
-            lambda doc, soup, ps: process_experience_section(doc, soup, ps),
+            lambda doc, soup: process_experience_section(doc, soup),
         ),
         (
             ResumeSection.EDUCATION,
-            lambda doc, soup, ps: process_education_section(doc, soup, ps),
+            lambda doc, soup: process_education_section(doc, soup),
         ),
         (
             ResumeSection.CERTIFICATIONS,
-            lambda doc, soup, ps: process_certifications_section(doc, soup, ps),
+            lambda doc, soup: process_certifications_section(doc, soup),
         ),
         (
             ResumeSection.CONTACT,
-            lambda doc, soup, ps: process_contact_section(doc, soup, ps),
+            lambda doc, soup: process_contact_section(doc, soup),
         ),
     ]
 
     # Process each section
     for section_type, processor in section_processors:
-        processor(document, soup, paragraph_style_headings)
+        processor(document, soup)
 
     # Save the document
     document.save(output_file)
@@ -667,21 +692,16 @@ def convert_to_pdf(docx_file: str, pdf_file: str = None):
 def process_header_section(
     document: Document,
     soup: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the header (name and tagline) section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     # Extract header (name)
     name = soup.find("h1").text
 
@@ -693,8 +713,8 @@ def process_header_section(
     first_p = soup.find("h1").find_next_sibling()
     if first_p and first_p.name == "p":
         # Check if ANY paragraph headings are specified, which indicates preference for simpler styling
-        use_paragraph_style = bool(
-            paragraph_style_headings
+        use_paragraph_style = (
+            HeadingsHelper.any_heading_uses_paragraph_style()
         )  # True if any heading levels use paragraph style
 
         # Check if the paragraph contains emphasis (italics)
@@ -750,24 +770,17 @@ def process_header_section(
 def process_about_section(
     document: Document,
     soup: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the About section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
-    section_h2 = _prepare_section(
-        document, soup, ResumeSection.ABOUT, paragraph_style_headings
-    )
+    section_h2 = _prepare_section(document, soup, ResumeSection.ABOUT)
 
     if not section_h2:
         return
@@ -824,8 +837,8 @@ def process_about_section(
                 if current_element.name.startswith("h")
                 else None
             )
-            use_paragraph_style = paragraph_style_headings.get(
-                current_element.name, False
+            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+                current_element.name
             )
             _add_heading_or_paragraph(
                 document,
@@ -848,24 +861,17 @@ def process_about_section(
 def process_skills_section(
     document: Document,
     soup: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Skills section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
-    section_h2 = _prepare_section(
-        document, soup, ResumeSection.SKILLS, paragraph_style_headings
-    )
+    section_h2 = _prepare_section(document, soup, ResumeSection.SKILLS)
 
     if not section_h2:
         return
@@ -881,24 +887,17 @@ def process_skills_section(
 def process_experience_section(
     document: Document,
     soup: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Experience section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
-    section_h2 = _prepare_section(
-        document, soup, ResumeSection.EXPERIENCE, paragraph_style_headings
-    )
+    section_h2 = _prepare_section(document, soup, ResumeSection.EXPERIENCE)
 
     if not section_h2:
         return
@@ -926,7 +925,6 @@ def process_experience_section(
                 document,
                 current_element,
                 processed_elements,
-                paragraph_style_headings,
                 add_space_before_h3,
             )
 
@@ -942,8 +940,8 @@ def process_experience_section(
             if prev_h3 and next_after_h3 and next_after_h3 != current_element:
                 # Use proper heading for position title
                 heading_level = HeadingsHelper.get_level_for_tag(current_element.name)
-                use_paragraph_style = paragraph_style_headings.get(
-                    current_element.name, False
+                use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+                    current_element.name
                 )
                 _add_heading_or_paragraph(
                     document,
@@ -985,7 +983,6 @@ def process_experience_section(
                         document,
                         current_element,
                         processed_elements,
-                        paragraph_style_headings=paragraph_style_headings,
                     )
 
                 # SUMMARY subsection
@@ -999,7 +996,6 @@ def process_experience_section(
                         subsection,
                         heading_level,
                         processed_elements,
-                        paragraph_style_headings,
                     )
 
                 # INTERNAL subsection
@@ -1013,13 +1009,12 @@ def process_experience_section(
                         subsection,
                         heading_level,
                         processed_elements,
-                        paragraph_style_headings,
                     )
 
                 # KEY_SKILLS subsection
                 elif subsection == JobSubsection.KEY_SKILLS:
-                    use_paragraph_style = paragraph_style_headings.get(
-                        current_element.name, False
+                    use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+                        current_element.name
                     )
                     skills_heading = _add_heading_or_paragraph(
                         document,
@@ -1078,8 +1073,8 @@ def process_experience_section(
                     subsection == JobSubsection.RESPONSIBILITIES
                     and current_element not in processed_elements
                 ):
-                    use_paragraph_style = paragraph_style_headings.get(
-                        current_element.name, False
+                    use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+                        current_element.name
                     )
                     _add_heading_or_paragraph(
                         document,
@@ -1111,8 +1106,8 @@ def process_experience_section(
                     subsection == JobSubsection.ADDITIONAL_DETAILS
                     and current_element not in processed_elements
                 ):
-                    use_paragraph_style = paragraph_style_headings.get(
-                        current_element.name, False
+                    use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+                        current_element.name
                     )
                     _add_heading_or_paragraph(
                         document,
@@ -1179,77 +1174,74 @@ def process_experience_section(
 def process_education_section(
     document: Document,
     soup: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Education section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
     section_h2 = _prepare_section(
-        document, soup, ResumeSection.EDUCATION, paragraph_style_headings
+        document,
+        soup,
+        ResumeSection.EDUCATION,
     )
     _process_simple_section(
         document,
         section_h2,
         add_space=ResumeSection.EDUCATION.add_space_before_h3,
-        paragraph_style_headings=paragraph_style_headings,
     )
 
 
 def process_certifications_section(
     document: Document,
     soup: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Certifications section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
     section_h2 = _prepare_section(
-        document, soup, ResumeSection.CERTIFICATIONS, paragraph_style_headings
+        document,
+        soup,
+        ResumeSection.CERTIFICATIONS,
     )
     _process_certifications(
         document,
         section_h2,
-        paragraph_style_headings=paragraph_style_headings,
     )
 
 
 def process_contact_section(
     document: Document,
     soup: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the Contact section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
     section_h2 = _prepare_section(
-        document, soup, ResumeSection.CONTACT, paragraph_style_headings
+        document,
+        soup,
+        ResumeSection.CONTACT,
     )
     _process_simple_section(
         document,
         section_h2,
         add_space=ResumeSection.CONTACT.add_space_before_h3,
-        paragraph_style_headings=paragraph_style_headings,
     )
 
 
@@ -1337,7 +1329,6 @@ def _prepare_section(
     document: Document,
     soup: BeautifulSoup,
     section_type: ResumeSection,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> BS4_Element | None:
     """Universal preliminary section preparation
 
@@ -1345,15 +1336,10 @@ def _prepare_section(
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
         section_type: ResumeSection enum value
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         BeautifulSoup element or None: The section heading element if found, None otherwise
     """
-
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
 
     if not section_h2:
@@ -1368,7 +1354,7 @@ def _prepare_section(
         run.add_break(DOCX_PAGE_BREAK.PAGE)
 
     # Add the section heading
-    use_paragraph_style = paragraph_style_headings.get("h2", False)
+    use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h2")
     heading_level = HeadingsHelper.get_level_for_tag("h2")
     _add_heading_or_paragraph(
         document,
@@ -1384,7 +1370,6 @@ def _process_simple_section(
     document: Document,
     section_h2: BS4_Element,
     add_space: bool = False,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process sections with simple paragraph-based content like Education and Contact.
     These sections typically have paragraphs with some bold (strong) elements.
@@ -1393,14 +1378,10 @@ def _process_simple_section(
         document: The Word document object
         section_h2: The BeautifulSoup h2 element for the section
         add_space (bool, optional): Whether to add a space paragraph after the section. Defaults to False.
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     current_element = section_h2.find_next_sibling()
 
     while current_element and current_element.name != "h2":
@@ -1427,7 +1408,6 @@ def _process_project_section(
     document: Document,
     project_element: BS4_Element,
     processed_elements: set[BS4_Element],
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> set[BS4_Element]:
     """Process a project/client section and its related elements
 
@@ -1435,14 +1415,10 @@ def _process_project_section(
         document: The Word document object
         project_element: BeautifulSoup element for the project heading
         processed_elements: Set of elements already processed
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         set: Updated set of processed elements
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     bullet_indent_inches = ConfigHelper.get_style_constant("bullet_indent_inches")
 
     # Get the next element to see if it contains the project details
@@ -1463,7 +1439,9 @@ def _process_project_section(
         subsection = JobSubsection.PROJECT_CLIENT  # Fallback
 
     heading_level = HeadingsHelper.get_level_for_tag(project_element.name)
-    use_paragraph_style = paragraph_style_headings.get(project_element.name, False)
+    use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+        project_element.name
+    )
 
     # Prepare the project text
     project_text = subsection.full_heading
@@ -1496,7 +1474,9 @@ def _process_project_section(
         # Responsibilities Overview
         if h6_subsection == JobSubsection.RESPONSIBILITIES:
             heading_level = HeadingsHelper.get_level_for_tag(next_element.name)
-            use_paragraph_style = paragraph_style_headings.get(next_element.name, False)
+            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+                next_element.name
+            )
 
             # Add the heading or paragraph
             if use_paragraph_style:
@@ -1524,7 +1504,9 @@ def _process_project_section(
         # Additional Details
         elif h6_subsection == JobSubsection.ADDITIONAL_DETAILS:
             heading_level = HeadingsHelper.get_level_for_tag(next_element.name)
-            use_paragraph_style = paragraph_style_headings.get(next_element.name, False)
+            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+                next_element.name
+            )
 
             # Add the heading or paragraph
             if use_paragraph_style:
@@ -1560,7 +1542,6 @@ def _process_job_entry(
     document: Document,
     job_element: BS4_Element,
     processed_elements: set[BS4_Element],
-    paragraph_style_headings: dict[str, bool] = None,
     add_space_before_h3: bool = False,
 ) -> set[BS4_Element]:
     """Process a job entry (h3) and its related elements
@@ -1569,16 +1550,12 @@ def _process_job_entry(
         document: The Word document object
         job_element: BeautifulSoup element for the job heading
         processed_elements: Set of elements already processed
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
         add_space_before_h3 (bool, optional): Whether to add a blank line before each h3 heading
                                            (except the first after h2). Defaults to False.
 
     Returns:
         set: Updated set of processed elements
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     job_title = job_element.text.strip()
 
     # Check if this is NOT the first h3 after an h2
@@ -1590,7 +1567,7 @@ def _process_job_entry(
             document.add_paragraph()
 
     # Check if h3 should use paragraph style
-    use_paragraph_style = paragraph_style_headings.get("h3", False)
+    use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h3")
     heading_level = HeadingsHelper.get_level_for_tag(job_element.name)
 
     _add_heading_or_paragraph(
@@ -1605,7 +1582,7 @@ def _process_job_entry(
         company_name = next_element.text.strip()
 
         # Check if h4 should use paragraph style
-        use_paragraph_style = paragraph_style_headings.get("h4", False)
+        use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h4")
         company_heading_level = HeadingsHelper.get_level_for_tag(next_element.name)
 
         _add_heading_or_paragraph(
@@ -1642,7 +1619,6 @@ def _process_subsection(
     subsection: JobSubsection,
     heading_level: int,
     processed_elements: set[BS4_Element],
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> set[BS4_Element]:
     """Generic function to process any subsection (Summary, Internal, Responsibilities, etc.)
 
@@ -1652,14 +1628,10 @@ def _process_subsection(
         subsection: The JobSubsection enum value
         heading_level: The heading level from HeadingsHelper
         processed_elements: Set of elements already processed
-        paragraph_style_headings: Dictionary mapping heading tags to boolean values
 
     Returns:
         Updated set of processed elements
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     # Mark this specific heading element as processed
     # if subsection != JobSubsection.SUMMARY and subsection != JobSubsection.INTERNAL:
     #     processed_elements.add(current_element)
@@ -1667,7 +1639,9 @@ def _process_subsection(
     if current_element not in processed_elements:
 
         # Add the subsection heading
-        use_paragraph_style = paragraph_style_headings.get(current_element.name, False)
+        use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+            current_element.name
+        )
         _add_heading_or_paragraph(
             document,
             subsection.full_heading,
@@ -1741,21 +1715,16 @@ def _add_heading_or_paragraph(
 def _process_certifications(
     document: Document,
     section_h2: BeautifulSoup,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the certifications section with its specific structure
 
     Args:
         document: The Word document object
         section_h2: BeautifulSoup h2 element for the section
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     # Get the add_space_before_h3 setting from the section type
     add_space_before_h3 = ResumeSection.CERTIFICATIONS.add_space_before_h3
 
@@ -1766,7 +1735,7 @@ def _process_certifications(
         # Process certification name (h3)
         if current_element.name == "h3":
             cert_name = current_element.text.strip()
-            use_paragraph_style = paragraph_style_headings.get("h3", False)
+            use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h3")
             heading_level = HeadingsHelper.get_level_for_tag("h3")
 
             # Add blank line before h3 except for the first one
@@ -1789,9 +1758,7 @@ def _process_certifications(
             # Handle blockquote (optional)
             if next_element and next_element.name == "blockquote":
                 # Process the blockquote contents
-                _process_certification_blockquote(
-                    document, next_element, paragraph_style_headings
-                )
+                _process_certification_blockquote(document, next_element)
 
             # If no blockquote, look for organization info directly
             elif next_element:
@@ -1829,28 +1796,25 @@ def _process_certifications(
 def _process_certification_blockquote(
     document: Document,
     blockquote: BS4_Element,
-    paragraph_style_headings: dict[str, bool] = None,
 ) -> None:
     """Process the contents of a certification blockquote
 
     Args:
         document: The Word document object
         blockquote: BeautifulSoup blockquote element containing certification details
-        paragraph_style_headings (dict, optional): Dictionary mapping heading tags to boolean values
 
     Returns:
         None
     """
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     # Process the organization name (first element)
     org_element = blockquote.find(["h4", "h5", "h6", "strong"])
     if org_element:
         if org_element.name.startswith("h"):
             # It's a heading
             heading_level = HeadingsHelper.get_level_for_tag(org_element.name)
-            use_paragraph_style = paragraph_style_headings.get(org_element.name, False)
+            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+                org_element.name
+            )
             _add_heading_or_paragraph(
                 document,
                 org_element.text.strip(),
@@ -1878,7 +1842,7 @@ def _process_certification_blockquote(
             and item != org_element
         ):
             heading_level = HeadingsHelper.get_level_for_tag(item.name)
-            use_paragraph_style = paragraph_style_headings.get(item.name, False)
+            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(item.name)
             _add_heading_or_paragraph(
                 document,
                 item.text.strip(),
@@ -1940,10 +1904,6 @@ def _run_interactive_mode() -> tuple[str, str, dict[str, bool], bool, ConfigLoad
 
     # Create ConfigLoader with the specified config file
     config_loader = ConfigLoader(config_file)
-
-    # Initialize ConfigHelper and HeadingsHelper
-    ConfigHelper.init(config_loader.config)
-    HeadingsHelper.init(config_loader.config)
 
     # Prompt for input file
     while True:
@@ -2499,9 +2459,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Load configuration using ConfigLoader
-    config_loader = ConfigLoader(args.config_file, print_success_msg=True)
-
     # Check if we should run in interactive mode
     if (
         not (args.input_file or args.output_file or args.paragraph_headings)
@@ -2512,6 +2469,8 @@ if __name__ == "__main__":
             _run_interactive_mode()
         )
     else:
+        config_loader = ConfigLoader(args.config_file)
+
         # Use command-line arguments
         input_file = args.input_file
         output_file = (
