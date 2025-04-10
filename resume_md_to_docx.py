@@ -3,6 +3,7 @@ import os
 import re
 import sys
 from enum import Enum
+from pathlib import Path
 
 import docx.oxml.shared
 import markdown
@@ -36,12 +37,12 @@ class ConfigLoader:
     """Class for loading and accessing configuration from YAML file"""
 
     def __init__(
-        self, config_file: str = DEFAULT_CONFIG_FILE, print_success_msg: bool = True
+        self, config_file: Path = DEFAULT_CONFIG_FILE, print_success_msg: bool = True
     ):
         """Initialize by loading configuration from YAML file
 
         Args:
-            config_file (str): Path to configuration file.
+            config_file (Path): Path to configuration file.
                              Defaults to 'resume_config.yaml' in same directory.
             print_success_msg (bool): Whether to print success message after loading.
                                    Defaults to False.
@@ -559,15 +560,15 @@ class PdfConverterPaths(Enum):
 # Main Processors
 ##############################
 def create_ats_resume(
-    md_file: str,
-    output_file: str,
+    md_file: Path,
+    output_file: Path,
     config_loader: ConfigLoader,
     paragraph_style_headings: dict[str, bool] = None,
-) -> str:
+) -> Path:
     """Convert markdown resume to ATS-friendly Word document
 
     Args:
-        md_file (str): Path to the markdown resume file
+        md_file (Path): Path to the markdown resume file
         output_file (str): Path where the output Word document will be saved
         config_loader (ConfigLoader, optional): ConfigLoader instance with configuration.
                                                If None, creates with default config file.
@@ -575,7 +576,7 @@ def create_ats_resume(
                                                  to boolean values.
 
     Returns:
-        str: Path to the created document
+        Path: Path to the created document
     """
     # Default to using heading styles for all if not specified
     if paragraph_style_headings is None:
@@ -648,22 +649,19 @@ def create_ats_resume(
     # Save the document
     document.save(output_file)
 
-    return output_file
+    return Path(output_file)
 
 
-def convert_to_pdf(docx_file: str, pdf_file: str = None):
+def convert_to_pdf(docx_file: Path) -> Path | None:
     """Convert a DOCX file to PDF using available converters
 
     Args:
-        docx_file (str): Path to the input DOCX file
-        pdf_file (str, optional): Path for the output PDF file. If None,
-                                 replaces the .docx extension with .pdf
+        docx_file (Path): Path to the input DOCX file
 
     Returns:
-        str: Path to the created PDF file, or None if conversion failed
+        Path: Path to the created PDF file, or None if conversion failed
     """
-    if pdf_file is None:
-        pdf_file = os.path.splitext(docx_file)[0] + ".pdf"
+    pdf_file = docx_file.with_suffix(".pdf")
 
     # Try multiple conversion methods
     methods = [
@@ -675,7 +673,7 @@ def convert_to_pdf(docx_file: str, pdf_file: str = None):
     for method in methods:
         try:
             if method(docx_file, pdf_file):
-                return pdf_file
+                return Path(pdf_file)
         except Exception as e:
             print(f"Could not convert using {method.__name__}: {str(e)}")
 
@@ -2499,11 +2497,8 @@ if __name__ == "__main__":
 
     # Convert to PDF if requested
     if create_pdf:
-        pdf_file = (
-            os.path.splitext(result)[0]
-            + config_loader.document_defaults["pdf_file_extension"]
-        )
-        if convert_to_pdf(result, pdf_file):
+        pdf_file = convert_to_pdf(result)
+        if pdf_file:
             print(f"✅ Created PDF: {pdf_file}")
 
     print(f"🎉 ATS-friendly resume created: {result} 🎉")
