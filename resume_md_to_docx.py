@@ -44,7 +44,7 @@ class ResumeSection(Enum):
     """
 
     ABOUT = ("About", "PROFESSIONAL SUMMARY", False)
-    SKILLS = ("Top Skills", "CORE SKILLS", False)
+    SKILLS = ("Top Skills", "TOP SKILLS", False)
     EXPERIENCE = ("Experience", "PROFESSIONAL EXPERIENCE", True)
     EDUCATION = ("Education", "EDUCATION", True)
     CERTIFICATIONS = ("Licenses & certifications", "LICENSES & CERTIFICATIONS", True)
@@ -93,7 +93,7 @@ class JobSubsection(Enum):
         italic (bool): Whether the heading should be italic (default: False)
     """
 
-    KEY_SKILLS = ("h5", "key skills", "Technical Skills", ":", True, False)
+    KEY_SKILLS = ("h5", "key skills", "Key Skills", ":", True, False)
     SUMMARY = ("h5", "summary", "Summary", ":", True, False)
     INTERNAL = ("h5", "internal", "Internal", ":", True, False)
     PROJECT_CLIENT = ("h5", "project/client", "Project/Client", ": ", True, True)
@@ -240,6 +240,12 @@ class ConfigLoader:
                 "paragraph_after_h4_line_spacing": 0.20,
             },
             "document_styles": {},
+            "markdown_lists": {
+                "ul": {
+                    "bullet_character": "•",
+                    "paragraph_delimiter": "\n",
+                },
+            },
             "markdown_headings": {
                 "h1": {"level": 0, "paragraph_heading_size": 24},
                 "h2": {"level": 1, "paragraph_heading_size": 16},
@@ -267,6 +273,9 @@ class ConfigLoader:
                     # Replace style_constants if provided
                     if "style_constants" in yaml_config:
                         self._config["style_constants"] = yaml_config["style_constants"]
+
+                    if "markdown_lists" in yaml_config:
+                        self._config["markdown_lists"] = yaml_config["markdown_lists"]
 
                     # Replace markdown_headings if provided
                     if "markdown_headings" in yaml_config:
@@ -444,6 +453,23 @@ class ConfigHelper:
         """
         cls._check_initialized()
         return cls._config.get("style_constants", {}).get(key, default)
+
+    @classmethod
+    def get_markdown_list_option(cls, list_type: str, option_name: str, default=None):
+        """Get a markdown list option from config
+
+        Args:
+            list_type: The list type ("ul" or "ol")
+            option_name: The option name to retrieve
+            default: Default value if not found
+
+        Returns:
+            The option value or default
+        """
+        cls._check_initialized()
+        list_config = cls._config.get("markdown_lists", {})
+        type_config = list_config.get(list_type, {})
+        return type_config.get(option_name, default)
 
     @classmethod
     def _check_initialized(cls) -> None:
@@ -1079,13 +1105,7 @@ def process_experience_section(
                             processed_elements.add(next_element)
                         elif next_element.name == "ul":
                             # Process bullet list
-                            for li in next_element.find_all("li"):
-                                bullet_para = document.add_paragraph(
-                                    style="List Bullet"
-                                )
-                                _process_text_for_hyperlinks(
-                                    bullet_para, li.text, ensure_sentence_ending=True
-                                )
+                            _add_bullet_list(document, next_element)
                             processed_elements.add(next_element)
 
                 # ADDITIONAL_DETAILS subsection (standalone)
@@ -1108,54 +1128,13 @@ def process_experience_section(
                     # Get content (next element might be list items)
                     next_element = current_element.find_next_sibling()
                     if next_element and next_element.name == "ul":
-                        for li in next_element.find_all("li"):
-                            bullet_para = document.add_paragraph(style="List Bullet")
-
-                            # Check if this bullet item contains a link
-                            link = li.find("a")
-                            if link and link.get("href"):
-                                # Text before the link
-                                prefix = ""
-                                if link.previous_sibling:
-                                    prefix = (
-                                        link.previous_sibling.string
-                                        if link.previous_sibling.string
-                                        else ""
-                                    )
-
-                                # Text after the link
-                                suffix = ""
-                                if link.next_sibling:
-                                    suffix = (
-                                        link.next_sibling.string
-                                        if link.next_sibling.string
-                                        else ""
-                                    )
-
-                                # Add text before the link if any
-                                if prefix.strip():
-                                    bullet_para.add_run(prefix.strip())
-
-                                # Add the hyperlink
-                                _add_hyperlink(bullet_para, link.text, link.get("href"))
-
-                                # Add text after the link if any
-                                if suffix.strip():
-                                    bullet_para.add_run(suffix.strip())
-                            else:
-                                # No HTML links, process for markdown links or plain text
-                                _process_text_for_hyperlinks(
-                                    bullet_para, li.text, ensure_sentence_ending=True
-                                )
-
+                        _add_bullet_list(document, next_element)
                         processed_elements.add(next_element)
 
         # Standalone bullet points
         elif current_element.name == "ul" and current_element not in processed_elements:
-            # Process standalone bullet list
-            for li in current_element.find_all("li"):
-                bullet_para = document.add_paragraph(style="List Bullet")
-                _process_text_for_hyperlinks(bullet_para, li.text)
+            # Process bullet list
+            _add_bullet_list(document, current_element)
             processed_element_ids.add(element_id)
 
         current_element = current_element.find_next_sibling()
@@ -1333,9 +1312,10 @@ def _prepare_section(
     section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
 
     if not section_h2:
-        return
+        return None
 
-    section_page_break = _has_hr_before_section(section_h2)
+    # Use the generic function instead of the specific one
+    section_page_break = _has_hr_before_element(section_h2)
 
     # Add page break if requested
     if section_page_break:
@@ -1524,14 +1504,7 @@ def _process_project_section(
 
         # Bullet points
         elif next_element.name == "ul":
-            for li in next_element.find_all("li"):
-                bullet_para = document.add_paragraph(style="List Bullet")
-                _left_indent_paragraph(
-                    bullet_para, bullet_indent_inches
-                )  # Keep indentation for bullets
-                _process_text_for_hyperlinks(
-                    bullet_para, li.text, ensure_sentence_ending=True
-                )
+            _left_indent_paragraph(_add_bullet_list(document, next_element))
             processed_elements.add(next_element)
 
         next_element = next_element.find_next_sibling()
@@ -1558,10 +1531,16 @@ def _process_job_entry(
     """
     job_title = job_element.text.strip()
 
-    # Add spacing between jobs if needed
-    prev_heading = job_element.find_previous(["h2", "h3"])
-    if prev_heading and prev_heading.name == "h3":
-        document.add_paragraph()
+    # Check for HR before h3 and add page break if found
+    if _has_hr_before_element(job_element):
+        p = document.add_paragraph()
+        run = p.add_run()
+        run.add_break(DOCX_PAGE_BREAK.PAGE)
+    # Otherwise add normal spacing if needed
+    elif add_space_before_h3:
+        prev_heading = job_element.find_previous(["h2", "h3"])
+        if prev_heading and prev_heading.name == "h3":
+            document.add_paragraph()
 
     # Add the company name as h3
     use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h3")
@@ -1643,11 +1622,7 @@ def _process_subsection(
                 _process_text_for_hyperlinks(para, next_element.text.strip())
                 processed_elements.add(next_element)
             elif next_element.name == "ul":
-                for li in next_element.find_all("li"):
-                    bullet_para = document.add_paragraph(style="List Bullet")
-                    _process_text_for_hyperlinks(
-                        bullet_para, li.text, ensure_sentence_ending=True
-                    )
+                _add_bullet_list(document, next_element)
                 processed_elements.add(next_element)
 
             next_element = next_element.find_next_sibling()
@@ -2169,16 +2144,87 @@ def _add_bullet_list(
     Returns:
         paragraph: The last bullet paragraph added
     """
-    for li in ul_element.find_all("li"):
-        bullet_para = document.add_paragraph(style="List Bullet")
+    use_paragraph_style = ConfigHelper.get_style_constant("paragraph_lists", False)
 
-        # Process for hyperlinks WITH sentence ending
-        _process_text_for_hyperlinks(bullet_para, li.text, ensure_sentence_ending=True)
+    if use_paragraph_style:
+        # Get the bullet character from config
+        bullet_char = ConfigHelper.get_markdown_list_option(
+            "ul", "bullet_character", "•"
+        )
+
+        para = document.add_paragraph()
+
+        items = ul_element.find_all("li")
+        for i, li in enumerate(items):
+            if i > 0:
+                para.add_run("\n")
+
+            # Add the bullet character first
+            para.add_run(f"{bullet_char} ")
+
+            # Process formatting using the helper function
+            # Always ensure sentence ending for each line in paragraph lists
+            _process_list_item_formatting(para, li, ensure_ending=True)
 
         if indentation:
-            _left_indent_paragraph(bullet_para, indentation)
+            _left_indent_paragraph(para, indentation)
 
-    return bullet_para
+        return para
+    else:
+        # Standard bullet list processing - unchanged
+        bullet_para = None
+        for li in ul_element.find_all("li"):
+            bullet_para = document.add_paragraph(style="List Bullet")
+
+            # Process formatting using the helper function
+            _process_list_item_formatting(bullet_para, li)
+
+            # Ensure sentence ending for each bullet
+            last_run = bullet_para.runs[-1] if bullet_para.runs else None
+            if last_run and not last_run.text.rstrip()[-1:] in [
+                ".",
+                "!",
+                "?",
+                ":",
+                ";",
+            ]:
+                last_run.text = last_run.text.rstrip() + "."
+
+            if indentation:
+                _left_indent_paragraph(bullet_para, indentation)
+
+        return bullet_para
+
+
+def _process_list_item_formatting(
+    paragraph: DOCX_Paragraph, li_element: BS4_Element, ensure_ending: bool = False
+) -> None:
+    """Process a list item and add its content to a paragraph with proper formatting
+
+    Args:
+        paragraph: The paragraph to add content to
+        li_element: BeautifulSoup element for the list item
+        ensure_ending: Whether to ensure the text ends with proper sentence ending
+    """
+    # Process the item content to preserve formatting
+    for child in li_element.children:
+        # Handle bold text (strong tags)
+        if getattr(child, "name", None) == "strong":
+            run = paragraph.add_run(child.text)
+            run.bold = True
+        # Handle italic text (em tags)
+        elif getattr(child, "name", None) == "em":
+            run = paragraph.add_run(child.text)
+            run.italic = True
+        # Handle links
+        elif getattr(child, "name", None) == "a" and child.get("href"):
+            _add_hyperlink(paragraph, child.text, child.get("href"))
+        # Regular text
+        elif child.string:
+            text = child.string
+            if ensure_ending:
+                text = _ensure_sentence_ending(text)
+            paragraph.add_run(text)
 
 
 def _add_formatted_paragraph(
@@ -2229,19 +2275,19 @@ def _add_formatted_paragraph(
     return para
 
 
-def _has_hr_before_section(section_h2: BS4_Element) -> bool:
-    """Check if there's a horizontal rule (hr) element before a section heading
+def _has_hr_before_element(element: BS4_Element) -> bool:
+    """Check if there's a horizontal rule (hr) element before any element
 
     Args:
-        section_h2: BeautifulSoup element representing the section heading
+        element: BeautifulSoup element to check for preceding HR
 
     Returns:
-        bool: True if there's an HR element immediately before this section, False otherwise
+        bool: True if there's an HR element immediately before this element, False otherwise
     """
-    if not section_h2:
+    if not element:
         return False
 
-    prev_element = section_h2.previous_sibling
+    prev_element = element.previous_sibling
     # Skip whitespace text nodes
     while prev_element and isinstance(prev_element, str) and prev_element.strip() == "":
         prev_element = prev_element.previous_sibling

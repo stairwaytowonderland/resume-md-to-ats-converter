@@ -17,11 +17,12 @@ style_constants:
   horizontal_line_char: "_"  # Character for horizontal lines
   horizontal_line_length: 50  # Length of horizontal line
   top_skills_separator_markdown: " • "  # Separator for top skills area
-  top_skills_separator: " ○ "  # Separator for top skills area
+  top_skills_separator: " | "  # Separator for top skills area
   key_skills_separator_markdown: " • "  # Separator for key skills area
   key_skills_separator: " · "  # Separator for key skills area
   paragraph_after_h4_line_spacing: 1.35  # Line spacing for date/location line
   paragraph_after_h4_font_size: 10  # Font size for date/location line
+  paragraph_lists: yes  # Enable/disable paragraph-style lists
 
 # Document styles - Word document style definitions
 document_styles:
@@ -93,6 +94,11 @@ document_styles:
     # font_size: 11
     # indent_left: 0.5
     # indent_right: 0.5
+
+markdown_lists:
+  ul:
+    bullet_character: "•"  # Custom bullet character to use in lists
+    paragraph_delimiter: "\n"  # Line delimiter for paragraph-style lists
 
 markdown_headings:
   h1:
