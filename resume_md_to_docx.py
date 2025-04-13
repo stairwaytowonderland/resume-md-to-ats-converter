@@ -235,8 +235,6 @@ class ConfigLoader:
                 "bullet_indent_inches": 0.5,
                 "horizontal_line_char": "_",
                 "horizontal_line_length": 50,
-                "top_skills_separator": " | ",
-                "bullet_separator": " • ",
                 "paragraph_after_h4_line_spacing": 0.20,
             },
             "document_styles": {},
@@ -913,17 +911,9 @@ def process_skills_section(
     current_element = section_h2.find_next_sibling()
 
     if current_element and current_element.name == "p":
-        input_separator = ConfigHelper.get_style_constant(
-            "top_skills_separator_markdown", " • "
+        _process_horizontal_skills_list(
+            document, current_element.text, is_top_skills=True
         )
-        skills = [
-            s.strip() for s in current_element.text.split(input_separator.strip())
-        ]
-        skills = [s for s in skills if s]
-        output_separator = ConfigHelper.get_style_constant(
-            "top_skills_separator", " | "
-        )
-        _add_formatted_paragraph(document, output_separator.join(skills))
 
 
 def process_experience_section(
@@ -1033,27 +1023,14 @@ def process_experience_section(
                         bold=subsection.bold,
                         italic=subsection.italic,
                     )
-                    skills_para = document.add_paragraph()
 
                     # Get skills from next element
                     next_element = current_element.find_next_sibling()
-                    if next_element:
-                        if next_element.name == "p":
-                            input_separator = ConfigHelper.get_style_constant(
-                                "key_skills_separator_markdown", " • "
-                            )
-                            skills = [
-                                s.strip()
-                                for s in next_element.text.split(
-                                    input_separator.strip()
-                                )
-                            ]
-                            skills = [s for s in skills if s]
-                            output_separator = ConfigHelper.get_style_constant(
-                                "key_skills_separator", " • "
-                            )
-                            skills_para.add_run(output_separator.join(skills))
-                            processed_elements.add(next_element)
+                    if next_element and next_element.name == "p":
+                        skills_para = _process_horizontal_skills_list(
+                            document, next_element.text, is_top_skills=False
+                        )
+                        processed_elements.add(next_element)
 
                     # Determine if we need to add a blank line after Key Skills
                     # We'll add a blank line if:
@@ -1334,6 +1311,168 @@ def _prepare_section(
     )
 
     return section_h2
+
+
+def _process_subsection_by_type(
+    document: Document,
+    current_element: BS4_Element,
+    processed_elements: set[BS4_Element],
+    processed_element_ids: set[int],
+) -> set[BS4_Element]:
+    """Processes any subsection based on its type with appropriate handling
+
+    Args:
+        document: The Word document object
+        current_element: The subsection heading element
+        processed_elements: Set of elements already processed
+        processed_element_ids: Set of element IDs already processed
+
+    Returns:
+        set: Updated set of processed elements
+    """
+    element_id = id(current_element)
+
+    # Skip if already processed
+    if element_id in processed_element_ids and current_element in processed_elements:
+        return processed_elements
+
+    # Find matching subsection type
+    subsection = JobSubsection.find_by_tag_and_text(
+        current_element.name, current_element.text
+    )
+
+    if not subsection:
+        # If no matching subsection, just mark as processed
+        processed_elements.add(current_element)
+        processed_element_ids.add(element_id)
+        return processed_elements
+
+    heading_level = HeadingsHelper.get_level_for_tag(current_element.name)
+
+    # Handle each subsection type with appropriate processing
+    if subsection == JobSubsection.PROJECT_CLIENT:
+        # Special processing for project/client subsection
+        project_processed = _process_project_section(
+            document,
+            current_element,
+            processed_elements,
+        )
+
+        # Update tracking
+        processed_elements.update(project_processed)
+        for element in project_processed:
+            processed_element_ids.add(id(element))
+
+    elif subsection in [JobSubsection.SUMMARY, JobSubsection.INTERNAL]:
+        # Generic subsection processing for SUMMARY, INTERNAL
+        subsection_processed = _process_subsection(
+            document,
+            current_element,
+            subsection,
+            heading_level,
+            processed_elements,
+        )
+
+        # Update tracking
+        processed_elements.update(subsection_processed)
+        for element in subsection_processed:
+            processed_element_ids.add(id(element))
+
+    elif subsection == JobSubsection.KEY_SKILLS:
+        # Process key skills subsection
+        use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+            current_element.name
+        )
+        _add_heading_or_paragraph(
+            document,
+            subsection.full_heading,
+            heading_level,
+            use_paragraph_style=use_paragraph_style,
+            bold=subsection.bold,
+            italic=subsection.italic,
+        )
+
+        # Get skills from next element
+        next_element = current_element.find_next_sibling()
+        if next_element and next_element.name == "p":
+            skills_para = _process_horizontal_skills_list(
+                document, next_element.text, is_top_skills=False
+            )
+            processed_elements.add(next_element)
+
+        # Handle spacing after key skills
+        looking_ahead = current_element
+        next_heading = None
+
+        # Look for the next heading element
+        while looking_ahead and not next_heading:
+            looking_ahead = looking_ahead.find_next_sibling()
+            if looking_ahead and looking_ahead.name in ["h3", "h4", "h5", "h6"]:
+                next_heading = looking_ahead
+
+        # Add space if this is the last role or before a new role
+        if not next_heading or next_heading.name in ["h4"]:
+            _add_space_paragraph(document, 8)
+
+        # Mark the current element as processed
+        processed_elements.add(current_element)
+        processed_element_ids.add(element_id)
+
+    elif subsection == JobSubsection.RESPONSIBILITIES:
+        # Process responsibilities subsection
+        use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+            current_element.name
+        )
+        _add_heading_or_paragraph(
+            document,
+            subsection.full_heading,
+            heading_level,
+            use_paragraph_style=use_paragraph_style,
+            bold=subsection.bold,
+            italic=subsection.italic,
+        )
+
+        # Get content
+        next_element = current_element.find_next_sibling()
+        if next_element:
+            if next_element.name == "p":
+                resp_para = document.add_paragraph()
+                _process_text_for_hyperlinks(resp_para, next_element.text)
+                processed_elements.add(next_element)
+            elif next_element.name == "ul":
+                # Process bullet list
+                _add_bullet_list(document, next_element)
+                processed_elements.add(next_element)
+
+        # Mark the current element as processed
+        processed_elements.add(current_element)
+        processed_element_ids.add(element_id)
+
+    elif subsection == JobSubsection.ADDITIONAL_DETAILS:
+        # Process additional details subsection
+        use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
+            current_element.name
+        )
+        _add_heading_or_paragraph(
+            document,
+            subsection.full_heading,
+            heading_level,
+            use_paragraph_style=use_paragraph_style,
+            bold=subsection.bold,
+            italic=subsection.italic,
+        )
+
+        # Get content (next element might be list items)
+        next_element = current_element.find_next_sibling()
+        if next_element and next_element.name == "ul":
+            _add_bullet_list(document, next_element)
+            processed_elements.add(next_element)
+
+        # Mark the current element as processed
+        processed_elements.add(current_element)
+        processed_element_ids.add(element_id)
+
+    return processed_elements
 
 
 def _process_simple_section(
@@ -2148,9 +2287,7 @@ def _add_bullet_list(
 
     if use_paragraph_style:
         # Get the bullet character from config
-        bullet_char = ConfigHelper.get_markdown_list_option(
-            "ul", "bullet_character", "•"
-        )
+        bullet_char = ConfigHelper.get_markdown_list_option("ul", "bullet_character")
 
         para = document.add_paragraph()
 
@@ -2225,6 +2362,98 @@ def _process_list_item_formatting(
             if ensure_ending:
                 text = _ensure_sentence_ending(text)
             paragraph.add_run(text)
+
+
+def _format_skills_list(
+    document: Document,
+    skills: list[str],
+    separator: str,
+    apply_bold: bool = False,
+    use_formatted_paragraph: bool = False,
+) -> DOCX_Paragraph:
+    """Add a skills list paragraph with optional bold formatting for individual skills
+
+    Args:
+        document: The Word document object
+        skills: List of skill strings
+        separator: Separator string between skills
+        apply_bold: Whether to bold each individual skill
+        use_formatted_paragraph: Whether to use _add_formatted_paragraph for non-bold case
+
+    Returns:
+        DOCX_Paragraph: The created paragraph
+    """
+    if apply_bold:
+        # Create paragraph with bold skills and plain separators
+        skills_para = document.add_paragraph()
+
+        for i, skill in enumerate(skills):
+            # Add separator before skills (except the first one)
+            if i > 0:
+                skills_para.add_run(separator)
+
+            # Add the skill with bold formatting
+            skill_run = skills_para.add_run(skill)
+            skill_run.bold = True
+
+        return skills_para
+    else:
+        # Use either _add_formatted_paragraph or create a simple paragraph
+        if use_formatted_paragraph:
+            return _add_formatted_paragraph(document, separator.join(skills))
+        else:
+            skills_para = document.add_paragraph()
+            skills_para.add_run(separator.join(skills))
+            return skills_para
+
+
+def _process_horizontal_skills_list(
+    document: Document,
+    text: str,
+    is_top_skills: bool = False,
+    custom_input_separator: str = None,
+    custom_output_separator: str = None,
+) -> DOCX_Paragraph:
+    """Process skills text into a horizontal list with consistent formatting
+
+    Args:
+        document: The Word document object
+        text: Text containing skills separated by a delimiter
+        is_top_skills: Whether this is the top skills section (affects styling)
+        custom_input_separator: Custom input separator override
+        custom_output_separator: Custom output separator override
+
+    Returns:
+        DOCX_Paragraph: The created paragraph
+    """
+    # Determine which separators and bold setting to use
+    if is_top_skills:
+        input_separator = custom_input_separator or ConfigHelper.get_style_constant(
+            "top_skills_separator_markdown", " • "
+        )
+        output_separator = custom_output_separator or ConfigHelper.get_style_constant(
+            "top_skills_separator", " | "
+        )
+        apply_bold = ConfigHelper.get_style_constant("top_skills_bold", False)
+        use_formatted_paragraph = True
+    else:
+        input_separator = custom_input_separator or ConfigHelper.get_style_constant(
+            "key_skills_separator_markdown", " • "
+        )
+        output_separator = custom_output_separator or ConfigHelper.get_style_constant(
+            "key_skills_separator", " · "
+        )
+        apply_bold = ConfigHelper.get_style_constant("key_skills_bold", False)
+        use_formatted_paragraph = False
+
+    # Parse skills from text
+    skills = [s.strip() for s in text.split(input_separator.strip())]
+    skills = [s for s in skills if s]
+
+    # Format and add to document
+    return _format_skills_list(
+        document, skills, output_separator, apply_bold, use_formatted_paragraph
+    )
 
 
 def _add_formatted_paragraph(

@@ -7,7 +7,7 @@ A tool to convert your Markdown resume or cv into an ATS-friendly Word document 
 
 This project allows you to maintain your resume in an easily editable Markdown format, then convert it to an ATS (Applicant Tracking System) optimized Word document with proper formatting for better parsing by job application systems.
 
-🎨 **Your Markdown resume *must* use the same ("*Resume Markdown*") style as the [sample template](./sample/resume.sample.md)** 🎨
+🎨 **Your Markdown resume *must* use the same ("*Resume Markdown*") style as the [sample template](./sample/template/sample.md)** 🎨
 
 *(see the [Sample Template and Exmaple](#sample-template-and-example-) section for more details)*
 
@@ -112,12 +112,12 @@ python resume_md_to_docx.py -i resume.md --pdf
 
 ## Sample Template and Example 🤖
 
-A [sample Markdown resume](./sample/resume.sample.md) (`sample/resume.sample.md`) is included in this project. You may copy or download it (removing `.sample` from the name if downloading) and use it as a template to create your own Markdown resume.
+A [sample Markdown resume](./sample/template/sample.md) (`sample/template/sample.md`) is included in this project. You may copy or download it and use it as a *template* to create your own Markdown resume.
 
 > [!IMPORTANT]
 > For basic functionality, the **`h2`** level headings **should not** be changed; however if you feel so inclined, you can modify the `ResumeSection` *enum* according to your needs (see the [Resume Sections](#resume-sections-) section for more details).
 
-You can [download the example `.docx` document](./sample/example.docx) (`sample/example.docx`) and open it in *Microsoft Word* or *Google Docs* (or another application capable of viewing `.docx` files) to see how the sample Markdown file is rendered.
+You can [download the example `.docx` document](./sample/template/output/sample.docx) (`sample/template/output/sample.docx`) and open it in *Microsoft Word* or *Google Docs* (or another application capable of viewing `.docx` files) to see how the sample Markdown file is rendered.
 
 
 ## Resume Sections 🚀
@@ -159,12 +159,21 @@ These subsections help structure your job entries in a way that makes them more 
 ## Important Files 🗂️
 
 ```
-<root>/
+<project-root>/
 ├── Makefile                    # Contains helpful commands for managing the project
 ├── resume_md_to_docx.py        # Main Python script for conversion
 └── sample/
-    ├── resume.sample.md        # Sample resume template
-    └── example.docx            # Example docx ouput from sample with all stages
+    ├── template/
+    │   ├── sample.md           # Sample resume template
+    │   └── output/
+    │       ├── sample.docx     # Example docx ouput from sample
+    │       └── sample.pdf      # Example pdf ouput from sample
+    └── example/
+        ├── example.md          # Example resume with mock data
+        └── output/
+            ├── example.docx    # Example docx ouput from example
+            └── example.pdf     # Example pdf ouput from example
+
 ```
 
 
@@ -201,7 +210,7 @@ For developers wishing to build this project:
 |---------|-------------|
 | `make install-dev` | Install development dependencies |
 | `make uninstall-dev` | Uninstall development dependencies |
-| `make build` | Rebuild `sample/example.docx` from `sample/resume.sample.md` |
+| `make build` | Rebuild `sample/template/output/sample.docx` from `sample/template/sample.md` |
 | `make check` | Run linters without reformatting |
 | `make lint` | Reformat code according to style guidelines |
 

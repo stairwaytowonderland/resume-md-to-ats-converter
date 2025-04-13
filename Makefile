@@ -36,7 +36,7 @@ uninstall-dev: .uninstall-dev .venv_reminder .python_command ## Uninstall develo
 
 .PHONY: build
 build: .build ## Build the example
-	@printf "Created %s from %s\n" "sample/example.docx" "sample/resume.sample.md"
+	@printf "Created %s from %s\n" "sample/template/output/sample.docx" "sample/template/sample.md"
 
 .PHONY: clean
 clean: .uninstall ## Clean up
@@ -108,6 +108,8 @@ lint: ## Run linters and reformat
 .build:
 	@( \
   . .venv/bin/activate; \
-  set -x; python resume_md_to_docx.py -i sample/resume.sample.md -o sample/example.docx --pdf; \
-  set -x; python resume_md_to_docx.py -i sample/resume.sample.md -o sample/example.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
+  set -x; python resume_md_to_docx.py -i sample/template/sample.md -o sample/template/output/sample.docx --pdf; \
+  set -x; python resume_md_to_docx.py -i sample/template/sample.md -o sample/template/output/sample.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
+  set -x; python resume_md_to_docx.py -i sample/example/example.md -o sample/example/output/example.docx --pdf; \
+  set -x; python resume_md_to_docx.py -i sample/example/example.md -o sample/example/output/example.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
 )

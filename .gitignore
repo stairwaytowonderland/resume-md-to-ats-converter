@@ -8,17 +8,32 @@
 __pycache__
 
 .DS_Store
+Icon?
 .idea
 .vscode
 
+# Exclude document files generally
 *.docx
 *.md
 *.pdf
-!*.sample.md
-!example.*.docx
-!example.docx
-!example.*.pdf
-!example.pdf
+
+# Allow specific directories and files
 !/docs/*
 !README.md
 !CONTRIBUTING.md
+
+# Allow specific sample directory documents
+# sample/template
+!/sample/template/sample.md
+!/sample/template/sample.*.md
+!/sample/template/output/sample.docx
+!/sample/template/output/sample.*.docx
+!/sample/template/output/sample.pdf
+!/sample/template/output/sample.*.pdf
+# sample/example
+!/sample/example/example.md
+!/sample/example/example.*.md
+!/sample/example/output/example.docx
+!/sample/example/output/example.*.docx
+!/sample/example/output/example.pdf
+!/sample/example/output/example.*.pdf
