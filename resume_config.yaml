@@ -2,7 +2,7 @@
 
 # Document defaults - controls margins and page size
 document_defaults:
-  output_filename: "My ATS Resume.docx"
+  output_path: "output/"
   pdf_file_extension: ".pdf"
   margin_top_bottom: 0.7  # in inches
   margin_left_right: 0.8  # in inches

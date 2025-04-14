@@ -2074,7 +2074,7 @@ def _process_certification_blockquote(
 ##############################
 # Inractive Mode Helper
 ##############################
-def _run_interactive_mode() -> tuple[str, str, dict[str, bool], bool, ConfigLoader]:
+def _run_interactive_mode() -> tuple[Path, Path, dict[str, bool], bool, ConfigLoader]:
     """Run in interactive mode, prompting the user for inputs
 
     Returns:
@@ -2108,13 +2108,19 @@ def _run_interactive_mode() -> tuple[str, str, dict[str, bool], bool, ConfigLoad
 
         break
 
+    input_file = Path(input_file)
+
     # Prompt for output file
-    default_output = config_loader.document_defaults["output_filename"]
+    default_output_path = config_loader.document_defaults["output_path"]
+    default_output_name = input_file.with_suffix(".docx")
+    default_output = os.path.join(default_output_path, default_output_name)
     output_prompt = f"📝 Enter the output docx filename (default: '{default_output}'): "
     output_file = input(output_prompt).strip()
     if not output_file:
         output_file = default_output
         print(f"✅ Using default output: {output_file}")
+
+    output_file = Path(output_file)
 
     # Prompt for paragraph style headings
     print(
@@ -2766,13 +2772,13 @@ if __name__ == "__main__":
           - Runs in interactive mode (recommended for new users)
 
       python resume_md_to_docx.py -i resume.md
-          - Converts resume.md to "My ATS Resume.docx"
+          - Converts resume.md to "output/resume.docx"
 
       python resume_md_to_docx.py -i resume.md -o resume.docx
           - Converts resume.md to resume.docx
 
       python resume_md_to_docx.py -i resume.md --pdf
-          - Converts resume.md to "My ATS Resume.docx" and "My ATS Resume.pdf"
+          - Converts resume.md to "output/resume.docx" and "output/resume.pdf"
 
       python resume_md_to_docx.py -i resume.md -o resume.docx --pdf
           - Converts resume.md to resume.docx and resume.pdf
@@ -2797,7 +2803,7 @@ if __name__ == "__main__":
         "-o",
         "--output",
         dest="output_file",
-        help='Output Word document (default: "My ATS Resume.docx")',
+        help='Output Word document (default: "<input_file>.docx")',
     )
     parser.add_argument(
         "-p",
@@ -2837,9 +2843,13 @@ if __name__ == "__main__":
         config_loader = ConfigLoader(args.config_file)
 
         # Use command-line arguments
-        input_file = args.input_file
-        output_file = (
-            args.output_file or config_loader.document_defaults["output_filename"]
+        input_file = Path(args.input_file)
+
+        default_output_path = config_loader.document_defaults["output_path"]
+        default_output_file = input_file.with_suffix(".docx")
+
+        output_file = Path(
+            args.output_file or os.path.join(default_output_path, default_output_file)
         )
 
         # Convert list to dictionary if provided

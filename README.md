@@ -7,9 +7,9 @@ A tool to convert your Markdown resume or cv into an ATS-friendly Word document 
 
 This project allows you to maintain your resume in an easily editable Markdown format, then convert it to an ATS (Applicant Tracking System) optimized Word document with proper formatting for better parsing by job application systems.
 
-🎨 **Your Markdown resume *must* use the same ("*Resume Markdown*") style as the [sample template](./sample/template/sample.md)** 🎨
+🧬 **Your Markdown resume *must* use the same ("*Resume Markdown*") format as the [sample template](./sample/template/sample.md)** 🧬
 
-*(see the [Sample Template and Exmaple](#sample-template-and-example-) section for more details)*
+*(see the [Sample Template](#sample-template-%EF%B8%8F) section for more details)*
 
 
 ## Key Features ⚡️
@@ -62,6 +62,9 @@ Convert your Markdown resume to a Word document.
 
 ### Basic usage 🐍
 
+> [!NOTE]
+> By default, the name of the output file will match that of the input file, but with the appropriate extension. Unless otherwise specified, the output files will be in the `output/` directory.
+
 ✨ **Interactive mode 📱**
 
 Run in **interactive mode**, prompting for inputs:
@@ -75,10 +78,10 @@ python resume_md_to_docx.py
 Run in manual mode, specifying an input file:
 
 > [!NOTE]
-> This will create `My ATS Resume.docx` in the current directory.
+> This will create a file called `my resume.docx` in the `output` directory (`'output/my resume.docx'`)
 
 ```bash
-python resume_md_to_docx.py -i resume.md
+python resume_md_to_docx.py -i 'my resume.md'
 ```
 
 ### Advanced usage 🦾
@@ -87,6 +90,12 @@ Specify an output filename:
 
 ```bash
 python resume_md_to_docx.py -i resume.md -o my-resume.docx
+```
+
+Specify a custom configuration file:
+
+```bash
+python resume_md_to_docx.py -i resume.md -o my-resume.docx -c custom_config.yaml
 ```
 
 Render heading levels as paragraphs instead of Word headings:
@@ -110,14 +119,20 @@ python resume_md_to_docx.py -i resume.md --pdf
 > You don't need to add `--pdf` if running in *interactive mode*.
 
 
-## Sample Template and Example 🤖
+## Sample Template 🖼️
 
 A [sample Markdown resume](./sample/template/sample.md) (`sample/template/sample.md`) is included in this project. You may copy or download it and use it as a *template* to create your own Markdown resume.
 
 > [!IMPORTANT]
 > For basic functionality, the **`h2`** level headings **should not** be changed; however if you feel so inclined, you can modify the `ResumeSection` *enum* according to your needs (see the [Resume Sections](#resume-sections-) section for more details).
 
-You can [download the example `.docx` document](./sample/template/output/sample.docx) (`sample/template/output/sample.docx`) and open it in *Microsoft Word* or *Google Docs* (or another application capable of viewing `.docx` files) to see how the sample Markdown file is rendered.
+You can [download the sample `.docx` document](./sample/template/output/sample.docx) (`sample/template/output/sample.docx`) and open it in *Microsoft Word* or *Google Docs* (or another application capable of viewing `.docx` files) to see how the sample Markdown file is rendered.
+
+## Example 🤖
+
+An *"ai"* generated [example](./sample/example/example.md) (`sample/example/example.md`) is also included in this project.
+
+You can [download the example `.docx` document](./sample/example/output/example.docx) (`sample/example/output/example.docx`) and open it in a compatible application to see how the sample Markdown file is rendered.
 
 
 ## Resume Sections 🚀
@@ -137,6 +152,11 @@ The converter maps Markdown headings to ATS-friendly Word document headings usin
 > If an `hr` (3 dashes, i.e. "---") is added immediately before a section (in your input `.md` file), that will put a page-break in the final document.
 
 If you need to customize these mappings, you can modify the `ResumeSection` enum in [resume_md_to_docx.py](./resume_md_to_docx.py).
+
+
+## Styling 🎨
+
+A [configuration file](resume_config.yaml) (`resume_config.yaml`) is used to control certain stylings. It can be customized to modify how the `.docx` looks, to a limited degree.
 
 
 ## Job Sub Sections 💼
@@ -160,19 +180,22 @@ These subsections help structure your job entries in a way that makes them more 
 
 ```
 <project-root>/
+├── output/                     # Default output directory
+├── sample/
+│   ├── example/
+│   │   ├── example.md          # Real world example resume with mock data
+│   │   └── output/
+│   │       ├── example.docx    # Example docx ouput from example
+│   │       └── example.pdf     # Example pdf ouput from example
+│   └── template/
+│       ├── sample.md           # Sample resume template
+│       └── output/
+│           ├── sample.docx     # Example docx ouput from sample
+│           └── sample.pdf      # Example pdf ouput from sample
 ├── Makefile                    # Contains helpful commands for managing the project
-├── resume_md_to_docx.py        # Main Python script for conversion
-└── sample/
-    ├── template/
-    │   ├── sample.md           # Sample resume template
-    │   └── output/
-    │       ├── sample.docx     # Example docx ouput from sample
-    │       └── sample.pdf      # Example pdf ouput from sample
-    └── example/
-        ├── example.md          # Example resume with mock data
-        └── output/
-            ├── example.docx    # Example docx ouput from example
-            └── example.pdf     # Example pdf ouput from example
+├── REAMDE.md                   # This README file
+├── resume_config.yaml          # The default configuration file
+└── resume_md_to_docx.py        # Main Python script
 
 ```
 

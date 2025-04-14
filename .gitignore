@@ -23,17 +23,7 @@ Icon?
 !CONTRIBUTING.md
 
 # Allow specific sample directory documents
-# sample/template
-!/sample/template/sample.md
-!/sample/template/sample.*.md
-!/sample/template/output/sample.docx
-!/sample/template/output/sample.*.docx
-!/sample/template/output/sample.pdf
-!/sample/template/output/sample.*.pdf
-# sample/example
-!/sample/example/example.md
-!/sample/example/example.*.md
-!/sample/example/output/example.docx
-!/sample/example/output/example.*.docx
-!/sample/example/output/example.pdf
-!/sample/example/output/example.*.pdf
+!/sample/README.md
+!/sample/*/*.md
+!/sample/*/output/*.docx
+!/sample/*/output/*.pdf
