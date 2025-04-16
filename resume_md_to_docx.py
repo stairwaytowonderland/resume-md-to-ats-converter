@@ -2112,7 +2112,7 @@ def _run_interactive_mode() -> tuple[Path, Path, dict[str, bool], bool, ConfigLo
 
     # Prompt for output file
     default_output_path = config_loader.document_defaults["output_path"]
-    default_output_name = input_file.with_suffix(".docx")
+    default_output_name = input_file.with_suffix(".docx").name
     default_output = os.path.join(default_output_path, default_output_name)
     output_prompt = f"📝 Enter the output docx filename (default: '{default_output}'): "
     output_file = input(output_prompt).strip()
@@ -2846,7 +2846,7 @@ if __name__ == "__main__":
         input_file = Path(args.input_file)
 
         default_output_path = config_loader.document_defaults["output_path"]
-        default_output_file = input_file.with_suffix(".docx")
+        default_output_file = input_file.with_suffix(".docx").name
 
         output_file = Path(
             args.output_file or os.path.join(default_output_path, default_output_file)

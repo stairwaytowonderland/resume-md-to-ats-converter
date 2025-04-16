@@ -1,6 +1,7 @@
 # Resume Markdown ➜ ATS-friendly Document ⭐
 
-A tool to convert your Markdown resume or cv into an ATS-friendly Word document that looks clean and professional while preserving your carefully crafted content. 🚀
+A tool to [convert your Markdown resume or cv into an ATS-friendly Word document](#usage-) that looks clean and professional while preserving your carefully crafted content. 🚀
+
 
 
 ## Overview 📚
@@ -12,6 +13,7 @@ This project allows you to maintain your resume in an easily editable Markdown f
 *(see the [Sample Template](#sample-template-%EF%B8%8F) section for more details)*
 
 
+
 ## Key Features ⚡️
 
 - Proper formatting of sections (contact, experience, education, etc.)
@@ -20,25 +22,40 @@ This project allows you to maintain your resume in an easily editable Markdown f
 - Creates an ATS-friendly document that parses well in applicant tracking systems
 
 
-## Setup and Installation 📀
 
-Set up the project with:
+## Initial Setup 📀
+
+> [!NOTE]
+> *Your system needs to satisfy the [**system requirements**](#system-requirements-)*
+
+The setup process involves running only 2 commands:
+
+1. The `make` command creates any necessary pre-requisite files or directories, including creating a *virtual environment*, and ensures pip is installed.
+1. The `make install` command installs any required dependencies.
+
+> [!WARNING]
+> Although not strictly necessary, creating and [activating](#activation-️) a *virtual environment* is the **recommended** approach for most users. It causes the dependecies to be installed locally to this project, and not globally.
+
+They can be run as separate commands, or as a single command, with the second dependent on the success of the first:
 
 ```bash
+# Run as separate commands:
 make
-```
-
-Then install dependencies:
-
-```bash
 make install
+
+# Run as a single command:
+make && make install
 ```
 
 > [!NOTE]
-> See the [Basic Commands](#basic-commands-%EF%B8%8F) section (below) for more commands.
+> See the [Basic Commands](#basic-commands-%EF%B8%8F) section for more commands.
+
+> [!IMPORTANT]
+> #### 🗒 Note about the `python` command
+> All the commands in the [usage section](#usage-) assume [activation of a *virtual environment*](#activation-️), which, if created using the approach in this project (created with *python*) creates a `python` command alias. If you used an alternate setup approach and the `python` command isn't working, try `python3` instead. Or simply create an alias: **`alias python='python3'`**
 
 
-## Activation 🕹️
+### Activation 🕹️
 
 🌐 **Remember to *activate* the virtual environment *before* running any Python commands** 🌐
 
@@ -46,93 +63,142 @@ make install
 . .venv/bin/activate
 ```
 
-> [!tip]
+> [!TIP]
 > Run `deactivate` to deactivate the *virtual environment*.
+
 
 
 ## Usage 👾
 
-Convert your Markdown resume to a Word document.
+📘 **Convert your Markdown resume to a Word document (`.docx`)** 📘
+
+*Please make sure the [initial setup](#initial-setup-) has been completed.*
 
 > [!TIP]
-> *The help screen can be accessed by running the following:*
+> The help screen can be accessed by running the following:
 > ```bash
 > python resume_md_to_docx.py -h
 > ```
 
+> [!TIP]
+> Spaces in file names can be escaped with a backslash (`\`), e.g. `path/to/my\ resume.md`
+
 ### Basic usage 🐍
 
-> [!NOTE]
-> By default, the name of the output file will match that of the input file, but with the appropriate extension. Unless otherwise specified, the output files will be in the `output/` directory.
+By default, the name of the output file will match that of the input file, but with the appropriate extension. The **output files** will be in the project's [`output/`](./output/) directory unless other specified (with the `-o` or `--output` option).
 
-✨ **Interactive mode 📱**
+#### ✨ Interactive mode 📱
 
-Run in **interactive mode**, prompting for inputs:
+By default, the command with no options or arguments, will cause the script to run in **interactive mode**, prompting the user (you) for inputs:
 
 ```bash
 python resume_md_to_docx.py
 ```
 
-**Manual mode 🎛**
+#### Manual mode 🎛
 
 Run in manual mode, specifying an input file:
 
-> [!NOTE]
-> This will create a file called `my resume.docx` in the `output` directory (`'output/my resume.docx'`)
 
 ```bash
-python resume_md_to_docx.py -i 'my resume.md'
+# This will create a file called "resume.docx" in
+# the "output/" directory, i.e. "output/resume.docx"
+python resume_md_to_docx.py -i resume.md
 ```
-
-### Advanced usage 🦾
 
 Specify an output filename:
 
 ```bash
-python resume_md_to_docx.py -i resume.md -o my-resume.docx
-```
-
-Specify a custom configuration file:
-
-```bash
-python resume_md_to_docx.py -i resume.md -o my-resume.docx -c custom_config.yaml
-```
-
-Render heading levels as paragraphs instead of Word headings:
-
-```bash
-python resume_md_to_docx.py -i ~/Documents/resume.md -o ~/Desktop/my\ resume.docx -p h3 h4 h5 h6
+python resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/example\ ats\ resume.docx
 ```
 
 > [!NOTE]
-> The `-p` (or `--paragraph-headings`) option choices are: `h3`, `h4`, `h5`, `h6`
+> If a `python: command not found` error occurs, see the [important note about the python command](#-note-about-the-python-command), in the usage section.
+
 
 ### ✨ Produce a PDF 📕
 
-Add `--pdf` to any of the above commands, to also produce a `.pdf` file:
+Adding `--pdf` to any of the above commands will also produce a `.pdf` file in the same directory as the `.docx` file (this will be the project's [`output/`](./output/) directory if the *output* option isn't set):
 
 ```bash
-python resume_md_to_docx.py -i resume.md --pdf
+# This will create 2 files: "output/example.docx" and "output/example.pdf"
+python resume_md_to_docx.py -i sample/example/example.md --pdf
 ```
 
 > [!NOTE]
-> You don't need to add `--pdf` if running in *interactive mode*.
+> The `--pdf` option isn't needed if running in *interactive mode*.
+
+
+### All Options ⚙️
+
+| Option | Long Form | Description | Default |
+|--------|-----------|-------------|---------|
+| `-c` | `--config` | Path to YAML configuration file | `resume_config.yaml` |
+| `-h` | `--help` | Access the help screen | |
+| `-i` | `--input` | Input markdown file | None (required in non-interactive mode) |
+| `-o` | `--output` | Output Word document | `<input_file>.docx` in the output directory |
+| `-p` | `--paragraph-headings` | Specify which heading levels to render as paragraphs instead of headings | None (all headings use Word styles) |
+| `-I` | `--interactive` | Run in interactive mode, prompting for inputs | Auto-enabled when no other args provided |
+| `-P` | `--pdf` | Also create a PDF version of the resume | Disabled |
+
+> [!NOTE]
+> The `-p` (or `--paragraph-headings`) option choices are: `h3`, `h4`, `h5`, `h6`. You can specify multiple heading levels by separating them with spaces (e.g. `<...command...> -p h5 h6`).
+
+#### Examples 🤖
+
+```bash
+# Set input, output, and create a pdf
+python resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/example\ ats\ resume.docx --pdf
+
+# Set input, output, paragraph-headings, and create a pdf
+python resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/example\ ats\ resume.docx -p h3 h4 h5 h6 --pdf
+
+# Set input, output, paragraph-headings, create a pdf, and use a custom configuration file
+python resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/example\ ats\ resume.docx --pdf -c custom_config.yaml
+```
+
+
+
+## Styling 🎨
+
+A [configuration file](resume_config.yaml) (`resume_config.yaml`) is used to control certain stylings. It can be customized to modify how the `.docx` looks, to a limited degree.
+
+> [!TIP]
+> **One reason you might want to modify this file for your own purpose, is the font name** 🔠 (see below)
+
+By default, `Helvetica Neue` is used as the base font. Your system should be able to figure out a compatible replacement automatically. However if you prefer to control the fonts, you can change the `font_name` property values:
+
+```yaml
+document_styles:
+  Normal:
+    font_name: "Arial"
+    # ...
+
+  Title:
+    font_name: "Arial"
+    # ...
+```
 
 
 ## Sample Template 🖼️
 
 A [sample Markdown resume](./sample/template/sample.md) (`sample/template/sample.md`) is included in this project. You may copy or download it and use it as a *template* to create your own Markdown resume.
 
-> [!IMPORTANT]
+> [!CAUTION]
 > For basic functionality, the **`h2`** level headings **should not** be changed; however if you feel so inclined, you can modify the `ResumeSection` *enum* according to your needs (see the [Resume Sections](#resume-sections-) section for more details).
 
 You can [download the sample `.docx` document](./sample/template/output/sample.docx) (`sample/template/output/sample.docx`) and open it in *Microsoft Word* or *Google Docs* (or another application capable of viewing `.docx` files) to see how the sample Markdown file is rendered.
 
-## Example 🤖
 
-An *"ai"* generated [example](./sample/example/example.md) (`sample/example/example.md`) is also included in this project.
 
-You can [download the example `.docx` document](./sample/example/output/example.docx) (`sample/example/output/example.docx`) and open it in a compatible application to see how the sample Markdown file is rendered.
+## Example Resume ⚛️
+
+֎ **An *"ai"* generated real-world [example](./sample/example/example.md) (`sample/example/example.md`) is also included in this project** ֎
+
+⬇️ You can [download the example `.docx` document](./sample/example/output/example.docx) (`sample/example/output/example.docx`) and open it in a compatible application to see how the sample Markdown file is rendered.
+
+👀 You can [view the example pdf](./sample/example/output/example.pdf) directly in your browser, if your browser supports it (most do).
+
 
 
 ## Resume Sections 🚀
@@ -151,17 +217,15 @@ The converter maps Markdown headings to ATS-friendly Word document headings usin
 > [!Tip]
 > If an `hr` (3 dashes, i.e. "---") is added immediately before a section (in your input `.md` file), that will put a page-break in the final document.
 
+### Modifications 🦾
+
 If you need to customize these mappings, you can modify the `ResumeSection` enum in [resume_md_to_docx.py](./resume_md_to_docx.py).
 
-
-## Styling 🎨
-
-A [configuration file](resume_config.yaml) (`resume_config.yaml`) is used to control certain stylings. It can be customized to modify how the `.docx` looks, to a limited degree.
 
 
 ## Job Sub Sections 💼
 
-Within job entries (particularly in the Experience section), various subsections can be used to structure your information. These are defined by the `JobSubsection` enum which maps markdown elements to properly formatted document sections. The **Markdown headings are *case-insensitive***. The default mappings are
+Within job entries (particularly in the Experience section), various subsections can be used to structure your information. These are defined by the `JobSubsection` enum which maps markdown elements to properly formatted document sections. The **Markdown headings are *case-insensitive***. The default mappings are:
 
 | Markdown Element | Markdown Heading | Word Document Heading | Notes |
 |------------------|--------------|---------------------|-------|
@@ -174,6 +238,7 @@ Within job entries (particularly in the Experience section), various subsections
 | h6 | additional details | Additional Details: | Supplementary information |
 
 These subsections help structure your job entries in a way that makes them more readable to both humans and ATS systems. For example, under each job, you might include a "Key Skills" subsection to highlight relevant technologies and abilities specific to that role.
+
 
 
 ## Important Files 🗂️
@@ -199,6 +264,10 @@ These subsections help structure your job entries in a way that makes them more 
 
 ```
 
+> [!NOTE]
+> *There are more files and directories in the project than what's shown above; the above just lists any files (and directories) that would be relevant to a typical user.*
+
+
 
 ## Basic Commands ⚙️
 
@@ -216,13 +285,15 @@ These subsections help structure your job entries in a way that makes them more 
 > See the [Development](#development-) section (below) for advanced commands.
 
 
-## Requirements ⚙️
 
-- Python 3.x
-- Make
+## System Requirements 🧰
+
+- [Python 3.x](https://www.python.org/downloads/)
+- [Make](https://www.gnu.org/software/make/)
 
 > [!NOTE]
-> The Makefile assumes a [POSIX compliant shell](https://wiki.archlinux.org/title/Command-line_shell) such as Bash, Zsh, or Dash.
+> The Makefile assumes a [POSIX compliant shell](https://wiki.archlinux.org/title/Command-line_shell) such as *Bash*, *Zsh*, or *Dash*.
+
 
 
 ## Development 🛠
@@ -239,9 +310,11 @@ For developers wishing to build this project:
 
 
 
+
 # Contributing 💻
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for information on contributing to this project.
+
 
 
 

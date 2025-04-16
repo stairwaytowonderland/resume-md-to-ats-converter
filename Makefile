@@ -68,7 +68,7 @@ lint: ## Run linters and reformat
 	@printf "\n\t📝 \033[1m%s\033[0m: %s\n\t   %s\n\t   %s\n\t   %s.\n\n\t🏄 %s \033[1;92m\`%s\`\033[0m\n\t   %s.\n" "NOTE" "The dependencies are installed" "in a virtual environment which needs" "to be manually activated to run the" "Python command" "Please run" ". .venv/bin/activate" "to activate the virtual environment"
 
 .python_command:
-	@printf "\n\033[1m%s\033[0m ... 🕹️  %s 🕹️\n  \033[1;92m\`%s\`\033[0m # for usage help\n  \033[1;92m\`%s\`\033[0m\n  \033[1;92m\`%s\`\033[0m\n\n" "The Python 🐍 command" "you must manually activate the virtual environment" "python3 resume_md_to_docx.py" "python3 resume_md_to_docx.py -i <input file>" "python3 resume_md_to_docx.py -i <input file> -o <output file>"
+	@printf "\n\033[1m%s\033[0m ...\n  \033[1;92m\`%s\`\033[0m\n  \033[1;92m\`%s\`\033[0m\n  \033[1;92m\`%s\`\033[0m\n\n" "The Python 🐍 command" "python3 resume_md_to_docx.py" "python3 resume_md_to_docx.py -i <input file>" "python3 resume_md_to_docx.py -i <input file> -o <output file>"
 
 .init:
 	@deactivate 2>/dev/null || true
