@@ -238,13 +238,13 @@ class ConfigLoader:
                 "paragraph_after_h4_line_spacing": 0.20,
             },
             "document_styles": {},
-            "markdown_lists": {
+            "paragraph_lists": {
                 "ul": {
                     "bullet_character": "•",
                     "paragraph_delimiter": "\n",
                 },
             },
-            "markdown_headings": {
+            "paragraph_headings": {
                 "h1": {"level": 0, "paragraph_heading_size": 24},
                 "h2": {"level": 1, "paragraph_heading_size": 16},
                 "h3": {"level": 2, "paragraph_heading_size": 14},
@@ -272,13 +272,13 @@ class ConfigLoader:
                     if "style_constants" in yaml_config:
                         self._config["style_constants"] = yaml_config["style_constants"]
 
-                    if "markdown_lists" in yaml_config:
-                        self._config["markdown_lists"] = yaml_config["markdown_lists"]
+                    if "paragraph_lists" in yaml_config:
+                        self._config["paragraph_lists"] = yaml_config["paragraph_lists"]
 
-                    # Replace markdown_headings if provided
-                    if "markdown_headings" in yaml_config:
-                        self._config["markdown_headings"] = yaml_config[
-                            "markdown_headings"
+                    # Replace paragraph_headings if provided
+                    if "paragraph_headings" in yaml_config:
+                        self._config["paragraph_headings"] = yaml_config[
+                            "paragraph_headings"
                         ]
 
                     # Process document styles - need to handle RGBColor and Pt objects
@@ -370,13 +370,13 @@ class ConfigLoader:
         return self._config.get("document_styles", {})
 
     @property
-    def markdown_headings(self) -> dict:
+    def paragraph_headings(self) -> dict:
         """Get markdown headings configuration
 
         Returns:
             dict: Markdown headings configuration
         """
-        return self._config.get("markdown_headings", {})
+        return self._config.get("paragraph_headings", {})
 
     def get_style_constant(self, key: str, default=None):
         """Get a specific style constant value
@@ -453,8 +453,8 @@ class ConfigHelper:
         return cls._config.get("style_constants", {}).get(key, default)
 
     @classmethod
-    def get_markdown_list_option(cls, list_type: str, option_name: str, default=None):
-        """Get a markdown list option from config
+    def get_paragraph_list_option(cls, list_type: str, option_name: str, default=None):
+        """Get a paragraph list option from config
 
         Args:
             list_type: The list type ("ul" or "ol")
@@ -465,7 +465,7 @@ class ConfigHelper:
             The option value or default
         """
         cls._check_initialized()
-        list_config = cls._config.get("markdown_lists", {})
+        list_config = cls._config.get("paragraph_lists", {})
         type_config = list_config.get(list_type, {})
         return type_config.get(option_name, default)
 
@@ -497,10 +497,10 @@ class HeadingsHelper:
         """Initialize the heading map from configuration
 
         Args:
-            config (dict): Configuration dictionary with markdown_headings
+            config (dict): Configuration dictionary with paragraph_headings
         """
-        # Simply assign the markdown_headings from config
-        cls._heading_map = config["markdown_headings"]
+        # Simply assign the paragraph_headings from config
+        cls._heading_map = config["paragraph_headings"]
         cls._paragraph_style_headings = paragraph_style_headings or {}
         cls._initialized = True
 
@@ -1311,168 +1311,6 @@ def _prepare_section(
     )
 
     return section_h2
-
-
-def _process_subsection_by_type(
-    document: Document,
-    current_element: BS4_Element,
-    processed_elements: set[BS4_Element],
-    processed_element_ids: set[int],
-) -> set[BS4_Element]:
-    """Processes any subsection based on its type with appropriate handling
-
-    Args:
-        document: The Word document object
-        current_element: The subsection heading element
-        processed_elements: Set of elements already processed
-        processed_element_ids: Set of element IDs already processed
-
-    Returns:
-        set: Updated set of processed elements
-    """
-    element_id = id(current_element)
-
-    # Skip if already processed
-    if element_id in processed_element_ids and current_element in processed_elements:
-        return processed_elements
-
-    # Find matching subsection type
-    subsection = JobSubsection.find_by_tag_and_text(
-        current_element.name, current_element.text
-    )
-
-    if not subsection:
-        # If no matching subsection, just mark as processed
-        processed_elements.add(current_element)
-        processed_element_ids.add(element_id)
-        return processed_elements
-
-    heading_level = HeadingsHelper.get_level_for_tag(current_element.name)
-
-    # Handle each subsection type with appropriate processing
-    if subsection == JobSubsection.PROJECT_CLIENT:
-        # Special processing for project/client subsection
-        project_processed = _process_project_section(
-            document,
-            current_element,
-            processed_elements,
-        )
-
-        # Update tracking
-        processed_elements.update(project_processed)
-        for element in project_processed:
-            processed_element_ids.add(id(element))
-
-    elif subsection in [JobSubsection.SUMMARY, JobSubsection.INTERNAL]:
-        # Generic subsection processing for SUMMARY, INTERNAL
-        subsection_processed = _process_subsection(
-            document,
-            current_element,
-            subsection,
-            heading_level,
-            processed_elements,
-        )
-
-        # Update tracking
-        processed_elements.update(subsection_processed)
-        for element in subsection_processed:
-            processed_element_ids.add(id(element))
-
-    elif subsection == JobSubsection.KEY_SKILLS:
-        # Process key skills subsection
-        use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
-            current_element.name
-        )
-        _add_heading_or_paragraph(
-            document,
-            subsection.full_heading,
-            heading_level,
-            use_paragraph_style=use_paragraph_style,
-            bold=subsection.bold,
-            italic=subsection.italic,
-        )
-
-        # Get skills from next element
-        next_element = current_element.find_next_sibling()
-        if next_element and next_element.name == "p":
-            skills_para = _process_horizontal_skills_list(
-                document, next_element.text, is_top_skills=False
-            )
-            processed_elements.add(next_element)
-
-        # Handle spacing after key skills
-        looking_ahead = current_element
-        next_heading = None
-
-        # Look for the next heading element
-        while looking_ahead and not next_heading:
-            looking_ahead = looking_ahead.find_next_sibling()
-            if looking_ahead and looking_ahead.name in ["h3", "h4", "h5", "h6"]:
-                next_heading = looking_ahead
-
-        # Add space if this is the last role or before a new role
-        if not next_heading or next_heading.name in ["h4"]:
-            _add_space_paragraph(document, 8)
-
-        # Mark the current element as processed
-        processed_elements.add(current_element)
-        processed_element_ids.add(element_id)
-
-    elif subsection == JobSubsection.RESPONSIBILITIES:
-        # Process responsibilities subsection
-        use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
-            current_element.name
-        )
-        _add_heading_or_paragraph(
-            document,
-            subsection.full_heading,
-            heading_level,
-            use_paragraph_style=use_paragraph_style,
-            bold=subsection.bold,
-            italic=subsection.italic,
-        )
-
-        # Get content
-        next_element = current_element.find_next_sibling()
-        if next_element:
-            if next_element.name == "p":
-                resp_para = document.add_paragraph()
-                _process_text_for_hyperlinks(resp_para, next_element.text)
-                processed_elements.add(next_element)
-            elif next_element.name == "ul":
-                # Process bullet list
-                _add_bullet_list(document, next_element)
-                processed_elements.add(next_element)
-
-        # Mark the current element as processed
-        processed_elements.add(current_element)
-        processed_element_ids.add(element_id)
-
-    elif subsection == JobSubsection.ADDITIONAL_DETAILS:
-        # Process additional details subsection
-        use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
-            current_element.name
-        )
-        _add_heading_or_paragraph(
-            document,
-            subsection.full_heading,
-            heading_level,
-            use_paragraph_style=use_paragraph_style,
-            bold=subsection.bold,
-            italic=subsection.italic,
-        )
-
-        # Get content (next element might be list items)
-        next_element = current_element.find_next_sibling()
-        if next_element and next_element.name == "ul":
-            _add_bullet_list(document, next_element)
-            processed_elements.add(next_element)
-
-        # Mark the current element as processed
-        processed_elements.add(current_element)
-        processed_element_ids.add(element_id)
-
-    return processed_elements
 
 
 def _process_simple_section(
@@ -2293,7 +2131,7 @@ def _add_bullet_list(
 
     if use_paragraph_style:
         # Get the bullet character from config
-        bullet_char = ConfigHelper.get_markdown_list_option("ul", "bullet_character")
+        bullet_char = ConfigHelper.get_paragraph_list_option("ul", "bullet_character")
 
         para = document.add_paragraph()
 

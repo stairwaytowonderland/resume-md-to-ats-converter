@@ -97,12 +97,12 @@ document_styles:
     # indent_left: 0.5
     # indent_right: 0.5
 
-markdown_lists:
+paragraph_lists:
   ul:
     bullet_character: "•"  # Custom bullet character to use in lists
     paragraph_delimiter: "\n"  # Line delimiter for paragraph-style lists
 
-markdown_headings:
+paragraph_headings:
   h1:
     level: 0
     paragraph_heading_size: 24
