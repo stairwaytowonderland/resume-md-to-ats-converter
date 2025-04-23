@@ -17,6 +17,11 @@ Icon?
 *.md
 *.pdf
 
+# Exclude potential downloaded files
+docx
+md
+pdf
+
 # Allow specific directories and files
 !/docs/*
 !README.md

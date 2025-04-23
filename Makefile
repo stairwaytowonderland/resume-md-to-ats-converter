@@ -64,6 +64,13 @@ lint: ## Run linters and reformat
   autoflake --remove-all-unused-imports --remove-unused-variables .; \
 )
 
+.PHONY: app
+api: ## Run the app
+	@( \
+  . .venv/bin/activate; \
+  python src/api.py --debug; \
+)
+
 .venv_reminder:
 	@printf "\n\t📝 \033[1m%s\033[0m: %s\n\t   %s\n\t   %s\n\t   %s.\n\n\t🏄 %s \033[1;92m\`%s\`\033[0m\n\t   %s.\n" "NOTE" "The dependencies are installed" "in a virtual environment which needs" "to be manually activated to run the" "Python command" "Please run" ". .venv/bin/activate" "to activate the virtual environment"
 
@@ -108,8 +115,8 @@ lint: ## Run linters and reformat
 .build:
 	@( \
   . .venv/bin/activate; \
-  set -x; python resume_md_to_docx.py -i sample/template/sample.md -o sample/template/output/sample.docx --pdf; \
-  set -x; python resume_md_to_docx.py -i sample/template/sample.md -o sample/template/output/sample.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
-  set -x; python resume_md_to_docx.py -i sample/example/example.md -o sample/example/output/example.docx --pdf; \
-  set -x; python resume_md_to_docx.py -i sample/example/example.md -o sample/example/output/example.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
+  set -x; python src/resume_md_to_docx.py -i sample/template/sample.md -o sample/template/output/sample.docx --pdf; \
+  set -x; python src/resume_md_to_docx.py -i sample/template/sample.md -o sample/template/output/sample.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
+  set -x; python src/resume_md_to_docx.py -i sample/example/example.md -o sample/example/output/example.docx --pdf; \
+  set -x; python src/resume_md_to_docx.py -i sample/example/example.md -o sample/example/output/example.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
 )

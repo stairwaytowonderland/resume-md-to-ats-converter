@@ -1,0 +1,23 @@
+# API configuration settings
+server:
+  host: "localhost"
+  port: 3000
+
+mimetypes:
+  pdf: "application/pdf"
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+cors:
+  enabled: false
+  supports_credentials: false
+  origins: "*"
+  expose_headers:
+    - "Content-Disposition"
+    - "Content-Type"
+    - "Content-Length"
+
+logging:
+  level: "INFO"
+
+output:
+  use_temp_directory: true
