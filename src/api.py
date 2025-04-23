@@ -103,7 +103,7 @@ class ApiConfig:
 
     # Load API configuration
     def load_app_config(self) -> dict[str, Any]:
-        """Load API configuration from app_config.yaml
+        """Load API configuration from api_config.yaml
 
         Returns:
             dict: Application configuration
@@ -120,51 +120,115 @@ class ApiConfig:
             return {}
 
 
-class BaseApp:
+class BaseApi:
     """Base class for Flask application"""
 
-    def configure_logging(app: Flask, api_config: ApiConfig) -> None:
-        # Configure logging
-        log_level_name = api_config.logging.get("level", "INFO")
-        print(f"Log level: {log_level_name}")
-        app.logger.setLevel(getattr(logging, log_level_name))
+    def __init__(self):
+        """Initialize the API"""
 
-    def __init__(self, app: Flask, app_config: ApiConfig):
-        """Initialize the API
+        # Load application configuration
+        api_config = ApiConfig()
 
-        Args:
-            app (Flask): Flask application instance
-            app_config (ApiConfig): Application configuration instance
-        """
-        self.app = app
-        self.app_config = app_config
-        self.api = Api(
+        # Create Flask application
+        app = Flask(__name__.split(".")[0])
+
+        self._app = app
+        self._api_config = api_config
+        self._api = Api(
             app,
             version="1.0",
             title="Resume Markdown to DOCX API",
             description="API for converting markdown resumes to ATS-friendly formats",
             doc="/swagger",
         )
-        self.ns = self.api.namespace(
+        self._ns = self._api.namespace(
             "convert", description="Resume conversion operations"
         )
 
-        App.configure_logging(app, app_config)
-        App.configure_cors(app, app_config)
+        self._arg_parser = self._api.parser()
 
+        self._configure_logging()
+        self._configure_cors()
 
-class App(BaseApp):
-    """API class for handling resume conversion"""
+    @property
+    def app(self) -> Flask:
+        """Get the Flask application instance
 
-    def configure_cors(app: Flask, api_config: ApiConfig) -> None:
+        Returns:
+            Flask: Flask application instance
+        """
+        return self._app
+
+    @property
+    def api(self) -> Api:
+        """Get the API instance
+
+        Returns:
+            Api: API instance
+        """
+        return self._api
+
+    @property
+    def ns(self) -> Api:
+        """Get the namespace instance
+
+        Returns:
+            Api: Namespace instance
+        """
+        return self._ns
+
+    @property
+    def arg_parser(self) -> argparse.ArgumentParser:
+        """Get the argument parser instance
+
+        Returns:
+            argparse.ArgumentParser: Argument parser instance
+        """
+        return self._arg_parser
+
+    def run(self, parser: argparse.ArgumentParser) -> None:
+        """Run the Flask application"""
+
+        parser.add_argument(
+            "-c",
+            "--config",
+            dest="config_file",
+            help="Path to YAML configuration file",
+            default=ApiConfig.API_CONFIG_FILE,
+        )
+
+        parser.add_argument(
+            "--debug",
+            action="store_true",
+            dest="debug",
+            help="Enable debug mode for the Flask application",
+            default=False,
+        )
+
+        host = self._api_config.server.get("host")
+        port = self._api_config.server.get("port")
+        args = parser.parse_args()
+
+        self._app.debug = args.debug
+        self._app.config["SERVER_NAME"] = f"{host}:{port}"
+        self._app.run(port=port)
+
+    def _configure_logging(self) -> None:
+        """Configure logging for the API"""
+        log_level_name = self._api_config.logging.get("level", "INFO")
+        self._app.logger.setLevel(getattr(logging, log_level_name))
+        self._app.logger.info(f"Logging level set to {log_level_name}")
+
+    def _configure_cors(self) -> None:
+        """Configure CORS for the API"""
         # Configure CORS if enabled
-        cors_config = api_config.cors
-        if api_config.cors.get("enabled", False):
+        cors_config = self._api_config.cors
+        if self._api_config.cors.get("enabled", False):
             from flask_cors import CORS
 
-            app.logger.info(f"Configuring CORS with: {cors_config}")
+            self._app.logger.info(f"Configuring CORS with: {cors_config}")
             CORS(
-                app,
+                self._app,
                 resources={
                     r"/convert/*": {
                         "origins": cors_config.get("origins", "*"),
@@ -176,18 +240,22 @@ class App(BaseApp):
                 supports_credentials=cors_config.get("supports_credentials", "*"),
             )
         else:
-            app.logger.info("CORS disabled")
+            self._app.logger.info("CORS disabled")
 
-    def __init__(self, app: Flask, app_config: ApiConfig):
+
+class App(BaseApi):
+    """API class for handling resume conversion"""
+
+    def __init__(self):
         """Initialize the API
 
         Args:
             app (Flask): Flask application instance
-            app_config (ApiConfig): Application configuration instance
+            api_config (ApiConfig): Application configuration instance
         """
-        super().__init__(app, app_config)
+        super().__init__()
 
-        self.error_response_model = self.api.model(
+        self._error_response_model = self._api.model(
             "Response",
             {
                 "success": fields.Boolean(
@@ -196,28 +264,49 @@ class App(BaseApp):
                 "message": fields.String(description="Status message"),
             },
         )
-        self.arg_parser = self.api.parser()
-        self.arg_parser.add_argument(
+
+        self._arg_parser.add_argument(
             "input_file",
             location="files",
             type=FileStorage,
             required=True,
             help="Markdown resume file",
         )
-        self.arg_parser.add_argument(
+        self._arg_parser.add_argument(
             "paragraph_headings",
             action="append",
             choices=["h3", "h4", "h5", "h6"],
             help="Heading levels to render as paragraphs",
         )
-        self.arg_parser.add_argument(
+        self._arg_parser.add_argument(
             "config_options",
             type=str,
             required=False,
             help="JSON string with configuration overrides",
         )
 
+    @property
+    def error_response_model(self) -> dict:
+        """Get the error response model
+
+        Returns:
+            dict: Error response model
+        """
+        return self._error_response_model
+
     def _check_extension(self, expected_extension: str, filename: Path = None) -> bool:
+        """Check if the file has a valid extension
+
+        Args:
+            expected_extension (str): Expected file extension
+            filename (Path): File name to check
+
+        Returns:
+            bool: True if the file has a valid extension, False otherwise
+
+        Raises:
+            ValueError: If the file extension is invalid
+        """
         # Check if the file has a valid extension
         if filename and not filename.suffix == f".{expected_extension}":
             raise ValueError(
@@ -238,7 +327,7 @@ class App(BaseApp):
             tuple: JSON response with error message and status code
         """
         msg = f"{message}: {str(error)}" if message else str(error)
-        self.app.logger.error(msg)
+        self._app.logger.error(msg)
         return {
             "success": False,
             "message": msg,
@@ -253,16 +342,37 @@ class App(BaseApp):
         config_loader: ConfigLoader,
         filename: Path = None,
     ) -> Response:
-        self.app.logger.info(f"Markdown input file: {md_input_path}")
-        self.app.logger.info(f"Docx output file: {docx_output_path}")
+        """Convert markdown resume to DOCX and optionally PDF
 
-        # Create paragraph_style_headings dictionary
-        paragraph_style_headings = {}
-        for heading_level in paragraph_headings:
-            if heading_level in ["h3", "h4", "h5", "h6"]:
-                paragraph_style_headings[heading_level] = True
+        Args:
+            md_input_path (Path): Path to the input markdown file
+            docx_output_path (Path): Path to the output DOCX file
+            paragraph_headings (list[str]): List of paragraph headings
+            output_formats (list[str]): List of output formats
+            config_loader (ConfigLoader): Configuration loader instance
+            filename (Path): Filename for the response
+
+        Returns:
+            Response: Flask response with the generated file
+        """
+        self._app.logger.info(f"Markdown input file: {md_input_path}")
+        self._app.logger.info(f"Docx output file: {docx_output_path}")
 
         try:
+            docx_mimetype = self._api_config.mimetypes.get(
+                "docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            pdf_mimetype = self._api_config.mimetypes.get("mimetypes", {}).get(
+                "pdf", "application/pdf"
+            )
+
+            # Create paragraph_style_headings dictionary
+            paragraph_style_headings = {}
+            for heading_level in paragraph_headings:
+                if heading_level in ["h3", "h4", "h5", "h6"]:
+                    paragraph_style_headings[heading_level] = True
+
             # Convert markdown to DOCX
             docx_path = create_ats_resume(
                 md_input_path,
@@ -278,33 +388,33 @@ class App(BaseApp):
             # Process DOCX if requested
             if DOCX_EXTENSION in output_formats:
                 if self._check_extension(DOCX_EXTENSION, filename):
-                    self.app.logger.info(f"Output extension: {DOCX_EXTENSION}")
+                    self._app.logger.info(f"Output extension: {DOCX_EXTENSION}")
                     if os.path.exists(docx_path):
                         output_file = docx_path
-                        mimetype = DOCX_MIMETYPE
+                        mimetype = docx_mimetype
 
             # Process PDF if requested (convert from the generated DOCX)
             elif PDF_EXTENSION in output_formats:
                 if self._check_extension(PDF_EXTENSION, filename):
-                    self.app.logger.info(f"Output extension: {PDF_EXTENSION}")
+                    self._app.logger.info(f"Output extension: {PDF_EXTENSION}")
                     pdf_path = convert_to_pdf(docx_path)
                     if pdf_path and os.path.exists(pdf_path):
-                        self.app.logger.info(f"PDF conversion successful: {pdf_path}")
+                        self._app.logger.info(f"PDF conversion successful: {pdf_path}")
                         output_file = pdf_path
-                        mimetype = PDF_MIMETYPE
+                        mimetype = pdf_mimetype
 
             else:
                 raise ValueError("Invalid output format specified")
 
             # If we don't have a file to return, that's an error
-            self.app.logger.info(f"Output file: {output_file}")
+            self._app.logger.info(f"Output file: {output_file}")
             if not output_file or not os.path.exists(output_file):
                 raise Exception(f"Failed to generate output file: {output_file}")
 
             # Return the appropriate file directly from the temp directory
             # Add explicit filename in Content-Disposition header for curl -O
             download_name = os.path.basename(output_file)
-            self.app.logger.info(f"Successfully created: {output_file}")
+            self._app.logger.info(f"Successfully created: {output_file}")
 
             # response = send_file(
             #     output_file,
@@ -361,7 +471,7 @@ class App(BaseApp):
         config_loader = ConfigLoader()
 
         # Get the uploaded file and parameters
-        args = api.arg_parser.parse_args()
+        args = self._arg_parser.parse_args()
         input_file = args["input_file"]
         output_formats = (
             [output_format] if isinstance(output_format, str) else output_format
@@ -379,10 +489,10 @@ class App(BaseApp):
                     400, e, "Invalid JSON in config_options parameter"
                 )
 
-        _resolve_config_helper(self.app, config_loader, config_data)
-        self.app.logger.debug(f"Configuration loaded: {config_loader.config}")
-        temp_dir_enabled = api_config.output.get("use_temp_directory", True)
-        self.app.logger.info(f"Temporary directory enabled: {temp_dir_enabled}")
+        self._resolve_config_helper(config_loader, config_data)
+        self._app.logger.debug(f"Configuration loaded: {config_loader.config}")
+        temp_dir_enabled = self._api_config.output.get("use_temp_directory", True)
+        self._app.logger.info(f"Temporary directory enabled: {temp_dir_enabled}")
 
         base_input_filename = input_file.filename
         base_output_filename = f"{output_name}.{DOCX_EXTENSION}"
@@ -416,72 +526,57 @@ class App(BaseApp):
                 filename,
             )
 
+    def _resolve_config_helper(
+        self,
+        config_loader: ConfigLoader,
+        config_options: dict[str, Any] = None,
+    ) -> None:
+        """Merge the provided config options with the existing config
 
-# Load application configuration
-api_config = ApiConfig()
+        Args:
+            config_loader (ConfigLoader): Existing config loader
+            config_options (dict): Configuration options to merge
+        """
+        if config_options:
+            self._app.logger.info(f"Merging custom configuration: {config_options}")
 
-# Extract configuration values with defaults
-DOCX_MIMETYPE = api_config.mimetypes.get(
-    "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-)
-PDF_MIMETYPE = api_config.mimetypes.get("mimetypes", {}).get("pdf", "application/pdf")
-
-# Extract configuration values with defaults
-SERVER_NAME = f"{api_config.server.get('host')}:{api_config.server.get('port')}"
-
-app = Flask(__name__.split(".")[0])
-api = App(app, api_config)
-
-
-def _resolve_config_helper(
-    app: Flask,
-    config_loader: ConfigLoader,
-    config_options: dict[str, Any] = None,
-) -> ConfigLoader:
-    """Merge the provided config options with the existing config
-
-    Args:
-        app (Flask): Flask application instance
-        config_loader (ConfigLoader): Existing config loader
-        config_options (dict): Configuration options to merge
-    """
-    if config_options:
-        app.logger.info(f"Merging custom configuration: {config_options}")
-
-        # Update top-level config sections
-        for section_key, section_values in config_options.items():
-            if section_key in config_loader.config:
-                # If section exists in default config, update it
-                if isinstance(section_values, dict) and isinstance(
-                    config_loader.config[section_key], dict
-                ):
-                    app.logger.debug(
-                        f"Merging section '{section_key}' with values: {section_values}"
-                    )
-                    config_loader.config[section_key].update(section_values)
+            # Update top-level config sections
+            for section_key, section_values in config_options.items():
+                if section_key in config_loader.config:
+                    # If section exists in default config, update it
+                    if isinstance(section_values, dict) and isinstance(
+                        config_loader.config[section_key], dict
+                    ):
+                        self._app.logger.debug(
+                            f"Merging section '{section_key}' with values: {section_values}"
+                        )
+                        config_loader.config[section_key].update(section_values)
+                    else:
+                        # Replace the entire section if it's not a mergeable dictionary
+                        self._app.logger.debug(
+                            f"Replacing section '{section_key}' with values: {section_values}"
+                        )
+                        config_loader.config[section_key] = section_values
                 else:
-                    # Replace the entire section if it's not a mergeable dictionary
-                    app.logger.debug(
-                        f"Replacing section '{section_key}' with values: {section_values}"
+                    # Add new section if it doesn't exist
+                    self._app.logger.debug(
+                        f"Adding new section '{section_key}' with values: {section_values}"
                     )
                     config_loader.config[section_key] = section_values
-            else:
-                # Add new section if it doesn't exist
-                app.logger.debug(
-                    f"Adding new section '{section_key}' with values: {section_values}"
-                )
-                config_loader.config[section_key] = section_values
 
 
-@api.ns.route("/docx")
-@api.ns.route(f"/docx/<path:name>")
+app = App()
+
+
+@app.ns.route("/docx")
+@app.ns.route(f"/docx/<path:name>")
 class ConvertDocxResource(Resource):
-    @api.ns.doc("convert_markdown")
-    @api.ns.expect(api.arg_parser)
-    @api.ns.response(200, "Success - Returns DOCX file download")
-    @api.ns.response(400, "Bad Request", api.error_response_model)
-    @api.ns.response(404, "File Not Found", api.error_response_model)
-    @api.ns.response(500, "Server Error", api.error_response_model)
+    @app.ns.doc("convert_markdown")
+    @app.ns.expect(app.arg_parser)
+    @app.ns.response(200, "Success - Returns DOCX file download")
+    @app.ns.response(400, "Bad Request", app.error_response_model)
+    @app.ns.response(404, "File Not Found", app.error_response_model)
+    @app.ns.response(500, "Server Error", app.error_response_model)
     def post(self, name: str = None) -> Response:
         """Convert markdown resume to DOCX
 
@@ -491,18 +586,18 @@ class ConvertDocxResource(Resource):
         Returns:
             Response: Flask response with the generated DOCX file
         """
-        return api.post(DOCX_EXTENSION, name)
+        return app.post(DOCX_EXTENSION, name)
 
 
-@api.ns.route("/pdf")
-@api.ns.route(f"/pdf/<path:name>")
+@app.ns.route("/pdf")
+@app.ns.route(f"/pdf/<path:name>")
 class ConvertPdfResource(Resource):
-    @api.ns.doc("convert_markdown")
-    @api.ns.expect(api.arg_parser)
-    @api.ns.response(200, "Success - Returns PDF file download")
-    @api.ns.response(400, "Bad Request", api.error_response_model)
-    @api.ns.response(404, "File Not Found", api.error_response_model)
-    @api.ns.response(500, "Server Error", api.error_response_model)
+    @app.ns.doc("convert_markdown")
+    @app.ns.expect(app.arg_parser)
+    @app.ns.response(200, "Success - Returns PDF file download")
+    @app.ns.response(400, "Bad Request", app.error_response_model)
+    @app.ns.response(404, "File Not Found", app.error_response_model)
+    @app.ns.response(500, "Server Error", app.error_response_model)
     def post(self, name: str = None) -> None:
         """Convert markdown resume to PDF
 
@@ -512,7 +607,7 @@ class ConvertPdfResource(Resource):
         Returns:
             Response: Flask response with the generated PDF file
         """
-        return api.post(PDF_EXTENSION, name)
+        return app.post(PDF_EXTENSION, name)
 
 
 if __name__ == "__main__":
@@ -539,30 +634,10 @@ Example usage:
 """
 
     # Parse command line arguments with enhanced help
-    parser = argparse.ArgumentParser(
+    arg_parser = argparse.ArgumentParser(
         description=program_description,
         epilog=epilog_text,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    parser.add_argument(
-        "-c",
-        "--config",
-        dest="config_file",
-        help="Path to YAML configuration file",
-        default=ApiConfig.API_CONFIG_FILE,
-    )
-
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        dest="debug",
-        help="Enable debug mode for the Flask application",
-        default=False,
-    )
-
-    args = parser.parse_args()
-
-    app.debug = args.debug
-    app.config["SERVER_NAME"] = SERVER_NAME
-    app.run(port=api_config.server.get("port"))
+    app.run(arg_parser)

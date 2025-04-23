@@ -68,7 +68,7 @@ lint: ## Run linters and reformat
 api: ## Run the app
 	@( \
   . .venv/bin/activate; \
-  python src/api.py --debug; \
+  set -x; python src/api.py --debug; \
 )
 
 .venv_reminder:
