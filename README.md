@@ -77,7 +77,7 @@ make && make install
 > [!TIP]
 > The help screen can be accessed by running the following:
 > ```bash
-> python resume_md_to_docx.py -h
+> python src/resume_md_to_docx.py -h
 > ```
 
 > [!TIP]
@@ -92,7 +92,7 @@ By default, the name of the output file will match that of the input file, but w
 By default, the command with no options or arguments, will cause the script to run in **interactive mode**, prompting the user (you) for inputs:
 
 ```bash
-python resume_md_to_docx.py
+python src/resume_md_to_docx.py
 ```
 
 #### Manual mode 🎛
@@ -103,13 +103,13 @@ Run in manual mode, specifying an input file:
 ```bash
 # This will create a file called "resume.docx" in
 # the "output/" directory, i.e. "output/resume.docx"
-python resume_md_to_docx.py -i resume.md
+python src/resume_md_to_docx.py -i resume.md
 ```
 
 Specify an output filename:
 
 ```bash
-python resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/example\ ats\ resume.docx
+python src/resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/example\ ats\ resume.docx
 ```
 
 > [!NOTE]
@@ -122,7 +122,7 @@ Adding `--pdf` to any of the above commands will also produce a `.pdf` file in t
 
 ```bash
 # This will create 2 files: "output/example.docx" and "output/example.pdf"
-python resume_md_to_docx.py -i sample/example/example.md --pdf
+python src/resume_md_to_docx.py -i sample/example/example.md --pdf
 ```
 
 > [!NOTE]
@@ -148,13 +148,13 @@ python resume_md_to_docx.py -i sample/example/example.md --pdf
 
 ```bash
 # Set input, output, and create a pdf
-python resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/example\ ats\ resume.docx --pdf
+python src/resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/example\ ats\ resume.docx --pdf
 
 # Set input, output, paragraph-headings, and create a pdf
-python resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/example\ ats\ resume.docx -p h3 h4 h5 h6 --pdf
+python src/resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/example\ ats\ resume.docx -p h3 h4 h5 h6 --pdf
 
 # Set input, output, paragraph-headings, create a pdf, and use a custom configuration file
-python resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/example\ ats\ resume.docx --pdf -c custom_config.yaml
+python src/resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/example\ ats\ resume.docx --pdf -c custom_config.yaml
 ```
 
 
@@ -219,7 +219,7 @@ The converter maps Markdown headings to ATS-friendly Word document headings usin
 
 ### Modifications 🦾
 
-If you need to customize these mappings, you can modify the `ResumeSection` enum in [resume_md_to_docx.py](./resume_md_to_docx.py).
+If you need to customize these mappings, you can modify the `ResumeSection` enum in [src/resume_md_to_docx.py](./src/resume_md_to_docx.py).
 
 
 
@@ -241,6 +241,125 @@ These subsections help structure your job entries in a way that makes them more 
 
 
 
+## ✨ API Usage 🌀
+
+The project includes a REST API that converts markdown resumes to ATS-friendly formats (DOCX and PDF). This allows you to integrate the conversion functionality into other applications or workflows.
+
+### Starting the API Server 🚆
+
+To start the API server:
+
+```bash
+# Using the make command
+make api
+
+# Or run directly
+python src/api.py
+```
+
+By default, the server runs on `localhost:3000`. You can modify this in the api_config.yaml file.
+
+### Configuration ⚙️
+
+The API uses its own [configuration file](./api_config.yaml) (`api_config.yaml`) separate from the [resume styling configuration](#styling-).
+
+### API Endpoints 🎸
+
+1. #### Convert to DOCX 🦋
+
+    Convert a markdown resume to DOCX format:
+
+    ```
+    POST /convert/docx
+    POST /convert/docx/{filename}
+    ```
+
+1. #### Convert to PDF 🦋
+
+    Convert a markdown resume to PDF format:
+
+    ```
+    POST /convert/pdf
+    POST /convert/pdf/{filename}
+    ```
+
+### Request Parameters ⚙️
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `input_file` | Markdown resume file to convert | Yes |
+| `paragraph_headings` | Heading levels to render as paragraphs (`h3`, `h4`, `h5`, `h6`) | No |
+| `config_options` | JSON string with configuration overrides | No |
+
+### Examples 🤖
+
+#### Basic Conversion to DOCX 🦋
+
+```bash
+curl -X POST "http://localhost:3000/convert/docx" \
+  -F "input_file=@resume.md" \
+  -o resume_ats.docx
+```
+
+#### Convert to PDF with Paragraph Headings 🦋
+
+```bash
+curl -X POST "http://localhost:3000/convert/pdf" \
+  -F "input_file=@resume.md" \
+  -F "paragraph_headings=h3" \
+  -F "paragraph_headings=h5" \
+  -o resume_ats.pdf
+```
+
+#### Convert with Custom Configuration 🦋
+
+```bash
+curl -X POST "http://localhost:3000/convert/pdf" \
+  -F "input_file=@resume.md" \
+  -F "paragraph_headings=h5" \
+  -F "config_options={\"style_constants\": {\"paragraph_lists\": true, \"column_layout\": true}}" \
+  -o resume_ats.pdf
+```
+
+#### Using Filename in URL (better for curl -O) 🦋
+
+```bash
+curl -X POST "http://localhost:3000/convert/pdf/my_resume.pdf" \
+  -F "input_file=@resume.md" \
+  -O
+```
+
+This will download the file as `my_resume.pdf`.
+
+### Swagger UI 🌊
+
+The API includes Swagger documentation accessible at:
+
+```
+http://localhost:3000/swagger
+```
+
+This provides an interactive interface to:
+- View all available endpoints
+- Test API operations directly from the browser
+- See detailed parameter and response documentation
+
+### Error Responses 👻
+
+Error responses are returned in JSON format:
+
+```json
+{
+  "success": false,
+  "message": "Error description"
+}
+```
+
+> [!NOTE]
+> HTTP status codes are appropriately used (400 for bad requests, 404 for not found, etc.).
+
+
+
 ## Important Files 🗂️
 
 ```
@@ -257,10 +376,13 @@ These subsections help structure your job entries in a way that makes them more 
 │       └── output/
 │           ├── sample.docx     # Example docx ouput from sample
 │           └── sample.pdf      # Example pdf ouput from sample
+├── src/
+│   ├── api.py                  # Main API script
+│   └── resume_md_to_docx.py    # Main conversion script
 ├── Makefile                    # Contains helpful commands for managing the project
 ├── REAMDE.md                   # This README file
-├── resume_config.yaml          # The default configuration file
-└── resume_md_to_docx.py        # Main Python script
+├── api_config.yaml             # The default api script configuration file
+└── resume_config.yaml          # The default conversion script configuration file
 
 ```
 
@@ -274,6 +396,7 @@ These subsections help structure your job entries in a way that makes them more 
 | Command | Description |
 |---------|-------------|
 | `make` | Alias for `make init` |
+| `make api` | Run the flask app using the default configuration |
 | `make help` | Show help information |
 | `make list` | List all available commands |
 | `make init` | Initialize the project |
