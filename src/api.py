@@ -22,30 +22,39 @@ logging.basicConfig(
 )
 
 SCRIPT_DIR = Path(__file__).parent.parent
+API_CONFIG_FILE = Path("api_config.yaml")
 
 
 class ApiConfig:
     """Application configuration class"""
 
-    API_CONFIG_FILE = SCRIPT_DIR / "api_config.yaml"
-
-    def __init__(self):
+    def __init__(self, api_config_file: Path):
         """Initialize the application configuration"""
 
-        self._file = ApiConfig.API_CONFIG_FILE.absolute().resolve()
+        self._config_file = api_config_file
+        self._config_file_realpath = api_config_file.absolute().resolve()
         self._config = self.load_app_config()
 
         # Required settings
         self._server = self._config.get("server")
 
     @property
-    def file(self) -> Path:
+    def config_file(self) -> Path:
         """Get document default settings
 
         Returns:
             dict: Document defaults configuration
         """
-        return Path(self._file)
+        return Path(self._config_file)
+
+    @property
+    def config_file_realpath(self) -> Path:
+        """Get document default settings
+
+        Returns:
+            dict: Document defaults configuration
+        """
+        return Path(self._config_file_realpath)
 
     @property
     def config(self) -> dict:
@@ -108,26 +117,28 @@ class ApiConfig:
         Returns:
             dict: Application configuration
         """
-        if os.path.exists(self._file):
+        if os.path.exists(self._config_file_realpath):
             try:
-                with open(self._file, "r", encoding="utf-8", errors="replace") as f:
+                with open(
+                    self._config_file_realpath, "r", encoding="utf-8", errors="replace"
+                ) as f:
                     return yaml.safe_load(f)
             except Exception as e:
                 print(f"Error loading app config: {e}")
                 return {}
         else:
-            print(f"Warning: {self._file} not found, using defaults")
+            print(f"Warning: {self._config_file_realpath} not found, using defaults")
             return {}
 
 
 class BaseApi:
     """Base class for Flask application"""
 
-    def __init__(self):
+    def __init__(self, api_config_file: Path):
         """Initialize the API"""
 
         # Load application configuration
-        api_config = ApiConfig()
+        api_config = ApiConfig(api_config_file)
 
         # Create Flask application
         app = Flask(__name__.split(".")[0])
@@ -186,15 +197,27 @@ class BaseApi:
         """
         return self._arg_parser
 
-    def run(self, parser: argparse.ArgumentParser) -> None:
-        """Run the Flask application"""
+    def run(self, program_description: str = None, epilog_text: str = None) -> None:
+        """Run the Flask application
+
+        Args:
+            program_description (str): Description of the program
+            epilog_text (str): Epilog text for the help message
+        """
+
+        # Parse command line arguments with enhanced help
+        parser = argparse.ArgumentParser(
+            description=program_description,
+            epilog=epilog_text,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
 
         parser.add_argument(
             "-c",
             "--config",
             dest="config_file",
             help="Path to YAML configuration file",
-            default=ApiConfig.API_CONFIG_FILE,
+            default=self._api_config.config_file,
         )
 
         parser.add_argument(
@@ -246,14 +269,14 @@ class BaseApi:
 class App(BaseApi):
     """API class for handling resume conversion"""
 
-    def __init__(self):
+    def __init__(self, api_config_file: Path):
         """Initialize the API
 
         Args:
             app (Flask): Flask application instance
             api_config (ApiConfig): Application configuration instance
         """
-        super().__init__()
+        super().__init__(api_config_file)
 
         self._error_response_model = self._api.model(
             "Response",
@@ -565,7 +588,7 @@ class App(BaseApi):
                     config_loader.config[section_key] = section_values
 
 
-app = App()
+app = App(SCRIPT_DIR / API_CONFIG_FILE)
 
 
 @app.ns.route("/docx")
@@ -633,11 +656,4 @@ Example usage:
     -F "config_options={\"document_styles\": {\"Subtitle\": {\"font_name\": \"Helvetica Neue\"}}}"
 """
 
-    # Parse command line arguments with enhanced help
-    arg_parser = argparse.ArgumentParser(
-        description=program_description,
-        epilog=epilog_text,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-
-    app.run(arg_parser)
+    app.run(program_description, epilog_text)
