@@ -64,7 +64,7 @@ lint: ## Run linters and reformat
   autoflake --remove-all-unused-imports --remove-unused-variables .; \
 )
 
-.PHONY: app
+.PHONY: api
 api: ## Run the app
 	@( \
   . .venv/bin/activate; \
