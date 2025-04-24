@@ -40,7 +40,7 @@ build: .build ## Build the example
 
 .PHONY: clean
 clean: .uninstall ## Clean up
-	@( \
+	( \
   . .venv/bin/activate; \
   deactivate; \
   rm -rf .venv; \
@@ -48,7 +48,7 @@ clean: .uninstall ## Clean up
 
 .PHONY: check
 check: ## Run linters but don't reformat
-	@( \
+	( \
   . .venv/bin/activate; \
   black --check --diff . --line-length 88; \
   isort --check-only --diff .; \
@@ -57,7 +57,7 @@ check: ## Run linters but don't reformat
 
 .PHONY: lint
 lint: ## Run linters and reformat
-	@( \
+	( \
   . .venv/bin/activate; \
   black . --line-length 88; \
   isort .; \
@@ -66,9 +66,9 @@ lint: ## Run linters and reformat
 
 .PHONY: api
 api: ## Run the app
-	@( \
+	( \
   . .venv/bin/activate; \
-  set -x; python src/api.py --debug; \
+  python src/api.py --debug; \
 )
 
 .venv_reminder:
@@ -80,43 +80,43 @@ api: ## Run the app
 .init:
 	@deactivate 2>/dev/null || true
 	@test -d .venv || python3 -m venv .venv
-	@( \
+	( \
   . .venv/bin/activate; \
   python3 -m ensurepip; \
 )
 	@printf "\nIf this is your \033[1m%s\033[0m running this (in this directory),\nplease \033[4m%s\033[0m\033[1m\033[0m run \033[1;92m\`%s\`\033[0m to install dependencies 🚀\n" "first time" "next" "make install"
 
 .uninstall:
-	@( \
+	( \
   . .venv/bin/activate; \
   pip uninstall -y -r .requirements/requirements.txt; \
 )
 
 .uninstall-dev:
-	@( \
+	( \
   . .venv/bin/activate; \
   pip uninstall -y -r .requirements/requirements-dev.txt; \
   pre-commit uninstall; \
 )
 
 .install:
-	@( \
+	( \
   . .venv/bin/activate; \
   pip install --no-cache-dir -r .requirements/requirements.txt; \
 )
 
 .install-dev:
-	@( \
+	( \
   . .venv/bin/activate; \
   pip install --no-cache-dir -r .requirements/requirements-dev.txt; \
   pre-commit install; \
 )
 
 .build:
-	@( \
+	( \
   . .venv/bin/activate; \
-  set -x; python src/resume_md_to_docx.py -i sample/template/sample.md -o sample/template/output/sample.docx --pdf; \
-  set -x; python src/resume_md_to_docx.py -i sample/template/sample.md -o sample/template/output/sample.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
-  set -x; python src/resume_md_to_docx.py -i sample/example/example.md -o sample/example/output/example.docx --pdf; \
-  set -x; python src/resume_md_to_docx.py -i sample/example/example.md -o sample/example/output/example.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
+  python src/resume_md_to_docx.py -i sample/template/sample.md -o sample/template/output/sample.docx --pdf; \
+  python src/resume_md_to_docx.py -i sample/template/sample.md -o sample/template/output/sample.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
+  python src/resume_md_to_docx.py -i sample/example/example.md -o sample/example/output/example.docx --pdf; \
+  python src/resume_md_to_docx.py -i sample/example/example.md -o sample/example/output/example.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
 )
