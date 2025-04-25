@@ -267,7 +267,7 @@ The API uses its own [configuration file](./api_config.yaml) (`api_config.yaml`)
 
 1. #### Convert to DOCX 🦋
 
-    Convert a markdown resume to DOCX format:
+    Converts a markdown resume to DOCX format:
 
     ```
     POST /convert/docx
@@ -276,7 +276,7 @@ The API uses its own [configuration file](./api_config.yaml) (`api_config.yaml`)
 
 1. #### Convert to PDF 🦋
 
-    Convert a markdown resume to PDF format:
+    Converts a markdown resume to PDF format:
 
     ```
     POST /convert/pdf
@@ -323,7 +323,7 @@ curl -X POST "http://localhost:3000/convert/pdf" \
 
 #### Using Filename in URL (better for curl -O) 🦋
 
-Download the file as `my_resume.pdf`:
+Downloads the file as `my_resume.pdf`:
 
 ```bash
 curl -X POST "http://localhost:3000/convert/pdf/my_resume.pdf" \
