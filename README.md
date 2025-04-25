@@ -323,13 +323,13 @@ curl -X POST "http://localhost:3000/convert/pdf" \
 
 #### Using Filename in URL (better for curl -O) 🦋
 
+Download the file as `my_resume.pdf`:
+
 ```bash
 curl -X POST "http://localhost:3000/convert/pdf/my_resume.pdf" \
   -F "input_file=@resume.md" \
   -O
 ```
-
-This will download the file as `my_resume.pdf`.
 
 ### Swagger UI 🌊
 
