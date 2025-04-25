@@ -306,8 +306,8 @@ curl -X POST "http://localhost:3000/convert/docx" \
 ```bash
 curl -X POST "http://localhost:3000/convert/pdf" \
   -F "input_file=@resume.md" \
-  -F "paragraph_headings=h3" \
   -F "paragraph_headings=h5" \
+  -F "paragraph_headings=h6" \
   -o resume_ats.pdf
 ```
 
@@ -317,7 +317,7 @@ curl -X POST "http://localhost:3000/convert/pdf" \
 curl -X POST "http://localhost:3000/convert/pdf" \
   -F "input_file=@resume.md" \
   -F "paragraph_headings=h5" \
-  -F "config_options={\"style_constants\": {\"paragraph_lists\": true, \"column_layout\": true}}" \
+  -F "config_options={\"style_constants\": {\"paragraph_lists\": true, \"column_layout\": true}, {\"Subtitle\": {\"font_name\": "Helvetica Neue"}}}" \
   -o resume_ats.pdf
 ```
 
