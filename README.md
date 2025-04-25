@@ -30,7 +30,7 @@ This project allows you to maintain your resume in an easily editable Markdown f
 
 The setup process involves running only 2 commands:
 
-1. The `make` command creates any necessary pre-requisite files or directories, including creating a *virtual environment*, and ensures [`pip`](https://pip.pypa.io/en/stable/) is installed.
+1. The `make` command creates any necessary pre-requisite files or directories, including creating a *virtual environment*, and ensuring [`pip`](https://pip.pypa.io/en/stable/) is installed and in your PATH.
 1. The `make install` command installs any required dependencies.
 
 > [!WARNING]
