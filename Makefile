@@ -25,6 +25,9 @@ init: .init .venv_reminder .python_command ## Ensure pip and Initialize venv
 .PHONY: install
 install: .install .venv_reminder .python_command ## Install dependencies
 
+.PHONY: install-api
+install-api: .install-api .venv_reminder ## Install api dependencies
+
 .PHONY: install-dev
 install-dev: .install-dev .venv_reminder .python_command ## Install development dependencies
 
@@ -103,6 +106,12 @@ api: ## Run the app
 	( \
   . .venv/bin/activate; \
   pip install --no-cache-dir -r .requirements/requirements.txt; \
+)
+
+.install-api:
+	( \
+  . .venv/bin/activate; \
+  pip install --no-cache-dir -r .requirements/requirements-api.txt; \
 )
 
 .install-dev:

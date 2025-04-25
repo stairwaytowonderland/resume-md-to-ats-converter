@@ -4,8 +4,10 @@
 *.private
 *.~*
 
-.venv
 __pycache__
+/.venv
+/.serverless
+/node_modules
 
 .DS_Store
 Icon?

@@ -4,8 +4,10 @@ server:
   port: 3000
 
 mimetypes:
-  pdf: "application/pdf"
-  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  error: "application/json"
+  pdf: ["application/pdf", "application/x-pdf"]
+  doc: ["application/msword", "application/vnd.ms-word"]
+  docx: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
 
 cors:
   enabled: false
@@ -16,8 +18,11 @@ cors:
     - "Content-Type"
     - "Content-Length"
 
-logging:
-  level: "INFO"
+input:
+  prefer_file: true
 
 output:
   use_temp_directory: true
+
+logging:
+  level: "INFO"

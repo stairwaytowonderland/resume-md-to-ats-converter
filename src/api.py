@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from flask import Flask, send_from_directory
+from flask import Flask, request, send_from_directory
 from flask.wrappers import Response
 from flask_restx import Api, Resource, fields
 from werkzeug.datastructures import FileStorage
@@ -75,7 +75,7 @@ class ApiConfig:
         return self._server
 
     @property
-    def mimetypes(self) -> dict:
+    def mimetypes(self) -> dict[str, list[str]]:
         """Get mimetypes settings
 
         Returns:
@@ -100,6 +100,15 @@ class ApiConfig:
             dict: Logging configuration
         """
         return self._config.get("logging", {})
+
+    @property
+    def input(self) -> dict:
+        """Get input settings
+
+        Returns:
+            dict: Input configuration
+        """
+        return self._config.get("input", {})
 
     @property
     def output(self) -> dict:
@@ -156,6 +165,16 @@ class BaseApi:
             "convert", description="Resume conversion operations"
         )
 
+        self._host = self._api_config.server.get("host")
+        self._port = self._api_config.server.get("port")
+        self._app.config["SERVER_NAME"] = f"{self._host}:{self._port}"
+
+        self._app.logger.debug(f"API host: {self._host}")
+        self._app.logger.debug(f"API port: {self._port}")
+        self._app.logger.debug(f"API mimetypes: {self._api_config.mimetypes}")
+        self._app.logger.debug(f"API cors: {self._api_config.cors}")
+        self._app.logger.debug(f"API output: {self._api_config.output}")
+
         self._arg_parser = self._api.parser()
 
         self._configure_logging()
@@ -180,6 +199,15 @@ class BaseApi:
         return self._api
 
     @property
+    def api_config(self) -> ApiConfig:
+        """Get the API configuration instance
+
+        Returns:
+            ApiConfig: API configuration instance
+        """
+        return self._api_config
+
+    @property
     def ns(self) -> Api:
         """Get the namespace instance
 
@@ -196,6 +224,24 @@ class BaseApi:
             argparse.ArgumentParser: Argument parser instance
         """
         return self._arg_parser
+
+    @property
+    def host(self) -> str:
+        """Get the host for the API
+
+        Returns:
+            str: Host for the API
+        """
+        return self._host
+
+    @property
+    def port(self) -> int:
+        """Get the port for the API
+
+        Returns:
+            int: Port for the API
+        """
+        return self._port
 
     def run(self, program_description: str = None, epilog_text: str = None) -> None:
         """Run the Flask application
@@ -228,13 +274,10 @@ class BaseApi:
             default=False,
         )
 
-        host = self._api_config.server.get("host")
-        port = self._api_config.server.get("port")
         args = parser.parse_args()
 
         self._app.debug = args.debug
-        self._app.config["SERVER_NAME"] = f"{host}:{port}"
-        self._app.run(port=port)
+        self._app.run()
 
     def _configure_logging(self) -> None:
         """Configure logging for the API"""
@@ -269,6 +312,13 @@ class BaseApi:
 class App(BaseApi):
     """API class for handling resume conversion"""
 
+    TEXT_SCHEMA = {
+        "type": "string",
+        "format": "text",
+        "description": "Raw markdown content for conversion",
+        "nullable": True,  # This makes the field optional
+    }
+
     def __init__(self, api_config_file: Path):
         """Initialize the API
 
@@ -278,21 +328,11 @@ class App(BaseApi):
         """
         super().__init__(api_config_file)
 
-        self._error_response_model = self._api.model(
-            "Response",
-            {
-                "success": fields.Boolean(
-                    description="Whether the operation was successful"
-                ),
-                "message": fields.String(description="Status message"),
-            },
-        )
-
         self._arg_parser.add_argument(
             "input_file",
             location="files",
             type=FileStorage,
-            required=True,
+            required=False,
             help="Markdown resume file",
         )
         self._arg_parser.add_argument(
@@ -309,13 +349,36 @@ class App(BaseApi):
         )
 
     @property
-    def error_response_model(self) -> dict:
+    def response_model(self) -> dict:
         """Get the error response model
 
         Returns:
             dict: Error response model
         """
-        return self._error_response_model
+        return self._api.model(
+            "Response",
+            {
+                "success": fields.Boolean(
+                    description="Whether the operation was successful"
+                ),
+                "message": fields.String(description="Status message"),
+                "download_url": fields.String(
+                    description="URL to download the generated file"
+                ),
+            },
+        )
+
+    @property
+    def raw_text_model(self) -> dict:
+        """Get the raw text model
+
+        Returns:
+            dict: Raw text model
+        """
+        return self._api.schema_model(
+            "RawText",
+            App.TEXT_SCHEMA
+        )
 
     def _check_extension(self, expected_extension: str, filename: Path = None) -> bool:
         """Check if the file has a valid extension
@@ -382,12 +445,12 @@ class App(BaseApi):
         self._app.logger.info(f"Docx output file: {docx_output_path}")
 
         try:
-            docx_mimetype = self._api_config.mimetypes.get(
+            docx_mimetypes = self._api_config.mimetypes.get(
                 "docx",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
             )
-            pdf_mimetype = self._api_config.mimetypes.get("mimetypes", {}).get(
-                "pdf", "application/pdf"
+            pdf_mimetypes = self._api_config.mimetypes.get(
+                "pdf", ["application/pdf"]
             )
 
             # Create paragraph_style_headings dictionary
@@ -406,7 +469,7 @@ class App(BaseApi):
 
             # Track created files and file to return
             output_file = None
-            mimetype = None
+            mimetypes = None
 
             # Process DOCX if requested
             if DOCX_EXTENSION in output_formats:
@@ -414,7 +477,7 @@ class App(BaseApi):
                     self._app.logger.info(f"Output extension: {DOCX_EXTENSION}")
                     if os.path.exists(docx_path):
                         output_file = docx_path
-                        mimetype = docx_mimetype
+                        mimetypes = docx_mimetypes
 
             # Process PDF if requested (convert from the generated DOCX)
             elif PDF_EXTENSION in output_formats:
@@ -424,7 +487,7 @@ class App(BaseApi):
                     if pdf_path and os.path.exists(pdf_path):
                         self._app.logger.info(f"PDF conversion successful: {pdf_path}")
                         output_file = pdf_path
-                        mimetype = pdf_mimetype
+                        mimetypes = pdf_mimetypes
 
             else:
                 raise ValueError("Invalid output format specified")
@@ -452,7 +515,7 @@ class App(BaseApi):
                 path=output_file.name,
                 as_attachment=True,
                 download_name=download_name,
-                mimetype=mimetype,
+                # mimetype=mimetypes[0],
             )
 
             # Force proper filename in Content-Disposition header
@@ -477,12 +540,14 @@ class App(BaseApi):
         self,
         output_format: str = DEFAULT_OUTPUT_FORMAT,
         filename: str = None,
+        request_body: str = None,
     ) -> Response | tuple[dict[str, Any], int]:
         """Convert markdown resume to DOCX and optionally PDF
 
         Args:
             output_format (str): Output format to generate (docx or pdf)
-            use_output_dir (bool): Whether to use the output directory for saving files
+            filename (str): Optional filename for the output
+            request_body (str): Raw markdown content from request body
 
         Returns:
             Response: Flask response with the generated file
@@ -499,8 +564,35 @@ class App(BaseApi):
         output_formats = (
             [output_format] if isinstance(output_format, str) else output_format
         )
-        output_name = Path(input_file.filename).stem
+        # output_name = Path(input_file.filename).stem
         paragraph_headings = args["paragraph_headings"] or []
+
+        # Determine input source based on config and available inputs
+        prefer_file = self._api_config.input.get("prefer_file", True)
+        use_file_input = (input_file is not None and (prefer_file or request_body is None))
+
+        self._app.logger.info(f"Using file input: {use_file_input}")
+        self._app.logger.info(f"Using request body: {request_body is not None}")
+        self._app.logger.info(f"Request body: {request_body}")
+        self._app.logger.info(f"Input file: {input_file}")
+
+        if not use_file_input and not request_body:
+            return self._error_response(
+                400, ValueError("No input provided"), "Either input_file or request body must be provided"
+            )
+
+        # Get filename and output name
+        if use_file_input:
+            base_input_filename = input_file.filename
+            output_name = Path(input_file.filename).stem
+        else:
+            import uuid
+            random_hash = uuid.uuid4().hex
+            base_input_filename = f"{random_hash}.md"
+            output_name = filename.stem if filename else Path(base_input_filename).stem
+
+        # base_input_filename = input_file.filename
+        base_output_filename = f"{output_name}.{DOCX_EXTENSION}"
 
         # Parse config_options if provided
         config_data = {}
@@ -517,15 +609,26 @@ class App(BaseApi):
         temp_dir_enabled = self._api_config.output.get("use_temp_directory", True)
         self._app.logger.info(f"Temporary directory enabled: {temp_dir_enabled}")
 
-        base_input_filename = input_file.filename
-        base_output_filename = f"{output_name}.{DOCX_EXTENSION}"
-
         if temp_dir_enabled:
             with tempfile.TemporaryDirectory() as temp_dir:
 
                 # Save the uploaded file
                 temp_input_path = Path(temp_dir) / base_input_filename
-                input_file.save(temp_input_path)
+
+                if use_file_input:
+                    # Save the uploaded file
+                    input_file.save(temp_input_path)
+                else:
+                    # Write the input text to a file, preserving non-UTF-8 characters
+                    try:
+                        # First try UTF-8
+                        with open(temp_input_path, "w", encoding="utf-8") as f:
+                            f.write(request_body)
+                    except UnicodeEncodeError:
+                        # If that fails, write binary
+                        self._app.logger.info("UTF-8 encoding failed, writing as binary")
+                        with open(temp_input_path, "wb") as f:
+                            f.write(request_body.encode("utf-8", errors="replace"))
 
                 # Prepare output paths directly in the temporary directory
                 temp_output_path = Path(temp_dir) / base_output_filename
@@ -591,17 +694,23 @@ class App(BaseApi):
 app = App(SCRIPT_DIR / API_CONFIG_FILE)
 
 
-@app.ns.route("/docx")
-@app.ns.route(f"/docx/<path:name>")
+@app.ns.route("/docx", methods=['POST'])
+@app.ns.route(f"/docx/<path:name>", methods=['POST'])
 class ConvertDocxResource(Resource):
-    @app.ns.doc("convert_markdown")
+    @app.ns.doc("convert_markdown", consumes=['multipart/form-data', 'text/markdown', 'text/plain'])
     @app.ns.expect(app.arg_parser)
-    @app.ns.response(200, "Success - Returns DOCX file download")
-    @app.ns.response(400, "Bad Request", app.error_response_model)
-    @app.ns.response(404, "File Not Found", app.error_response_model)
-    @app.ns.response(500, "Server Error", app.error_response_model)
+    @app.ns.response(200, "Success - Returns DOCX file download", produces=app.api_config.mimetypes.get("docx"))
+    @app.ns.response(400, "Bad Request", app.response_model, produces=["application/json"])
+    @app.ns.response(404, "File Not Found", app.response_model, produces=["application/json"])
+    @app.ns.response(500, "Server Error", app.response_model, produces=["application/json"])
+    # @app.ns.produces(app.api_config.mimetypes.get("docx"))
+    @app.ns.param('body', 'Raw markdown content', _in='body', required=False, schema=App.TEXT_SCHEMA)
     def post(self, name: str = None) -> Response:
         """Convert markdown resume to DOCX
+
+        You can provide the markdown content either:
+        - As a file upload (input_file)
+        - Directly in the request body (Content-Type: text/markdown, text/html, or text/plain)
 
         Args:
             name (str): Optional filename for the output DOCX
@@ -609,20 +718,37 @@ class ConvertDocxResource(Resource):
         Returns:
             Response: Flask response with the generated DOCX file
         """
-        return app.post(DOCX_EXTENSION, name)
+        # Get either JSON body or raw text
+        if request.is_json:
+            data = request.get_json()
+            content = data.get('text', None)
+        else:
+            content = request.get_data(as_text=True)
+
+        return app.post(
+            output_format=DOCX_EXTENSION,
+            filename=name,
+            request_body=content
+        )
 
 
-@app.ns.route("/pdf")
-@app.ns.route(f"/pdf/<path:name>")
+@app.ns.route("/pdf", methods=['POST'])
+@app.ns.route(f"/pdf/<path:name>", methods=['POST'])
 class ConvertPdfResource(Resource):
-    @app.ns.doc("convert_markdown")
+    @app.ns.doc("convert_markdown", consumes=['multipart/form-data', 'text/markdown', 'text/plain'])
     @app.ns.expect(app.arg_parser)
-    @app.ns.response(200, "Success - Returns PDF file download")
-    @app.ns.response(400, "Bad Request", app.error_response_model)
-    @app.ns.response(404, "File Not Found", app.error_response_model)
-    @app.ns.response(500, "Server Error", app.error_response_model)
+    @app.ns.response(200, "Success - Returns PDF file download", produces=app.api_config.mimetypes.get("pdf"))
+    @app.ns.response(400, "Bad Request", app.response_model, produces=["application/json"])
+    @app.ns.response(404, "File Not Found", app.response_model, produces=["application/json"])
+    @app.ns.response(500, "Server Error", app.response_model, produces=["application/json"])
+    # @app.ns.produces(app.api_config.mimetypes.get("pdf"))
+    @app.ns.param('body', 'Raw markdown content', _in='body', required=False, schema=App.TEXT_SCHEMA)
     def post(self, name: str = None) -> None:
         """Convert markdown resume to PDF
+
+        You can provide the markdown content either:
+        - As a file upload (input_file)
+        - Directly in the request body (Content-Type: text/markdown, text/html, or text/plain)
 
         Args:
             name (str): Optional filename for the output PDF
@@ -630,10 +756,22 @@ class ConvertPdfResource(Resource):
         Returns:
             Response: Flask response with the generated PDF file
         """
-        return app.post(PDF_EXTENSION, name)
+        # Get either JSON body or raw text
+        if request.is_json:
+            data = request.get_json()
+            content = data.get('text', None)
+        else:
+            content = request.get_data(as_text=True)
+
+        return app.post(
+            output_format=PDF_EXTENSION,
+            filename=name,
+            request_body=content
+        )
 
 
 if __name__ == "__main__":
+
     # Program description and epilog
     program_description = """
 Resume Markdown to DOCX API
@@ -644,16 +782,20 @@ It provides endpoints for converting markdown files to DOCX and PDF formats.
 
     epilog_text = """
 Example usage:
-  # Start the API server
-  python api.py --config api_config.yaml --debug
+# Start the API server
+python api.py --config api_config.yaml --debug
 
-  # Convert a markdown resume to PDF
-  curl -X POST "http://localhost:3000/convert/pdf" \\
-    -H "Content-Type: multipart/form-data" \\
-    -F "input_file=@resume.md" \\
-    -F "paragraph_headings=h5" \\
-    -F "paragraph_headings=h6" \\
-    -F "config_options={\"document_styles\": {\"Subtitle\": {\"font_name\": \"Helvetica Neue\"}}}"
+# Convert a markdown resume to PDF
+curl -X POST "http://localhost:3000/convert/pdf" \\
+-H "Content-Type: multipart/form-data" \\
+-F "input_file=@resume.md" \\
+-F "paragraph_headings=h5" \\
+-F "paragraph_headings=h6" \\
+-F "config_options={\"document_styles\": {\"Subtitle\": {\"font_name\": \"Helvetica Neue\"}}}"
 """
 
     app.run(program_description, epilog_text)
+
+# Export the Flask application object, not the App class instance
+# This is what serverless-wsgi needs - the actual Flask application
+application = app.app  # Get the Flask app from App class instance

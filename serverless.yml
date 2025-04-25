@@ -1,0 +1,41 @@
+service: resume-converter-api
+
+provider:
+  name: aws
+  runtime: python3.9
+  profile: AdministratorAccess-254716123389
+
+plugins:
+  - serverless-wsgi
+  - serverless-apigw-binary
+  - serverless-python-requirements
+
+functions:
+  api:
+    handler: wsgi_handler.handler
+    events:
+      - http:
+          path: convert/docx
+          method: post
+          integration: lambda-proxy
+      - http:
+          path: convert/docx/{filename}
+          method: post
+          integration: lambda-proxy
+      - http:
+          path: convert/pdf
+          method: post
+          integration: lambda-proxy
+      - http:
+          path: convert/pdf/{filename}
+          method: post
+          integration: lambda-proxy
+
+custom:
+  wsgi:
+    app: src/api.application
+    pythonBin: python3
+  apigwBinary:
+    types:
+      - 'text/html'
+      - 'multipart/form-data'
