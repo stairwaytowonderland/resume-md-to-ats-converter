@@ -13,7 +13,7 @@ from flask_restx import Api, Resource, fields
 from werkzeug.datastructures import FileStorage
 
 # Import functionality from your script
-from resume_md_to_docx import *
+from src.resume_md_to_docx import *
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,7 +21,7 @@ logging.basicConfig(
     format="%(asctime)s.%(msecs)d %(levelname)-8s [%(processName)s] [%(threadName)s] %(filename)s:%(funcName)s:%(lineno)d --- %(message)s",
 )
 
-SCRIPT_DIR = Path(__file__).parent.parent
+SCRIPT_DIR = Path(__file__).parent
 API_CONFIG_FILE = Path("api_config.yaml")
 
 

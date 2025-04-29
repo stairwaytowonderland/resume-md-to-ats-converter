@@ -1,9 +1,25 @@
-service: resume-converter-api
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: stairwaytowonderland
+service: resume-converter
 
 provider:
   name: aws
-  runtime: python3.9
-  profile: AdministratorAccess-254716123389
+  runtime: python3.11
+  stage: ${opt:stage, 'dev'}  # Default to dev if not specified
+
+  # Add API key configuration
+  apiGateway:
+    apiKeys:
+      - name: resume-converter-api-key-${self:provider.stage}
+        description: API key for resume converter API
+        enabled: true
+    usagePlan:
+      quota:
+        limit: 1000
+        period: MONTH
+      throttle:
+        burstLimit: 10
+        rateLimit: 5
 
 plugins:
   - serverless-wsgi
@@ -12,30 +28,46 @@ plugins:
 
 functions:
   api:
-    handler: wsgi_handler.handler
+    handler: custom_handler.handler # wsgi_handler.handler
     events:
       - http:
           path: convert/docx
           method: post
           integration: lambda-proxy
-      - http:
-          path: convert/docx/{filename}
-          method: post
-          integration: lambda-proxy
-      - http:
-          path: convert/pdf
-          method: post
-          integration: lambda-proxy
-      - http:
-          path: convert/pdf/{filename}
-          method: post
-          integration: lambda-proxy
+          private: true  # Require API key
+      # FIXME: Receiving the following when testing in ApiGateway -- "Error: Failed to generate output file: None
+      # (error most likely due to pdf conversion dependencies not being available in the Lambda environment)"
+      # - http:
+      #     path: convert/pdf
+      #     method: post
+      #     integration: lambda-proxy
+      #     private: true
 
 custom:
   wsgi:
     app: src/api.application
     pythonBin: python3
+    packRequirements: false
+    apiType: 'aws'
   apigwBinary:
     types:
-      - 'text/html'
       - 'multipart/form-data'
+  pythonRequirements:
+    fileName: src/requirements/requirements-api.txt
+    dockerizePip: true
+    dockerizePipImage: lambci/lambda:build-python3.11
+    usePoetry: false
+    useDownloadCache: false
+    useStaticCache: false
+    pipCmdExtraArgs: ['--platform manylinux2014_x86_64', '--only-binary=:all:']
+
+package:
+  individually: true
+  exclude:
+    - ./**
+  include:
+    - ./.serverless*
+    - ./*.py
+    - ./*.yml
+    - src/**/*.py
+    - src/**/*.yaml

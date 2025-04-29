@@ -17,7 +17,7 @@ from docx.opc.constants import RELATIONSHIP_TYPE as DOCX_REL
 from docx.shared import Inches, Pt, RGBColor
 from docx.text.paragraph import Paragraph as DOCX_Paragraph
 
-SCRIPT_DIR = Path(__file__).parent.parent
+SCRIPT_DIR = Path(__file__).parent
 
 ##############################
 # Define some defaults at module level for better performance

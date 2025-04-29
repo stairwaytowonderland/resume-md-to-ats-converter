@@ -1,4 +1,0 @@
--r requirements.txt
-black>=25.1.0
-isort>=6.0.1
-autoflake>=2.3.1

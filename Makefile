@@ -23,7 +23,10 @@ list: ## List public targets
 init: .init .venv_reminder .python_command ## Ensure pip and Initialize venv
 
 .PHONY: install
-install: .install .venv_reminder .python_command ## Install dependencies
+install: .install-api .venv_reminder .python_command ## Install dependencies
+
+.PHONY: install-serverless
+install-serverless: .install-npm .venv_reminder ## Install serverless dependencies
 
 .PHONY: install-api
 install-api: .install-api .venv_reminder ## Install api dependencies
@@ -41,10 +44,23 @@ uninstall-dev: .uninstall-dev .venv_reminder .python_command ## Uninstall develo
 build: .build ## Build the example
 	@printf "Created %s from %s\n" "sample/template/output/sample.docx" "sample/template/sample.md"
 
+.PHONY: deploy
+deploy: .deploy-dev ## Deploy the dev environment
+
+.PHONY: deploy-v1
+deploy-v1: .deploy-v1 ## Deploy the v1 environment
+
+.PHONY: remove
+remove: .remove-dev ## Remove the dev environment
+
+.PHONY: remove-v1
+remove-v1: .remove-v1 ## Remove the v1 environment
+
 .PHONY: clean
-clean: .uninstall ## Clean up
+clean: .uninstall .uninstall-npm ## Clean up
 	( \
   . .venv/bin/activate; \
+  rm -rf .serverless src/__pycache__; \
   deactivate; \
   rm -rf .venv; \
 )
@@ -92,32 +108,46 @@ api: ## Run the app
 .uninstall:
 	( \
   . .venv/bin/activate; \
-  pip uninstall -y -r .requirements/requirements.txt; \
+  pip uninstall -y -r src/.requirements/requirements.txt; \
 )
 
 .uninstall-dev:
 	( \
   . .venv/bin/activate; \
-  pip uninstall -y -r .requirements/requirements-dev.txt; \
+  pip uninstall -y -r src/.requirements/requirements-dev.txt; \
   pre-commit uninstall; \
 )
 
 .install:
 	( \
   . .venv/bin/activate; \
-  pip install --no-cache-dir -r .requirements/requirements.txt; \
+  pip install --no-cache-dir -r src/.requirements/requirements.txt; \
+)
+
+.install-npm:
+	( \
+  . .venv/bin/activate; \
+  sudo npm install -g serverless; \
+  npm install serverless-wsgi serverless-python-requirements serverless-apigw-binary; \
+)
+
+.uninstall-npm:
+	( \
+  . .venv/bin/activate; \
+  sudo npm uninstall -g serverless; \
+  npm uninstall serverless-wsgi serverless-python-requirements serverless-apigw-binary; \
 )
 
 .install-api:
 	( \
   . .venv/bin/activate; \
-  pip install --no-cache-dir -r .requirements/requirements-api.txt; \
+  pip install --no-cache-dir -r src/.requirements/requirements-api.txt; \
 )
 
 .install-dev:
 	( \
   . .venv/bin/activate; \
-  pip install --no-cache-dir -r .requirements/requirements-dev.txt; \
+  pip install --no-cache-dir -r src/.requirements/requirements-dev.txt; \
   pre-commit install; \
 )
 
@@ -128,4 +158,28 @@ api: ## Run the app
   python src/resume_md_to_docx.py -i sample/template/sample.md -o sample/template/output/sample.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
   python src/resume_md_to_docx.py -i sample/example/example.md -o sample/example/output/example.docx --pdf; \
   python src/resume_md_to_docx.py -i sample/example/example.md -o sample/example/output/example.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
+)
+
+.deploy-dev:
+	( \
+  . .venv/bin/activate; \
+  AWS_PROFILE=AdministratorAccess-254716123389 sls deploy; \
+)
+
+.deploy-v1:
+	( \
+  . .venv/bin/activate; \
+  AWS_PROFILE=AdministratorAccess-254716123389 sls deploy --stage v1; \
+)
+
+.remove-dev:
+	( \
+  . .venv/bin/activate; \
+  AWS_PROFILE=AdministratorAccess-254716123389 sls remove; \
+)
+
+.remove-v1:
+	( \
+  . .venv/bin/activate; \
+  AWS_PROFILE=AdministratorAccess-254716123389 sls remove --stage v1; \
 )
