@@ -37,3 +37,4 @@ pdf
 !/sample/*/output/*.docx
 !/sample/*/output/*.pdf
 !/sample/template/*.txt
+!/src/requirements/*.txt

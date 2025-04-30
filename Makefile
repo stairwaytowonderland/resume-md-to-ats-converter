@@ -69,18 +69,24 @@ clean: .uninstall .uninstall-npm ## Clean up
 check: ## Run linters but don't reformat
 	( \
   . .venv/bin/activate; \
-  black --check --diff . --line-length 88; \
-  isort --check-only --diff .; \
-  autoflake --check --remove-all-unused-imports --remove-unused-variables .; \
+  autoflake --remove-all-unused-imports --remove-unused-variables src/*.py; \
+  autoflake --remove-all-unused-imports --remove-unused-variables ./*.py; \
+  isort --check-only --diff src; \
+  isort --check-only --diff serverless_handler.py; \
+  black --check --diff --line-length 88 src; \
+  black --check --diff --line-length 88 serverless_handler.py; \
 )
 
 .PHONY: lint
 lint: ## Run linters and reformat
 	( \
   . .venv/bin/activate; \
-  black . --line-length 88; \
-  isort .; \
-  autoflake --remove-all-unused-imports --remove-unused-variables .; \
+  autoflake --in-place --remove-all-unused-imports --remove-unused-variables src/*.py; \
+  autoflake --in-place --remove-all-unused-imports --remove-unused-variables ./*.py; \
+  isort src; \
+  isort serverless_handler.py; \
+  black --line-length 88 src; \
+  black --line-length 88 serverless_handler.py; \
 )
 
 .PHONY: api
@@ -89,6 +95,10 @@ api: ## Run the app
   . .venv/bin/activate; \
   python src/api.py --debug; \
 )
+
+.PHONY: serverless
+serverless: ## Run the serverless app
+	sls wsgi serve --port 3000
 
 .venv_reminder:
 	@printf "\n\t📝 \033[1m%s\033[0m: %s\n\t   %s\n\t   %s\n\t   %s.\n\n\t🏄 %s \033[1;92m\`%s\`\033[0m\n\t   %s.\n" "NOTE" "The dependencies are installed" "in a virtual environment which needs" "to be manually activated to run the" "Python command" "Please run" ". .venv/bin/activate" "to activate the virtual environment"
@@ -163,23 +173,23 @@ api: ## Run the app
 .deploy-dev:
 	( \
   . .venv/bin/activate; \
-  AWS_PROFILE=AdministratorAccess-254716123389 sls deploy; \
+  AWS_PROFILE=$$AWS_DEFAULT_PROFILE sls deploy; \
 )
 
 .deploy-v1:
 	( \
   . .venv/bin/activate; \
-  AWS_PROFILE=AdministratorAccess-254716123389 sls deploy --stage v1; \
+  AWS_PROFILE=$$AWS_DEFAULT_PROFILE sls deploy --stage v1; \
 )
 
 .remove-dev:
 	( \
   . .venv/bin/activate; \
-  AWS_PROFILE=AdministratorAccess-254716123389 sls remove; \
+  AWS_PROFILE=$$AWS_DEFAULT_PROFILE sls remove; \
 )
 
 .remove-v1:
 	( \
   . .venv/bin/activate; \
-  AWS_PROFILE=AdministratorAccess-254716123389 sls remove --stage v1; \
+  AWS_PROFILE=$$AWS_DEFAULT_PROFILE sls remove --stage v1; \
 )

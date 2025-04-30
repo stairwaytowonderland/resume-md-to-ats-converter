@@ -47,7 +47,7 @@ plugins:
 
 functions:
   api:
-    handler: custom_handler.handler # wsgi_handler.handler
+    handler: serverless_handler.handler # wsgi_handler.handler
     events:
       - http:
           path: convert/docx
@@ -71,6 +71,8 @@ custom:
   apigwBinary:
     types:
       - 'multipart/form-data'
+      - 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      - 'application/pdf'
   pythonRequirements:
     fileName: src/requirements/requirements-api.txt
     dockerizePip: true

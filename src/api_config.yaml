@@ -4,9 +4,9 @@ server:
   port: 3000
 
 mimetypes:
-  error: "application/json"
+  error: ["application/json"]
+  json: ["application/json"]
   pdf: ["application/pdf", "application/x-pdf"]
-  doc: ["application/msword", "application/vnd.ms-word"]
   docx: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
 
 cors:
