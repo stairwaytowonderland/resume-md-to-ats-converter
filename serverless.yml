@@ -11,15 +11,34 @@ provider:
   apiGateway:
     apiKeys:
       - name: resume-converter-api-key-${self:provider.stage}
-        description: API key for resume converter API
+        description: API key for standard usage
         enabled: true
-    usagePlan:
-      quota:
-        limit: 1000
-        period: MONTH
-      throttle:
-        burstLimit: 10
-        rateLimit: 5
+      - name: resume-converter-limited-key-${self:provider.stage}
+        description: API key for limited usage tier
+        enabled: true
+
+    usagePlans:
+      - name: standard
+        description: Standard usage plan
+        apiKeys:
+          - resume-converter-api-key-${self:provider.stage}
+        quota:
+          limit: 1000
+          period: MONTH
+        throttle:
+          burstLimit: 10
+          rateLimit: 5
+
+      - name: limited
+        description: Limited usage plan
+        apiKeys:
+          - resume-converter-limited-key-${self:provider.stage}
+        quota:
+          limit: 100
+          period: MONTH
+        throttle:
+          burstLimit: 5
+          rateLimit: 2
 
 plugins:
   - serverless-wsgi

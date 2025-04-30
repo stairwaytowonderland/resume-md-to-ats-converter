@@ -375,10 +375,7 @@ class App(BaseApi):
         Returns:
             dict: Raw text model
         """
-        return self._api.schema_model(
-            "RawText",
-            App.TEXT_SCHEMA
-        )
+        return self._api.schema_model("RawText", App.TEXT_SCHEMA)
 
     def _check_extension(self, expected_extension: str, filename: Path = None) -> bool:
         """Check if the file has a valid extension
@@ -447,11 +444,11 @@ class App(BaseApi):
         try:
             docx_mimetypes = self._api_config.mimetypes.get(
                 "docx",
-                ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+                [
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                ],
             )
-            pdf_mimetypes = self._api_config.mimetypes.get(
-                "pdf", ["application/pdf"]
-            )
+            pdf_mimetypes = self._api_config.mimetypes.get("pdf", ["application/pdf"])
 
             # Create paragraph_style_headings dictionary
             paragraph_style_headings = {}
@@ -569,7 +566,9 @@ class App(BaseApi):
 
         # Determine input source based on config and available inputs
         prefer_file = self._api_config.input.get("prefer_file", True)
-        use_file_input = (input_file is not None and (prefer_file or request_body is None))
+        use_file_input = input_file is not None and (
+            prefer_file or request_body is None
+        )
 
         self._app.logger.info(f"Using file input: {use_file_input}")
         self._app.logger.info(f"Using request body: {request_body is not None}")
@@ -578,7 +577,9 @@ class App(BaseApi):
 
         if not use_file_input and not request_body:
             return self._error_response(
-                400, ValueError("No input provided"), "Either input_file or request body must be provided"
+                400,
+                ValueError("No input provided"),
+                "Either input_file or request body must be provided",
             )
 
         # Get filename and output name
@@ -587,6 +588,7 @@ class App(BaseApi):
             output_name = Path(input_file.filename).stem
         else:
             import uuid
+
             random_hash = uuid.uuid4().hex
             base_input_filename = f"{random_hash}.md"
             output_name = filename.stem if filename else Path(base_input_filename).stem
@@ -626,7 +628,9 @@ class App(BaseApi):
                             f.write(request_body)
                     except UnicodeEncodeError:
                         # If that fails, write binary
-                        self._app.logger.info("UTF-8 encoding failed, writing as binary")
+                        self._app.logger.info(
+                            "UTF-8 encoding failed, writing as binary"
+                        )
                         with open(temp_input_path, "wb") as f:
                             f.write(request_body.encode("utf-8", errors="replace"))
 
@@ -694,17 +698,36 @@ class App(BaseApi):
 app = App(SCRIPT_DIR / API_CONFIG_FILE)
 
 
-@app.ns.route("/docx", methods=['POST'])
-@app.ns.route(f"/docx/<path:name>", methods=['POST'])
+@app.ns.route("/docx", methods=["POST"])
+@app.ns.route(f"/docx/<path:name>", methods=["POST"])
 class ConvertDocxResource(Resource):
-    @app.ns.doc("convert_markdown", consumes=['multipart/form-data', 'text/markdown', 'text/plain'])
+    @app.ns.doc(
+        "convert_markdown",
+        consumes=["multipart/form-data", "text/markdown", "text/plain"],
+    )
     @app.ns.expect(app.arg_parser)
-    @app.ns.response(200, "Success - Returns DOCX file download", produces=app.api_config.mimetypes.get("docx"))
-    @app.ns.response(400, "Bad Request", app.response_model, produces=["application/json"])
-    @app.ns.response(404, "File Not Found", app.response_model, produces=["application/json"])
-    @app.ns.response(500, "Server Error", app.response_model, produces=["application/json"])
+    @app.ns.response(
+        200,
+        "Success - Returns DOCX file download",
+        produces=app.api_config.mimetypes.get("docx"),
+    )
+    @app.ns.response(
+        400, "Bad Request", app.response_model, produces=["application/json"]
+    )
+    @app.ns.response(
+        404, "File Not Found", app.response_model, produces=["application/json"]
+    )
+    @app.ns.response(
+        500, "Server Error", app.response_model, produces=["application/json"]
+    )
     # @app.ns.produces(app.api_config.mimetypes.get("docx"))
-    @app.ns.param('body', 'Raw markdown content', _in='body', required=False, schema=App.TEXT_SCHEMA)
+    @app.ns.param(
+        "body",
+        "Raw markdown content",
+        _in="body",
+        required=False,
+        schema=App.TEXT_SCHEMA,
+    )
     def post(self, name: str = None) -> Response:
         """Convert markdown resume to DOCX
 
@@ -721,28 +744,45 @@ class ConvertDocxResource(Resource):
         # Get either JSON body or raw text
         if request.is_json:
             data = request.get_json()
-            content = data.get('text', None)
+            content = data.get("text", None)
         else:
             content = request.get_data(as_text=True)
 
         return app.post(
-            output_format=DOCX_EXTENSION,
-            filename=name,
-            request_body=content
+            output_format=DOCX_EXTENSION, filename=name, request_body=content
         )
 
 
-@app.ns.route("/pdf", methods=['POST'])
-@app.ns.route(f"/pdf/<path:name>", methods=['POST'])
+@app.ns.route("/pdf", methods=["POST"])
+@app.ns.route(f"/pdf/<path:name>", methods=["POST"])
 class ConvertPdfResource(Resource):
-    @app.ns.doc("convert_markdown", consumes=['multipart/form-data', 'text/markdown', 'text/plain'])
+    @app.ns.doc(
+        "convert_markdown",
+        consumes=["multipart/form-data", "text/markdown", "text/plain"],
+    )
     @app.ns.expect(app.arg_parser)
-    @app.ns.response(200, "Success - Returns PDF file download", produces=app.api_config.mimetypes.get("pdf"))
-    @app.ns.response(400, "Bad Request", app.response_model, produces=["application/json"])
-    @app.ns.response(404, "File Not Found", app.response_model, produces=["application/json"])
-    @app.ns.response(500, "Server Error", app.response_model, produces=["application/json"])
+    @app.ns.response(
+        200,
+        "Success - Returns PDF file download",
+        produces=app.api_config.mimetypes.get("pdf"),
+    )
+    @app.ns.response(
+        400, "Bad Request", app.response_model, produces=["application/json"]
+    )
+    @app.ns.response(
+        404, "File Not Found", app.response_model, produces=["application/json"]
+    )
+    @app.ns.response(
+        500, "Server Error", app.response_model, produces=["application/json"]
+    )
     # @app.ns.produces(app.api_config.mimetypes.get("pdf"))
-    @app.ns.param('body', 'Raw markdown content', _in='body', required=False, schema=App.TEXT_SCHEMA)
+    @app.ns.param(
+        "body",
+        "Raw markdown content",
+        _in="body",
+        required=False,
+        schema=App.TEXT_SCHEMA,
+    )
     def post(self, name: str = None) -> None:
         """Convert markdown resume to PDF
 
@@ -759,14 +799,12 @@ class ConvertPdfResource(Resource):
         # Get either JSON body or raw text
         if request.is_json:
             data = request.get_json()
-            content = data.get('text', None)
+            content = data.get("text", None)
         else:
             content = request.get_data(as_text=True)
 
         return app.post(
-            output_format=PDF_EXTENSION,
-            filename=name,
-            request_body=content
+            output_format=PDF_EXTENSION, filename=name, request_body=content
         )
 
 

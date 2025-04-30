@@ -1,0 +1,10 @@
+API_KEY="${API_KEY:-$DEFAULT_API_KEY}"
+
+curl -X POST "https://gg10ugx6n9.execute-api.us-east-1.amazonaws.com/dev/convert/docx" \
+  -H "Content-Type: text/markdown" \
+  -H "x-api-key: ${API_KEY}" \
+  -d "$(cat <<'EOT'
+Paste your "Resume Markdown" content here
+(between the beginning 'EOT', above and ending EOT, below)
+EOT
+)" | base64 -d > resume.docx

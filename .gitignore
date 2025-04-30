@@ -36,3 +36,4 @@ pdf
 !/sample/*/*.md
 !/sample/*/output/*.docx
 !/sample/*/output/*.pdf
+!/sample/template/*.txt

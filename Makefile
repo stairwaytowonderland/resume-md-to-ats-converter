@@ -108,20 +108,20 @@ api: ## Run the app
 .uninstall:
 	( \
   . .venv/bin/activate; \
-  pip uninstall -y -r src/.requirements/requirements.txt; \
+  pip uninstall -y -r src/requirements/requirements.txt; \
 )
 
 .uninstall-dev:
 	( \
   . .venv/bin/activate; \
-  pip uninstall -y -r src/.requirements/requirements-dev.txt; \
+  pip uninstall -y -r src/requirements/requirements-dev.txt; \
   pre-commit uninstall; \
 )
 
 .install:
 	( \
   . .venv/bin/activate; \
-  pip install --no-cache-dir -r src/.requirements/requirements.txt; \
+  pip install --no-cache-dir -r src/requirements/requirements.txt; \
 )
 
 .install-npm:
@@ -141,13 +141,13 @@ api: ## Run the app
 .install-api:
 	( \
   . .venv/bin/activate; \
-  pip install --no-cache-dir -r src/.requirements/requirements-api.txt; \
+  pip install --no-cache-dir -r src/requirements/requirements-api.txt; \
 )
 
 .install-dev:
 	( \
   . .venv/bin/activate; \
-  pip install --no-cache-dir -r src/.requirements/requirements-dev.txt; \
+  pip install --no-cache-dir -r src/requirements/requirements-dev.txt; \
   pre-commit install; \
 )
 
