@@ -45,9 +45,34 @@ plugins:
   - serverless-apigw-binary
   - serverless-python-requirements
 
+resources:
+  Resources:
+    PipLayerBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.pipLayer}
+        LifecycleConfiguration:
+          Rules:
+            - ExpirationInDays: 30
+              Status: Enabled
+    PipLayerBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: !Ref PipLayerBucket
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: s3:GetObject
+              Resource: !Sub arn:aws:s3:::${self:custom.pipLayer}/*
+
 functions:
   api:
-    handler: serverless_handler.handler # wsgi_handler.handler
+    handler: serverless_custom.handler # wsgi_handler.handler
+    layers:
+      - Ref: PythonRequirementsLambdaLayer
     events:
       - http:
           path: convert/docx
@@ -63,6 +88,7 @@ functions:
       #     private: true
 
 custom:
+  pipLayer: resume-converter-pip-layer-${self:provider.stage}
   wsgi:
     app: src/api.application
     pythonBin: python3
@@ -81,7 +107,9 @@ custom:
     usePoetry: false
     useDownloadCache: false
     useStaticCache: false
+    layer: true
     pipCmdExtraArgs: ['--platform manylinux2014_x86_64', '--only-binary=:all:']
+    cleanupZipHelper: true
 
 package:
   individually: true

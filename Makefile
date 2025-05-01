@@ -72,9 +72,9 @@ check: ## Run linters but don't reformat
   autoflake --remove-all-unused-imports --remove-unused-variables src/*.py; \
   autoflake --remove-all-unused-imports --remove-unused-variables ./*.py; \
   isort --check-only --diff src; \
-  isort --check-only --diff serverless_handler.py; \
+  isort --check-only --diff ./*.py; \
   black --check --diff --line-length 88 src; \
-  black --check --diff --line-length 88 serverless_handler.py; \
+  black --check --diff --line-length 88 ./*.py; \
 )
 
 .PHONY: lint
@@ -84,9 +84,9 @@ lint: ## Run linters and reformat
   autoflake --in-place --remove-all-unused-imports --remove-unused-variables src/*.py; \
   autoflake --in-place --remove-all-unused-imports --remove-unused-variables ./*.py; \
   isort src; \
-  isort serverless_handler.py; \
+  isort ./*.py; \
   black --line-length 88 src; \
-  black --line-length 88 serverless_handler.py; \
+  black --line-length 88 ./*.py; \
 )
 
 .PHONY: api

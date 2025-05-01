@@ -1,7 +1,5 @@
 from serverless_wsgi import handle_request
 
-BASE64_ENCODE = False
-
 
 def handler(event, context):
     """WSGI handler for API Gateway binary responses"""
