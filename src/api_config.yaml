@@ -6,7 +6,7 @@ server:
 mimetypes:
   error: ["application/json"]
   json: ["application/json"]
-  pdf: ["application/pdf", "application/x-pdf"]
+  pdf: ["application/pdf"]
   docx: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
 
 cors:

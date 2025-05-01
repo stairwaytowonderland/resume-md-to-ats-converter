@@ -70,9 +70,10 @@ custom:
     apiType: 'aws'
   apigwBinary:
     types:
-      - 'multipart/form-data'
+      # - 'application/octet-stream'
       - 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       - 'application/pdf'
+      # - 'multipart/form-data'
   pythonRequirements:
     fileName: src/requirements/requirements-api.txt
     dockerizePip: true

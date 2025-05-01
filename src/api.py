@@ -420,7 +420,6 @@ class App(BaseApi):
         paragraph_headings: list[str],
         output_formats: list[str],
         config_loader: ConfigLoader,
-        uuid_name: str = None,
     ) -> Response:
         """Convert markdown resume to DOCX and optionally PDF
 
@@ -458,12 +457,14 @@ class App(BaseApi):
 
             # Track created files and file to return
             output_file = None
+            mime_types = None
 
             # Process DOCX if requested
             if DOCX_EXTENSION in output_formats:
                 self._app.logger.info(f"Output extension: {DOCX_EXTENSION}")
                 if os.path.exists(docx_path):
                     output_file = docx_path
+                    mime_types = self._api_config.mimetypes.get("docx")
 
             # Process PDF if requested (convert from the generated DOCX)
             elif PDF_EXTENSION in output_formats:
@@ -472,6 +473,7 @@ class App(BaseApi):
                 if pdf_path and os.path.exists(pdf_path):
                     self._app.logger.info(f"PDF conversion successful: {pdf_path}")
                     output_file = pdf_path
+                    mime_types = self._api_config.mimetypes.get("pdf")
 
             else:
                 raise ValueError("Invalid output format specified")
@@ -492,7 +494,7 @@ class App(BaseApi):
                 path=output_file.name,
                 as_attachment=True,
                 download_name=download_name,
-                # mimetype=mime_types[0],
+                mimetype=mime_types[0],
             )
 
             # Force proper filename in Content-Disposition header
@@ -555,14 +557,12 @@ class App(BaseApi):
                 "Either input_file or request body must be provided",
             )
 
-        uuid_name = None
-
         # Get filename and output name
         if use_file_input:
             input_filename = Path(input_file.filename)
         else:
-            uuid_name = uuid.uuid4().hex
-            input_filename = Path(uuid_name).with_suffix(".md")
+            random_id = uuid.uuid4().hex
+            input_filename = Path(random_id).with_suffix(".md")
 
         base_output_filename = input_filename.stem
         output_name = f"{base_output_filename}.{DOCX_EXTENSION}"
@@ -614,7 +614,6 @@ class App(BaseApi):
                     paragraph_headings,
                     output_formats,
                     config_loader,
-                    uuid_name,
                 )
         else:
             output_path = DEFAULT_OUTPUT_DIR / output_name
@@ -624,7 +623,6 @@ class App(BaseApi):
                 paragraph_headings,
                 output_formats,
                 config_loader,
-                uuid_name,
             )
 
     def _resolve_config_helper(
@@ -673,7 +671,7 @@ app = App(SCRIPT_DIR / API_CONFIG_FILE)
 class ConvertDocxResource(Resource):
     @app.ns.doc(
         "convert_markdown",
-        consumes=["text/markdown", "text/plain", "multipart/form-data"],
+        consumes=["text/plain", "multipart/form-data"],
     )
     @app.ns.expect(app.arg_parser)
     @app.ns.response(
@@ -698,9 +696,6 @@ class ConvertDocxResource(Resource):
         app.response_model,
         produces=app.api_config.mimetypes.get("error"),
     )
-    @app.ns.produces(
-        app.api_config.mimetypes.get("json") + app.api_config.mimetypes.get("docx")
-    )
     @app.ns.param(
         "payload",
         "Raw markdown content",
@@ -713,7 +708,7 @@ class ConvertDocxResource(Resource):
 
         You can provide the markdown content either:
         - As a file upload (input_file)
-        - Directly in the request body (Content-Type: text/markdown or text/plain)
+        - Directly in the request body (Content-Type: text/plain)
 
         Returns:
             Response: Flask response with the generated DOCX file
@@ -726,13 +721,12 @@ class ConvertDocxResource(Resource):
 class ConvertPdfResource(Resource):
     @app.ns.doc(
         "convert_markdown",
-        consumes=["text/markdown", "text/plain", "multipart/form-data"],
+        consumes=["text/plain", "multipart/form-data"],
     )
     @app.ns.expect(app.arg_parser)
     @app.ns.response(
         200,
         "Success - Returns PDF file download",
-        produces=app.api_config.mimetypes.get("pdf"),
     )
     @app.ns.response(
         400,
@@ -752,9 +746,6 @@ class ConvertPdfResource(Resource):
         app.response_model,
         produces=app.api_config.mimetypes.get("error"),
     )
-    @app.ns.produces(
-        app.api_config.mimetypes.get("json") + app.api_config.mimetypes.get("pdf")
-    )
     @app.ns.param(
         "body",
         "Raw markdown content",
@@ -767,7 +758,7 @@ class ConvertPdfResource(Resource):
 
         You can provide the markdown content either:
         - As a file upload (input_file)
-        - Directly in the request body (Content-Type: text/markdown, text/html, or text/plain)
+        - Directly in the request body (Content-Type: text/plain)
 
         Returns:
             Response: Flask response with the generated PDF file
