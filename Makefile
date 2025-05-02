@@ -93,7 +93,7 @@ lint: ## Run linters and reformat
 api: ## Run the app
 	( \
   . .venv/bin/activate; \
-  python src/api.py --debug; \
+  python -m src.api --debug; \
 )
 
 .PHONY: serverless

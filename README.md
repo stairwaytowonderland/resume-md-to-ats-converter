@@ -357,17 +357,17 @@ python src/resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/exampl
 
 ### Starting the API Server Locally 🚆
 
-To start the API server:
+By default, the server runs on `localhost:3000`. This is set in the [`api_config.yaml`](./src/api_config.yaml) file.
+
+**To start the API server**
 
 ```bash
 # Using the make command
 make api
 
 # Or run directly
-python src/api.py
+python -m src.api
 ```
-
-By default, the server runs on `localhost:3000`. This is set in the [`api_config.yaml`](./src/api_config.yaml) file.
 
 #### Local Examples 🤖
 

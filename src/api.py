@@ -13,8 +13,13 @@ from flask.wrappers import Response
 from flask_restx import Api, Resource, fields
 from werkzeug.datastructures import FileStorage
 
-# Import functionality from your script
 from src.resume_md_to_docx import *
+
+# To be able to run as `python src/api.py` (or `python3 api.py`):
+# if __name__ == "__main__":
+#     from resume_md_to_docx import *
+# else:
+#     from src.resume_md_to_docx import *
 
 logging.basicConfig(
     level=logging.INFO,
