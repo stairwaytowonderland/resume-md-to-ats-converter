@@ -28,6 +28,9 @@ This project allows you to maintain your resume in an easily editable Markdown f
 
 The project includes a REST API that converts markdown resumes to ATS-friendly formats (DOCX and PDF). This allows you to integrate the conversion functionality into other applications or workflows.
 
+> [!NOTE]
+> To run the API locally, see [Starting the API Server Locally](#starting-the-api-server-locally-).
+
 ### API Endpoints 🎸
 
 1. #### Convert to DOCX 🦋
