@@ -20,10 +20,204 @@ This project allows you to maintain your resume in an easily editable Markdown f
 - Maintains hierarchy of job titles, companies, and dates
 - Properly formats projects, skills, and responsibilities
 - Creates an ATS-friendly document that parses well in applicant tracking systems
+- AWS API for the *no-setup* approach
 
 
 
-## Initial Setup 📀
+## ✨ API Usage 🌀
+
+The project includes a REST API that converts markdown resumes to ATS-friendly formats (DOCX and PDF). This allows you to integrate the conversion functionality into other applications or workflows.
+
+### API Endpoints 🎸
+
+1. #### Convert to DOCX 🦋
+
+    Converts a markdown resume to DOCX format:
+
+    ```
+    POST /convert/docx
+    POST /convert/docx/{filename}
+    ```
+
+    ##### Support 🪜
+
+    | API | Supported |
+    |-----|:---------:|
+    | **Local** | ✅ |
+    | **AWS** | ✅ |
+
+1. #### Convert to PDF 🦋
+
+    Converts a markdown resume to PDF format:
+
+    ```
+    POST /convert/pdf
+    POST /convert/pdf/{filename}
+    ```
+
+    ##### Support 🪜
+
+    | API | Supported |
+    |-----|:---------:|
+    | **Local** | ✅ |
+    | **AWS** | ❌ |
+
+#### Request Parameters ⚙️
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `input_file` | Markdown resume file to convert | Yes |
+| `paragraph_headings` | Heading levels to render as paragraphs (`h3`, `h4`, `h5`, `h6`) | No |
+| `config_options` | JSON string with configuration overrides | No |
+
+#### AWS API Examples ☁️
+
+The AWS (*Amazon Web Services*) implementation doesn't currently support file inputs, so the `--data` parameter (`-d`) is used for the resume payload.
+
+Just paste the entire contents of your resume between the 2 `EOT` markers, in the curl statement below.
+
+> [!IMPORTANT]
+> AWS access currently requires an API key
+
+##### Remote Conversion to DOCX 🦋
+
+```bash
+curl -X POST "https://7lm0a3cnti.execute-api.us-east-1.amazonaws.com/dev/convert/docx" \
+  -H "x-api-key: ${API_KEY}" \
+  -H "Accept: application/vnd.openxmlformats-officedocument.wordprocessingml.document" \
+  -d "$(cat <<'EOT'
+# Full Name
+
+*Clever Tagline*
+
+These Are ◆ Some of My ◆ Specialty Areas
+
+## About
+
+A brief introduction.
+EOT
+)" -o resume.docx
+```
+
+##### Remote Convert with Custom Configuration 🦋
+
+```bash
+curl -X POST "https://7lm0a3cnti.execute-api.us-east-1.amazonaws.com/dev/convert/docx" \
+  -H "x-api-key: ${API_KEY}" \
+  -H "Accept: application/vnd.openxmlformats-officedocument.wordprocessingml.document" \
+  -F "config_options={\"style_constants\": {\"paragraph_lists\": false} \
+  -d "$(cat <<'EOT'
+...resume markdown contents...
+EOT
+)" -o resume.docx
+```
+
+> [!NOTE]
+> The url (specifically, the `7lm0a3cnti` part) is subject to change.
+
+> [!TIP]
+> - The `--data` (`-d`) parameter can also be used for local API requests (see the [Local Examples](#local-examples-), below).
+> - If `input_file` and request data (`-d`) are both used, the input file will take precedence. This preference is configured in [`api_config.yaml`](./src/api_config.yaml) as the `input.prefer_file` boolean setting (currently set to `true`).
+
+##### AWS Serverless 🛸
+
+This project uses [**Serverless**](https://www.serverless.com/) and [**serverless-wsgi**](https://www.npmjs.com/package/serverless-wsgi) to accomplish running a serverless API in [ApiGateway](https://aws.amazon.com/api-gateway/) with that triggers an AWS [Lambda](https://aws.amazon.com/pm/lambda/) (the python api).
+
+## Configuration ⚙️
+
+The API uses its own [api configuration file](./src/api_config.yaml) (`api_config.yaml`) separate from the [resume configuration file](./src/resume_config.yaml).
+
+
+
+## Sample Template 🖼️
+
+A [sample Markdown resume](./sample/template/sample.md) (`sample/template/sample.md`) is included in this project. You may copy or download it and use it as a *template* to create your own Markdown resume.
+
+> [!CAUTION]
+> For basic functionality, the **`h2`** level headings **should not** be changed; however if you feel so inclined, you can modify the `ResumeSection` *enum* according to your needs (see the [Resume Sections](#resume-sections-) section for more details).
+
+You can [download the sample `.docx` document](./sample/template/output/sample.docx) (`sample/template/output/sample.docx`) and open it in *Microsoft Word* or *Google Docs* (or another application capable of viewing `.docx` files) to see how the sample Markdown file is rendered.
+
+
+
+## Example Resume ⚛️
+
+֎ **An *"ai"* generated real-world [example](./sample/example/example.md) (`sample/example/example.md`) is also included in this project** ֎
+
+⬇️ You can [download the example `.docx` document](./sample/example/output/example.docx) (`sample/example/output/example.docx`) and open it in a compatible application to see how the sample Markdown file is rendered.
+
+👀 You can [view the example pdf](./sample/example/output/example.pdf) directly in your browser, if your browser supports it (most do).
+
+
+
+## Styling 🎨
+
+The [resume_config.yaml](./src/resume_config.yaml) (`resume_config.yaml`) is used to control certain stylings. It can be customized to modify how the `.docx` looks, to a limited degree.
+
+> [!TIP]
+> **One reason you might want to modify this file for your own purpose, is the font name** 🔠 (see below)
+
+By default, `Helvetica Neue` is used as the base font. Your system should be able to figure out a compatible replacement automatically. However if you prefer to control the fonts, you can change the `font_name` property values:
+
+```yaml
+document_styles:
+  Normal:
+    font_name: "Arial"
+    # ...
+
+  Title:
+    font_name: "Arial"
+    # ...
+```
+
+
+
+## Resume Sections 🚀
+
+The converter maps Markdown headings to ATS-friendly Word document headings using the `ResumeSection` enum. The **Markdown headings are *case-insensitive***. The default mappings are:
+
+| Markdown Heading (h2) | Word Document Heading |
+|----------------------|----------------------|
+| About | PROFESSIONAL SUMMARY |
+| Top Skills | CORE SKILLS |
+| Experience | PROFESSIONAL EXPERIENCE |
+| Education | EDUCATION |
+| Linceces & Certifications | LICENSES & CERTIFICATIONS |
+| Contact | CONTACT INFORMATION |
+
+> [!Tip]
+> If an `hr` (3 dashes, i.e. "---") is added immediately before a section (in your input `.md` file), that will put a page-break in the final document.
+
+### Modifications 🦾
+
+> [!NOTE]
+> *Only applies if [running locally](#local-usage-), or you're [deployling](#development-) your own*
+
+If you need to customize these mappings, you can modify the `ResumeSection` enum in [src/resume_md_to_docx.py](./src/resume_md_to_docx.py).
+
+
+
+## Job Sub Sections 💼
+
+Within job entries (particularly in the Experience section), various subsections can be used to structure your information. These are defined by the `JobSubsection` enum which maps markdown elements to properly formatted document sections. The **Markdown headings are *case-insensitive***. The default mappings are:
+
+| Markdown Element | Markdown Heading | Word Document Heading | Notes |
+|------------------|--------------|---------------------|-------|
+| h3 | highlights | Highlights | Used in the About section for key achievements |
+| h5 | key skills | Technical Skills | Lists skills relevant to a specific role |
+| h5 | summary | Summary | Brief overview of a position |
+| h5 | internal | Internal | Internal project/responsibilities |
+| h5 | project/client | Project/Client | Client project details |
+| h6 | responsibilities overview | Responsibilities: | Project responsibilities |
+| h6 | additional details | Additional Details: | Supplementary information |
+
+These subsections help structure your job entries in a way that makes them more readable to both humans and ATS systems. For example, under each job, you might include a "Key Skills" subsection to highlight relevant technologies and abilities specific to that role.
+
+
+
+## Local Usage 👾
+
+### Initial Setup 📀
 
 > [!NOTE]
 > *Your system needs to satisfy the [**system requirements**](#system-requirements-)*
@@ -68,11 +262,11 @@ make && make install
 
 
 
-## Usage 👾
+### Python Usage 🐍
 
 📘 **Convert your Markdown resume to a Word document (`.docx`)** 📘
 
-*Please make sure the [initial setup](#initial-setup-) has been completed.*
+*Please make sure the [Initial Setup](#initial-setup-) has been completed.*
 
 > [!TIP]
 > The help screen can be accessed by running the following:
@@ -83,7 +277,7 @@ make && make install
 > [!TIP]
 > Spaces in file names can be escaped with a backslash (`\`), e.g. `path/to/my\ resume.md`
 
-### Basic usage 🐍
+### Basic usage 🍰
 
 By default, the name of the output file will match that of the input file, but with the appropriate extension. The **output files** will be in the project's [`output/`](./output/) directory unless other specified (with the `-o` or `--output` option).
 
@@ -158,98 +352,7 @@ python src/resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/exampl
 ```
 
 
-
-## Styling 🎨
-
-A [configuration file](resume_config.yaml) (`resume_config.yaml`) is used to control certain stylings. It can be customized to modify how the `.docx` looks, to a limited degree.
-
-> [!TIP]
-> **One reason you might want to modify this file for your own purpose, is the font name** 🔠 (see below)
-
-By default, `Helvetica Neue` is used as the base font. Your system should be able to figure out a compatible replacement automatically. However if you prefer to control the fonts, you can change the `font_name` property values:
-
-```yaml
-document_styles:
-  Normal:
-    font_name: "Arial"
-    # ...
-
-  Title:
-    font_name: "Arial"
-    # ...
-```
-
-
-## Sample Template 🖼️
-
-A [sample Markdown resume](./sample/template/sample.md) (`sample/template/sample.md`) is included in this project. You may copy or download it and use it as a *template* to create your own Markdown resume.
-
-> [!CAUTION]
-> For basic functionality, the **`h2`** level headings **should not** be changed; however if you feel so inclined, you can modify the `ResumeSection` *enum* according to your needs (see the [Resume Sections](#resume-sections-) section for more details).
-
-You can [download the sample `.docx` document](./sample/template/output/sample.docx) (`sample/template/output/sample.docx`) and open it in *Microsoft Word* or *Google Docs* (or another application capable of viewing `.docx` files) to see how the sample Markdown file is rendered.
-
-
-
-## Example Resume ⚛️
-
-֎ **An *"ai"* generated real-world [example](./sample/example/example.md) (`sample/example/example.md`) is also included in this project** ֎
-
-⬇️ You can [download the example `.docx` document](./sample/example/output/example.docx) (`sample/example/output/example.docx`) and open it in a compatible application to see how the sample Markdown file is rendered.
-
-👀 You can [view the example pdf](./sample/example/output/example.pdf) directly in your browser, if your browser supports it (most do).
-
-
-
-## Resume Sections 🚀
-
-The converter maps Markdown headings to ATS-friendly Word document headings using the `ResumeSection` enum. The **Markdown headings are *case-insensitive***. The default mappings are:
-
-| Markdown Heading (h2) | Word Document Heading |
-|----------------------|----------------------|
-| About | PROFESSIONAL SUMMARY |
-| Top Skills | CORE SKILLS |
-| Experience | PROFESSIONAL EXPERIENCE |
-| Education | EDUCATION |
-| Linceces & Certifications | LICENSES & CERTIFICATIONS |
-| Contact | CONTACT INFORMATION |
-
-> [!Tip]
-> If an `hr` (3 dashes, i.e. "---") is added immediately before a section (in your input `.md` file), that will put a page-break in the final document.
-
-### Modifications 🦾
-
-If you need to customize these mappings, you can modify the `ResumeSection` enum in [src/resume_md_to_docx.py](./src/resume_md_to_docx.py).
-
-
-
-## Job Sub Sections 💼
-
-Within job entries (particularly in the Experience section), various subsections can be used to structure your information. These are defined by the `JobSubsection` enum which maps markdown elements to properly formatted document sections. The **Markdown headings are *case-insensitive***. The default mappings are:
-
-| Markdown Element | Markdown Heading | Word Document Heading | Notes |
-|------------------|--------------|---------------------|-------|
-| h3 | highlights | Highlights | Used in the About section for key achievements |
-| h5 | key skills | Technical Skills | Lists skills relevant to a specific role |
-| h5 | summary | Summary | Brief overview of a position |
-| h5 | internal | Internal | Internal project/responsibilities |
-| h5 | project/client | Project/Client | Client project details |
-| h6 | responsibilities overview | Responsibilities: | Project responsibilities |
-| h6 | additional details | Additional Details: | Supplementary information |
-
-These subsections help structure your job entries in a way that makes them more readable to both humans and ATS systems. For example, under each job, you might include a "Key Skills" subsection to highlight relevant technologies and abilities specific to that role.
-
-
-
-## ✨ API Usage 🌀
-
-The project includes a REST API that converts markdown resumes to ATS-friendly formats (DOCX and PDF). This allows you to integrate the conversion functionality into other applications or workflows.
-
-### Configuration ⚙️
-
-The API uses its own [configuration file](./src/api_config.yaml) (`api_config.yaml`) separate from the [resume styling configuration](#styling-).
-
-### Starting the API Server 🚆
+### Starting the API Server Locally 🚆
 
 To start the API server:
 
@@ -262,48 +365,6 @@ python src/api.py
 ```
 
 By default, the server runs on `localhost:3000`. This is set in the [`api_config.yaml`](./src/api_config.yaml) file.
-
-### API Endpoints 🎸
-
-1. #### Convert to DOCX 🦋
-
-    Converts a markdown resume to DOCX format:
-
-    ```
-    POST /convert/docx
-    POST /convert/docx/{filename}
-    ```
-
-    ##### Support 🪜
-
-    | API | Supported |
-    |-----|:---------:|
-    | **Local** | ✅ |
-    | **AWS** | ✅ |
-
-1. #### Convert to PDF 🦋
-
-    Converts a markdown resume to PDF format:
-
-    ```
-    POST /convert/pdf
-    POST /convert/pdf/{filename}
-    ```
-
-    ##### Support 🪜
-
-    | API | Supported |
-    |-----|:---------:|
-    | **Local** | ✅ |
-    | **AWS** | ❌ |
-
-#### Request Parameters ⚙️
-
-| Parameter | Description | Required |
-|-----------|-------------|----------|
-| `input_file` | Markdown resume file to convert | Yes |
-| `paragraph_headings` | Heading levels to render as paragraphs (`h3`, `h4`, `h5`, `h6`) | No |
-| `config_options` | JSON string with configuration overrides | No |
 
 #### Local Examples 🤖
 
@@ -330,47 +391,9 @@ curl -X POST "http://localhost:3000/convert/pdf" \
 ```bash
 curl -X POST "http://localhost:3000/convert/pdf" \
   -F "input_file=@resume.md" \
-  -F "paragraph_headings=h5" \
-  -F "config_options={\"style_constants\": {\"paragraph_lists\": true, \"column_layout\": true}, {\"Subtitle\": {\"font_name\": "Helvetica Neue"}}}" \
+  -F "config_options={\"style_constants\": {\"paragraph_lists\": true}, {\"Subtitle\": {\"font_name\": "Helvetica Neue"}}}" \
   -o resume_ats.pdf
 ```
-
-#### ✨ AWS API Examples ☁️
-
-The AWS (*Amazon Web Services*) implementation doesn't currently support file inputs, so the `--data` parameter (`-d`) will need to be used.
-
-Just paste the entire contents of your resume between the 2 `EOT` markers, in the curl statement below.
-
-> [!IMPORTANT]
-> AWS access currently requires an API key
-
-```bash
-curl -X POST "https://7lm0a3cnti.execute-api.us-east-1.amazonaws.com/dev/convert/docx" \
-  -H "x-api-key: ${API_KEY}" \
-  -H "Accept: application/vnd.openxmlformats-officedocument.wordprocessingml.document" \
-  -d "$(cat <<'EOT'
-# Full Name
-
-*Clever Tagline*
-
-These Are ◆ Some of My ◆ Specialty Areas
-
-## About
-
-A brief introduction.
-EOT
-)" -o resume.docx
-```
-
-> [!NOTE]
-> The url (specifically, the `7lm0a3cnti` part) is subject to change.
-
-> [!TIP]
-> The `--data` (`-d`) parameter can also be used for local API request. If `input_file` and request data (`-d`) are both used, the input file will take precedence. This is configured in [`api_config.yaml`](./src/api_config.yaml) as the `input.prefer_file` boolean setting (currently set to `true`).
-
-##### AWS Serverless 🛸
-
-This project uses [**Serverless**](https://www.serverless.com/) and [**serverless-wsgi**](https://www.npmjs.com/package/serverless-wsgi) to accomplish running a serverless API in [ApiGateway](https://aws.amazon.com/api-gateway/) with that triggers an AWS [Lambda](https://aws.amazon.com/pm/lambda/) (the python api).
 
 #### Swagger UI 🌊
 
