@@ -245,6 +245,10 @@ These subsections help structure your job entries in a way that makes them more 
 
 The project includes a REST API that converts markdown resumes to ATS-friendly formats (DOCX and PDF). This allows you to integrate the conversion functionality into other applications or workflows.
 
+### Configuration ⚙️
+
+The API uses its own [configuration file](./src/api_config.yaml) (`api_config.yaml`) separate from the [resume styling configuration](#styling-).
+
 ### Starting the API Server 🚆
 
 To start the API server:
@@ -257,11 +261,7 @@ make api
 python src/api.py
 ```
 
-By default, the server runs on `localhost:3000`. You can modify this in the api_config.yaml file.
-
-### Configuration ⚙️
-
-The API uses its own [configuration file](./api_config.yaml) (`api_config.yaml`) separate from the [resume styling configuration](#styling-).
+By default, the server runs on `localhost:3000`. This is set in the [`api_config.yaml`](./src/api_config.yaml) file.
 
 ### API Endpoints 🎸
 
@@ -274,6 +274,13 @@ The API uses its own [configuration file](./api_config.yaml) (`api_config.yaml`)
     POST /convert/docx/{filename}
     ```
 
+    ##### Support 🪜
+
+    | API | Supported |
+    |-----|:---------:|
+    | **Local** | ✅ |
+    | **AWS** | ✅ |
+
 1. #### Convert to PDF 🦋
 
     Converts a markdown resume to PDF format:
@@ -283,7 +290,14 @@ The API uses its own [configuration file](./api_config.yaml) (`api_config.yaml`)
     POST /convert/pdf/{filename}
     ```
 
-### Request Parameters ⚙️
+    ##### Support 🪜
+
+    | API | Supported |
+    |-----|:---------:|
+    | **Local** | ✅ |
+    | **AWS** | ❌ |
+
+#### Request Parameters ⚙️
 
 | Parameter | Description | Required |
 |-----------|-------------|----------|
@@ -291,9 +305,9 @@ The API uses its own [configuration file](./api_config.yaml) (`api_config.yaml`)
 | `paragraph_headings` | Heading levels to render as paragraphs (`h3`, `h4`, `h5`, `h6`) | No |
 | `config_options` | JSON string with configuration overrides | No |
 
-### Examples 🤖
+#### Local Examples 🤖
 
-#### Basic Conversion to DOCX 🦋
+##### Basic Conversion to DOCX 🦋
 
 ```bash
 curl -X POST "http://localhost:3000/convert/docx" \
@@ -301,7 +315,7 @@ curl -X POST "http://localhost:3000/convert/docx" \
   -o resume_ats.docx
 ```
 
-#### Convert to PDF with Paragraph Headings 🦋
+##### Convert to PDF with Paragraph Headings 🦋
 
 ```bash
 curl -X POST "http://localhost:3000/convert/pdf" \
@@ -311,7 +325,7 @@ curl -X POST "http://localhost:3000/convert/pdf" \
   -o resume_ats.pdf
 ```
 
-#### Convert with Custom Configuration 🦋
+##### Convert with Custom Configuration 🦋
 
 ```bash
 curl -X POST "http://localhost:3000/convert/pdf" \
@@ -321,17 +335,44 @@ curl -X POST "http://localhost:3000/convert/pdf" \
   -o resume_ats.pdf
 ```
 
-#### Using Filename in URL (better for curl -O) 🦋
+#### ✨ AWS API Examples ☁️
 
-Downloads the file as `my_resume.pdf`:
+The AWS (*Amazon Web Services*) implementation doesn't currently support file inputs, so the `--data` parameter (`-d`) will need to be used.
+
+Just paste the entire contents of your resume between the 2 `EOT` markers, in the curl statement below.
+
+> [!IMPORTANT]
+> AWS access currently requires an API key
 
 ```bash
-curl -X POST "http://localhost:3000/convert/pdf/my_resume.pdf" \
-  -F "input_file=@resume.md" \
-  -O
+curl -X POST "https://7lm0a3cnti.execute-api.us-east-1.amazonaws.com/dev/convert/docx" \
+  -H "x-api-key: ${API_KEY}" \
+  -H "Accept: application/vnd.openxmlformats-officedocument.wordprocessingml.document" \
+  -d "$(cat <<'EOT'
+# Full Name
+
+*Clever Tagline*
+
+These Are ◆ Some of My ◆ Specialty Areas
+
+## About
+
+A brief introduction.
+EOT
+)" -o resume.docx
 ```
 
-### Swagger UI 🌊
+> [!NOTE]
+> The url (specifically, the `7lm0a3cnti` part) is subject to change.
+
+> [!TIP]
+> The `--data` (`-d`) parameter can also be used for local API request. If `input_file` and request data (`-d`) are both used, the input file will take precedence. This is configured in [`api_config.yaml`](./src/api_config.yaml) as the `input.prefer_file` boolean setting (currently set to `true`).
+
+##### AWS Serverless 🛸
+
+This project uses [**Serverless**](https://www.serverless.com/) and [**serverless-wsgi**](https://www.npmjs.com/package/serverless-wsgi) to accomplish running a serverless API in [ApiGateway](https://aws.amazon.com/api-gateway/) with that triggers an AWS [Lambda](https://aws.amazon.com/pm/lambda/) (the python api).
+
+#### Swagger UI 🌊
 
 The API includes Swagger documentation accessible at:
 
@@ -344,19 +385,12 @@ This provides an interactive interface to:
 - Test API operations directly from the browser
 - See detailed parameter and response documentation
 
-### Error Responses 👻
+##### Support 🪜
 
-Error responses are returned in JSON format:
-
-```json
-{
-  "success": false,
-  "message": "Error description"
-}
-```
-
-> [!NOTE]
-> HTTP status codes are appropriately used (400 for bad requests, 404 for not found, etc.).
+| API | Supported |
+|-----|:---------:|
+| **Local** | ✅ |
+| **AWS** | ❌ |
 
 
 
@@ -364,25 +398,25 @@ Error responses are returned in JSON format:
 
 ```
 <project-root>/
-├── output/                     # Default output directory
+├── output/                          # Default output directory
 ├── sample/
 │   ├── example/
-│   │   ├── example.md          # Real world example resume with mock data
+│   │   ├── example.md               # Real world example resume with mock data
 │   │   └── output/
-│   │       ├── example.docx    # Example docx ouput from example
-│   │       └── example.pdf     # Example pdf ouput from example
+│   │       ├── example.docx         # Example docx ouput from example
+│   │       └── example.pdf          # Example pdf ouput from example
 │   └── template/
-│       ├── sample.md           # Sample resume template
+│       ├── sample.md                # Sample resume template
 │       └── output/
-│           ├── sample.docx     # Example docx ouput from sample
-│           └── sample.pdf      # Example pdf ouput from sample
+│           ├── api_config.yaml      # The default api script configuration file
+│           ├── resume_config.yaml   # The default conversion script configuration file
+│           ├── sample.docx          # Example docx ouput from sample
+│           └── sample.pdf           # Example pdf ouput from sample
 ├── src/
-│   ├── api.py                  # Main API script
-│   └── resume_md_to_docx.py    # Main conversion script
-├── Makefile                    # Contains helpful commands for managing the project
-├── REAMDE.md                   # This README file
-├── api_config.yaml             # The default api script configuration file
-└── resume_config.yaml          # The default conversion script configuration file
+│   ├── api.py                       # Main API script
+│   └── resume_md_to_docx.py         # Main conversion script
+├── Makefile                         # Contains helpful commands for managing the project
+└── REAMDE.md                        # This README file
 
 ```
 
@@ -413,6 +447,7 @@ Error responses are returned in JSON format:
 
 - [Python 3.x](https://www.python.org/downloads/)
 - [Make](https://www.gnu.org/software/make/)
+- [Serverless](https://www.serverless.com/) (only if wanting to run *wsgi* server locally)
 
 > [!NOTE]
 > The Makefile assumes a [POSIX compliant shell](https://wiki.archlinux.org/title/Command-line_shell) such as *Bash*, *Zsh*, or *Dash*.
@@ -428,8 +463,16 @@ For developers wishing to build this project:
 | `make install-dev` | Install development dependencies |
 | `make uninstall-dev` | Uninstall development dependencies |
 | `make build` | Rebuild `sample/template/output/sample.docx` from `sample/template/sample.md` |
+| `make serverless` | Installs npm plugin dependencies, and runs `sls wsgi serve --port 3000`, using sls wsgi to locally serve the api
+| `make deploy` | Deploy a `dev` environment to AWS |
+| `make deploy-v1` | Deploy a `v1` (production) environment to AWS |
+| `make remove` | Remove the `dev` environment from AWS |
+| `make remove-v1` | Remove the `v1` environment from AWS |
 | `make check` | Run linters without reformatting |
 | `make lint` | Reformat code according to style guidelines |
+
+> [!NOTE]
+> Any `make` command that uses `aws` or `sls` requires authentication to those respective services.
 
 
 
