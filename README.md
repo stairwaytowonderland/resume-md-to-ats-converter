@@ -246,7 +246,7 @@ make && make install
 
 > [!IMPORTANT]
 > #### 🗒 Note about the `python` command
-> All the commands in the [usage section](#usage-) assume [activation of a *virtual environment*](#activation-️), which, if created using the approach in this project (created with *python*) creates a `python` command alias. If you used an alternate setup approach and the `python` command isn't working, try `python3` instead. Or simply create an alias: **`alias python='python3'`**
+> Most of the commands in the [usage section](#local-usage-) assume [activation of a *virtual environment*](#activation-️), which, if created using the approach in this project (created with *python*) creates a `python` command alias. If you used an alternate setup approach and the `python` command isn't working, try `python3` instead. Or simply create an alias: **`alias python='python3'`**
 
 
 ### Activation 🕹️
