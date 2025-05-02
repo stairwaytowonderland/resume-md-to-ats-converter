@@ -1,0 +1,123 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: stairwaytowonderland
+service: resume-converter
+
+provider:
+  name: aws
+  runtime: python3.11
+  stage: ${opt:stage, 'dev'}  # Default to dev if not specified
+
+  # Add API key configuration
+  apiGateway:
+    apiKeys:
+      - name: resume-converter-api-key-${self:provider.stage}
+        description: API key for standard usage
+        enabled: true
+      - name: resume-converter-limited-key-${self:provider.stage}
+        description: API key for limited usage tier
+        enabled: true
+
+    usagePlans:
+      - name: standard
+        description: Standard usage plan
+        apiKeys:
+          - resume-converter-api-key-${self:provider.stage}
+        quota:
+          limit: 1000
+          period: MONTH
+        throttle:
+          burstLimit: 10
+          rateLimit: 5
+
+      - name: limited
+        description: Limited usage plan
+        apiKeys:
+          - resume-converter-limited-key-${self:provider.stage}
+        quota:
+          limit: 100
+          period: MONTH
+        throttle:
+          burstLimit: 5
+          rateLimit: 2
+
+plugins:
+  - serverless-wsgi
+  - serverless-apigw-binary
+  - serverless-python-requirements
+
+resources:
+  Resources:
+    PipLayerBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.pipLayer}
+        LifecycleConfiguration:
+          Rules:
+            - ExpirationInDays: 30
+              Status: Enabled
+    PipLayerBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: !Ref PipLayerBucket
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: s3:GetObject
+              Resource: !Sub arn:aws:s3:::${self:custom.pipLayer}/*
+
+functions:
+  api:
+    handler: serverless_custom.handler # wsgi_handler.handler
+    layers:
+      - Ref: PythonRequirementsLambdaLayer
+    events:
+      - http:
+          path: convert/docx
+          method: post
+          integration: lambda-proxy
+          private: true  # Require API key
+      # FIXME: Receiving the following when testing in ApiGateway -- "Error: Failed to generate output file: None
+      # (error most likely due to pdf conversion dependencies not being available in the Lambda environment)"
+      # - http:
+      #     path: convert/pdf
+      #     method: post
+      #     integration: lambda-proxy
+      #     private: true
+
+custom:
+  pipLayer: resume-converter-pip-layer-${self:provider.stage}
+  wsgi:
+    app: src/api.application
+    pythonBin: python3
+    packRequirements: false
+    apiType: 'aws'
+  apigwBinary:
+    types:
+      # - 'application/octet-stream'
+      - 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      - 'application/pdf'
+      # - 'multipart/form-data'
+  pythonRequirements:
+    fileName: src/requirements/requirements-api.txt
+    dockerizePip: true
+    dockerizePipImage: lambci/lambda:build-python3.11
+    usePoetry: false
+    useDownloadCache: false
+    useStaticCache: false
+    layer: true
+    pipCmdExtraArgs: ['--platform manylinux2014_x86_64', '--only-binary=:all:']
+    cleanupZipHelper: true
+
+package:
+  individually: true
+  exclude:
+    - ./**
+  include:
+    - ./.serverless*
+    - ./*.py
+    - ./*.yml
+    - src/**/*.py
+    - src/**/*.yaml

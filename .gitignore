@@ -4,8 +4,12 @@
 *.private
 *.~*
 
-.venv
 __pycache__
+/.venv
+/.requirements
+/.serverless
+/.serverless-wsgi
+/node_modules
 
 .DS_Store
 Icon?
@@ -16,6 +20,13 @@ Icon?
 *.docx
 *.md
 *.pdf
+*.txt
+*.zip
+
+# Exclude potential downloaded files
+docx
+md
+pdf
 
 # Allow specific directories and files
 !/docs/*
@@ -27,3 +38,5 @@ Icon?
 !/sample/*/*.md
 !/sample/*/output/*.docx
 !/sample/*/output/*.pdf
+!/sample/template/*.txt
+!/src/requirements/*.txt

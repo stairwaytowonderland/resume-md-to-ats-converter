@@ -11,20 +11,22 @@ from bs4 import BeautifulSoup
 from bs4.element import PageElement as BS4_Element
 from docx import Document
 from docx.enum.style import WD_STYLE_TYPE as DOCX_STYLE_TYPE
-from docx.enum.text import WD_BREAK as DOCX_PAGE_BREAK
+from docx.enum.text import WD_BREAK_TYPE as DOCX_BREAK_TYPE
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT as DOCX_PARAGRAPH_ALIGN
 from docx.opc.constants import RELATIONSHIP_TYPE as DOCX_REL
 from docx.shared import Inches, Pt, RGBColor
 from docx.text.paragraph import Paragraph as DOCX_Paragraph
 
-##############################
-# Define default config file since it's referenced a few times
-##############################
-DEFAULT_CONFIG_FILE = "resume_config.yaml"
+SCRIPT_DIR = Path(__file__).parent
 
 ##############################
 # Define some defaults at module level for better performance
 ##############################
+DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "output"
+DEFAULT_CONFIG_FILE = SCRIPT_DIR / "resume_config.yaml"
+DOCX_EXTENSION = "docx"
+PDF_EXTENSION = "pdf"
+DEFAULT_OUTPUT_FORMAT = DOCX_EXTENSION
 MD_LINK_PATTERN = re.compile(r"\[(.*?)\]\((.*?)\)")
 URL_PATTERN = re.compile(r"https?://[^\s]+|www\.[^\s]+")
 EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
@@ -202,6 +204,55 @@ class PdfConverterPaths(Enum):
 ##############################
 # Helper Classes
 ##############################
+class OutputFilePath:
+    """Class to handle output file path generation
+
+    Properties:
+        input_file (Path): The input file path
+        output_file (Path): The output file path
+        extension (str): The file extension for the output file
+        interactive (bool): Whether to run in interactive mode
+    """
+
+    def __init__(
+        self,
+        input_file: Path,
+        output_file: Path = None,
+    ):
+        self.input_file = input_file
+        self.output_file = output_file
+
+    def output_path(
+        self, extension: str = DOCX_EXTENSION, interactive: bool = False
+    ) -> Path:
+        """Get the output file path
+
+        Args:
+            extension (str): The file extension for the output file
+            interactive (bool): Whether to run in interactive mode
+
+        Returns:
+            The output path
+        """
+
+        default_output_name = self.input_file.with_suffix(f".{extension}").name
+        default_output_file = os.path.join(DEFAULT_OUTPUT_DIR, default_output_name)
+        output_path = self.output_file
+
+        if interactive:
+            # Prompt for output file
+            output_prompt = f"📝 Enter the output docx filename (default: '{default_output_file}'): "
+            output_path = input(output_prompt).strip()
+
+        output_file = output_path or default_output_file
+
+        if interactive:
+            if not self.output_file:
+                print(f"✅ Using default output: {default_output_file}")
+
+        return output_file
+
+
 class ConfigLoader:
     """Class for loading and accessing configuration from YAML file"""
 
@@ -222,8 +273,6 @@ class ConfigLoader:
         # Default empty configuration structure
         self._config = {
             "document_defaults": {
-                "output_filename": "My ATS Resume.docx",
-                "pdf_file_extension": ".pdf",
                 "margin_top_bottom": 0.7,
                 "margin_left_right": 0.8,
                 "page_width": 8.5,
@@ -695,7 +744,7 @@ def convert_to_pdf(docx_file: Path) -> Path | None:
     Returns:
         Path: Path to the created PDF file, or None if conversion failed
     """
-    pdf_file = docx_file.with_suffix(".pdf")
+    pdf_file = docx_file.with_suffix(f".{PDF_EXTENSION}")
 
     # Try multiple conversion methods
     methods = [
@@ -1298,7 +1347,7 @@ def _prepare_section(
     if section_page_break:
         p = document.add_paragraph()
         run = p.add_run()
-        run.add_break(DOCX_PAGE_BREAK.PAGE)
+        run.add_break(DOCX_BREAK_TYPE.PAGE)
 
     # Add the section heading
     use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h2")
@@ -1512,7 +1561,7 @@ def _process_job_entry(
     if _has_hr_before_element(job_element):
         p = document.add_paragraph()
         run = p.add_run()
-        run.add_break(DOCX_PAGE_BREAK.PAGE)
+        run.add_break(DOCX_BREAK_TYPE.PAGE)
     # Otherwise add normal spacing if needed
     elif add_space_before_h3:
         prev_heading = job_element.find_previous(["h2", "h3"])
@@ -1910,7 +1959,7 @@ def _process_certification_blockquote(
 
 
 ##############################
-# Inractive Mode Helper
+# Interactive Mode Helper
 ##############################
 def _run_interactive_mode() -> tuple[Path, Path, dict[str, bool], bool, ConfigLoader]:
     """Run in interactive mode, prompting the user for inputs
@@ -1948,17 +1997,8 @@ def _run_interactive_mode() -> tuple[Path, Path, dict[str, bool], bool, ConfigLo
 
     input_file = Path(input_file)
 
-    # Prompt for output file
-    default_output_path = config_loader.document_defaults["output_path"]
-    default_output_name = input_file.with_suffix(".docx").name
-    default_output = os.path.join(default_output_path, default_output_name)
-    output_prompt = f"📝 Enter the output docx filename (default: '{default_output}'): "
-    output_file = input(output_prompt).strip()
-    if not output_file:
-        output_file = default_output
-        print(f"✅ Using default output: {output_file}")
-
-    output_file = Path(output_file)
+    # Get output file
+    output_file = OutputFilePath(input_file=input_file, interactive=True).output_path()
 
     # Prompt for paragraph style headings
     print(
@@ -2051,7 +2091,9 @@ def _convert_with_libreoffice(docx_file: str, pdf_file: str) -> bool:
         )
 
         # LibreOffice saves to the original filename with .pdf extension
-        temp_pdf = os.path.splitext(os.path.basename(docx_file))[0] + ".pdf"
+        temp_pdf = (
+            os.path.splitext(os.path.basename(docx_file))[0] + f".{PDF_EXTENSION}"
+        )
         temp_pdf_path = os.path.join(os.path.dirname(pdf_file) or ".", temp_pdf)
 
         # If the output path is different from LibreOffice's default, move the file
@@ -2590,6 +2632,18 @@ def _ensure_sentence_ending(text: str) -> str:
     return text + "."
 
 
+__all__ = [
+    "create_ats_resume",
+    "convert_to_pdf",
+    "ConfigLoader",
+    "OutputFilePath",
+    "DEFAULT_CONFIG_FILE",
+    "DEFAULT_OUTPUT_DIR",
+    "DEFAULT_OUTPUT_FORMAT",
+    "DOCX_EXTENSION",
+    "PDF_EXTENSION",
+]
+
 ##############################
 # Main Entry
 ##############################
@@ -2683,12 +2737,7 @@ if __name__ == "__main__":
         # Use command-line arguments
         input_file = Path(args.input_file)
 
-        default_output_path = config_loader.document_defaults["output_path"]
-        default_output_file = input_file.with_suffix(".docx").name
-
-        output_file = Path(
-            args.output_file or os.path.join(default_output_path, default_output_file)
-        )
+        output_file = OutputFilePath(input_file, args.output_file).output_path()
 
         # Convert list to dictionary if provided
         paragraph_style_headings = {}
