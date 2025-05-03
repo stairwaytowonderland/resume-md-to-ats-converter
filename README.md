@@ -20,7 +20,105 @@ This project allows you to maintain your resume in an easily editable Markdown f
 - Maintains hierarchy of job titles, companies, and dates
 - Properly formats projects, skills, and responsibilities
 - Creates an ATS-friendly document that parses well in applicant tracking systems
-- AWS API for the *no-setup* approach
+- [API](#-api-usage-) for the *no-setup* approach
+
+
+
+## Sample Template 🖼️
+
+A [sample Markdown resume](./sample/template/sample.md) (`sample/template/sample.md`) is included in this project. You may copy or download it and use it as a *template* to create your own Markdown resume.
+
+> [!CAUTION]
+> For basic functionality, the **`h2`** level headings **should not** be changed; however if you feel so inclined, you can modify the `ResumeSection` *enum* according to your needs (see the [Resume Sections](#resume-sections-) section for more details).
+
+You can [download the sample `.docx` document](./sample/template/output/sample.docx) (`sample/template/output/sample.docx`) and open it in *Microsoft Word* or *Google Docs* (or another application capable of viewing `.docx` files) to see how the sample Markdown file is rendered.
+
+### Example Resume ⚛️
+
+֎ **An *"ai"* generated real-world [example](./sample/example/example.md) (`sample/example/example.md`) is also included in this project** ֎
+
+⬇️ You can [download the example `.docx` document](./sample/example/output/example.docx) (`sample/example/output/example.docx`) and open it in a compatible application to see how the sample Markdown file is rendered.
+
+👀 You can [view the example pdf](./sample/example/output/example.pdf) directly in your browser, if your browser supports it (most do).
+
+
+
+## Styling 🎨
+
+The [resume_config.yaml](./src/resume_config.yaml) (`resume_config.yaml`) is used to control certain stylings. It can be customized to modify how the `.docx` looks, to a limited degree.
+
+> [!TIP]
+> **One reason you might want to modify this file for your own purpose, is the font name** 🔠 (see below)
+
+By default, `Helvetica Neue` is used as the base font. Your system should be able to figure out a compatible replacement automatically. However if you prefer to control the fonts, you can change the `font_name` property values:
+
+```yaml
+document_styles:
+  Normal:
+    font_name: "Arial"
+    # ...
+
+  Title:
+    font_name: "Arial"
+    # ...
+```
+
+
+
+## Resume Sections 🚀
+
+The converter maps Markdown headings to ATS-friendly Word document headings using the `ResumeSection` enum. The **Markdown headings are *case-insensitive***. The default mappings are:
+
+| Markdown Heading (h2) | Word Document Heading |
+|----------------------|----------------------|
+| About | PROFESSIONAL SUMMARY |
+| Top Skills | CORE SKILLS |
+| Experience | PROFESSIONAL EXPERIENCE |
+| Education | EDUCATION |
+| Linceces & Certifications | LICENSES & CERTIFICATIONS |
+| Contact | CONTACT INFORMATION |
+
+> [!Tip]
+> If an `hr` (3 dashes, i.e. "---") is added immediately before a section (in your input `.md` file), that will put a page-break in the final document.
+
+### Modifications 🦾
+
+> [!NOTE]
+> *Only applies if [running locally](#local-usage-), or you're [deployling](#development-) your own*
+
+If you need to customize these mappings, you can modify the `ResumeSection` enum in [src/resume_md_to_docx.py](./src/resume_md_to_docx.py).
+
+
+
+## Job Sub Sections 💼
+
+Within job entries (particularly in the Experience section), various subsections can be used to structure your information. These are defined by the `JobSubsection` enum which maps markdown elements to properly formatted document sections. The **Markdown headings are *case-insensitive***. The default mappings are:
+
+| Markdown Element | Markdown Heading | Word Document Heading | Notes |
+|------------------|--------------|---------------------|-------|
+| h3 | highlights | Highlights | Used in the About section for key achievements |
+| h5 | key skills | Technical Skills | Lists skills relevant to a specific role |
+| h5 | summary | Summary | Brief overview of a position |
+| h5 | internal | Internal | Internal project/responsibilities |
+| h5 | project/client | Project/Client | Client project details |
+| h6 | responsibilities overview | Responsibilities: | Project responsibilities |
+| h6 | additional details | Additional Details: | Supplementary information |
+
+These subsections help structure your job entries in a way that makes them more readable to both humans and ATS systems. For example, under each job, you might include a "Key Skills" subsection to highlight relevant technologies and abilities specific to that role.
+
+
+
+## Configuration ⚙️
+
+Two configuration files are used to control the look of the final document, and to a limited degree, functionality.
+
+### Resume Style Configuration
+
+Use the [resume configuration file](./src/resume_config.yaml) to control the [*look and feel*](#styling-) of the final document.
+
+### API Configuration
+
+Use the [api configuration file](./src/api_config.yaml) (`api_config.yaml`) to control the [API](#-api-usage-) behevior.
 
 
 
@@ -124,97 +222,7 @@ EOT
 
 ##### AWS Serverless 🛸
 
-This project uses [**Serverless**](https://www.serverless.com/) and [**serverless-wsgi**](https://www.npmjs.com/package/serverless-wsgi) to accomplish running a serverless API in [ApiGateway](https://aws.amazon.com/api-gateway/) with that triggers an AWS [Lambda](https://aws.amazon.com/pm/lambda/) (the python api).
-
-## Configuration ⚙️
-
-The API uses its own [api configuration file](./src/api_config.yaml) (`api_config.yaml`) separate from the [resume configuration file](./src/resume_config.yaml).
-
-
-
-## Sample Template 🖼️
-
-A [sample Markdown resume](./sample/template/sample.md) (`sample/template/sample.md`) is included in this project. You may copy or download it and use it as a *template* to create your own Markdown resume.
-
-> [!CAUTION]
-> For basic functionality, the **`h2`** level headings **should not** be changed; however if you feel so inclined, you can modify the `ResumeSection` *enum* according to your needs (see the [Resume Sections](#resume-sections-) section for more details).
-
-You can [download the sample `.docx` document](./sample/template/output/sample.docx) (`sample/template/output/sample.docx`) and open it in *Microsoft Word* or *Google Docs* (or another application capable of viewing `.docx` files) to see how the sample Markdown file is rendered.
-
-
-
-## Example Resume ⚛️
-
-֎ **An *"ai"* generated real-world [example](./sample/example/example.md) (`sample/example/example.md`) is also included in this project** ֎
-
-⬇️ You can [download the example `.docx` document](./sample/example/output/example.docx) (`sample/example/output/example.docx`) and open it in a compatible application to see how the sample Markdown file is rendered.
-
-👀 You can [view the example pdf](./sample/example/output/example.pdf) directly in your browser, if your browser supports it (most do).
-
-
-
-## Styling 🎨
-
-The [resume_config.yaml](./src/resume_config.yaml) (`resume_config.yaml`) is used to control certain stylings. It can be customized to modify how the `.docx` looks, to a limited degree.
-
-> [!TIP]
-> **One reason you might want to modify this file for your own purpose, is the font name** 🔠 (see below)
-
-By default, `Helvetica Neue` is used as the base font. Your system should be able to figure out a compatible replacement automatically. However if you prefer to control the fonts, you can change the `font_name` property values:
-
-```yaml
-document_styles:
-  Normal:
-    font_name: "Arial"
-    # ...
-
-  Title:
-    font_name: "Arial"
-    # ...
-```
-
-
-
-## Resume Sections 🚀
-
-The converter maps Markdown headings to ATS-friendly Word document headings using the `ResumeSection` enum. The **Markdown headings are *case-insensitive***. The default mappings are:
-
-| Markdown Heading (h2) | Word Document Heading |
-|----------------------|----------------------|
-| About | PROFESSIONAL SUMMARY |
-| Top Skills | CORE SKILLS |
-| Experience | PROFESSIONAL EXPERIENCE |
-| Education | EDUCATION |
-| Linceces & Certifications | LICENSES & CERTIFICATIONS |
-| Contact | CONTACT INFORMATION |
-
-> [!Tip]
-> If an `hr` (3 dashes, i.e. "---") is added immediately before a section (in your input `.md` file), that will put a page-break in the final document.
-
-### Modifications 🦾
-
-> [!NOTE]
-> *Only applies if [running locally](#local-usage-), or you're [deployling](#development-) your own*
-
-If you need to customize these mappings, you can modify the `ResumeSection` enum in [src/resume_md_to_docx.py](./src/resume_md_to_docx.py).
-
-
-
-## Job Sub Sections 💼
-
-Within job entries (particularly in the Experience section), various subsections can be used to structure your information. These are defined by the `JobSubsection` enum which maps markdown elements to properly formatted document sections. The **Markdown headings are *case-insensitive***. The default mappings are:
-
-| Markdown Element | Markdown Heading | Word Document Heading | Notes |
-|------------------|--------------|---------------------|-------|
-| h3 | highlights | Highlights | Used in the About section for key achievements |
-| h5 | key skills | Technical Skills | Lists skills relevant to a specific role |
-| h5 | summary | Summary | Brief overview of a position |
-| h5 | internal | Internal | Internal project/responsibilities |
-| h5 | project/client | Project/Client | Client project details |
-| h6 | responsibilities overview | Responsibilities: | Project responsibilities |
-| h6 | additional details | Additional Details: | Supplementary information |
-
-These subsections help structure your job entries in a way that makes them more readable to both humans and ATS systems. For example, under each job, you might include a "Key Skills" subsection to highlight relevant technologies and abilities specific to that role.
+This project uses [**Serverless**](https://www.serverless.com/) and [**serverless-wsgi**](https://www.npmjs.com/package/serverless-wsgi) to accomplish running a serverless API in [ApiGateway](https://aws.amazon.com/api-gateway/) that triggers an AWS [Lambda](https://aws.amazon.com/pm/lambda/) (the python api).
 
 
 
@@ -423,26 +431,26 @@ This provides an interactive interface to:
 ## Important Files 🗂️
 
 ```
-<project-root>/
-├── output/                          # Default output directory
+<project>/
+├── output/                      # Default output directory
 ├── sample/
 │   ├── example/
-│   │   ├── example.md               # Real world example resume with mock data
+│   │   ├── example.md           # Real world example resume with mock data
 │   │   └── output/
-│   │       ├── example.docx         # Example docx ouput from example
-│   │       └── example.pdf          # Example pdf ouput from example
+│   │       ├── example.docx     # Example docx ouput from example
+│   │       └── example.pdf      # Example pdf ouput from example
 │   └── template/
-│       ├── sample.md                # Sample resume template
+│       ├── sample.md            # Sample resume template
 │       └── output/
-│           ├── api_config.yaml      # The default api script configuration file
-│           ├── resume_config.yaml   # The default conversion script configuration file
-│           ├── sample.docx          # Example docx ouput from sample
-│           └── sample.pdf           # Example pdf ouput from sample
+│           ├── sample.docx      # Example docx ouput from sample
+│           └── sample.pdf       # Example pdf ouput from sample
 ├── src/
-│   ├── api.py                       # Main API script
-│   └── resume_md_to_docx.py         # Main conversion script
-├── Makefile                         # Contains helpful commands for managing the project
-└── REAMDE.md                        # This README file
+│   ├── api.py                   # Main API script
+│   ├── api_config.py            # API configuration file
+│   ├── resume_config.py         # Default configuration file for conversion script
+│   └── resume_md_to_docx.py     # Main conversion script
+├── Makefile                     # Contains helpful commands for managing the project
+└── REAMDE.md                    # This README file
 
 ```
 
