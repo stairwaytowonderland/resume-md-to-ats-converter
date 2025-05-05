@@ -22,6 +22,7 @@ Icon?
 *.pdf
 *.txt
 *.zip
+*.sample.*
 
 # Exclude potential downloaded files
 docx

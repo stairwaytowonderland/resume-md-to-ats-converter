@@ -175,32 +175,23 @@ The project includes a REST API that converts markdown resumes to ATS-friendly f
 
 The AWS (*Amazon Web Services*) implementation doesn't currently support file inputs, so the `--data` parameter (`-d`) is used for the resume payload.
 
-Just paste the entire contents of your resume between the 2 `EOT` markers, in the curl statement below.
-
 > [!IMPORTANT]
 > AWS access currently requires an API key
 
 ##### Remote Conversion to DOCX 🦋
 
+The following command demonstrates basic API use.
+
 ```bash
 curl -X POST "https://7lm0a3cnti.execute-api.us-east-1.amazonaws.com/dev/convert/docx" \
   -H "x-api-key: ${API_KEY}" \
   -H "Accept: application/vnd.openxmlformats-officedocument.wordprocessingml.document" \
-  -d "$(cat <<'EOT'
-# Full Name
-
-*Clever Tagline*
-
-These Are ◆ Some of My ◆ Specialty Areas
-
-## About
-
-A brief introduction.
-EOT
-)" -o resume.docx
+  -d "$(cat path/to/resume.md)" -o resume.docx
 ```
 
 ##### Remote Convert with Custom Configuration 🦋
+
+This following example also demonstrates the possibility of running the `curl` statement by pasting the resume markdown contents directly in the command (between beginnig `'EOT'` and ending `EOT`):
 
 ```bash
 curl -X POST "https://7lm0a3cnti.execute-api.us-east-1.amazonaws.com/dev/convert/docx" \

@@ -3,8 +3,4 @@ API_KEY="${API_KEY:-$DEFAULT_API_KEY}"
 curl -X POST "https://7lm0a3cnti.execute-api.us-east-1.amazonaws.com/dev/convert/docx" \
   -H "x-api-key: ${API_KEY}" \
   -H "Accept: application/vnd.openxmlformats-officedocument.wordprocessingml.document" \
-  -d "$(cat <<'EOT'
-Paste your "Resume Markdown" content here
-(between the beginning 'EOT', above and ending EOT, below)
-EOT
-)" -o resume.docx
+  -d "$(cat ./sample/template/sample.md)" -o resume.docx
