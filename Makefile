@@ -1,6 +1,7 @@
 MAKEFLAGS += --no-print-directory
 
 UNAME := $(shell uname -s)
+AWS_PROFILE := $(shell echo $${AWS_PROFILE:-$$AWS_DEFAULT_PROFILE})
 
 .PHONY: all
 all: init ## Entrypoint
@@ -100,6 +101,15 @@ api: ## Run the app
 serverless: ## Run the serverless app
 	sls wsgi serve --port 3000
 
+.PHONY: login
+login: .login_aws .login_serverless ## Login to AWS and Serveless
+
+.login_aws:
+	aws sso login --profile $(AWS_PROFILE)
+
+.login_serverless:
+	serverless login --aws-profile $(AWS_PROFILE)
+
 .venv_reminder:
 	@printf "\n\t📝 \033[1m%s\033[0m: %s\n\t   %s\n\t   %s\n\t   %s.\n\n\t🏄 %s \033[1;92m\`%s\`\033[0m\n\t   %s.\n" "NOTE" "The dependencies are installed" "in a virtual environment which needs" "to be manually activated to run the" "Python command" "Please run" ". .venv/bin/activate" "to activate the virtual environment"
 
@@ -173,23 +183,23 @@ serverless: ## Run the serverless app
 .deploy-dev:
 	( \
   . .venv/bin/activate; \
-  AWS_PROFILE=$$AWS_DEFAULT_PROFILE sls deploy; \
+  AWS_PROFILE=$(AWS_PROFILE) sls deploy; \
 )
 
 .deploy-v1:
 	( \
   . .venv/bin/activate; \
-  AWS_PROFILE=$$AWS_DEFAULT_PROFILE sls deploy --stage v1; \
+  AWS_PROFILE=$(AWS_PROFILE) sls deploy --stage v1; \
 )
 
 .remove-dev:
 	( \
   . .venv/bin/activate; \
-  AWS_PROFILE=$$AWS_DEFAULT_PROFILE sls remove; \
+  AWS_PROFILE=$(AWS_PROFILE) sls remove; \
 )
 
 .remove-v1:
 	( \
   . .venv/bin/activate; \
-  AWS_PROFILE=$$AWS_DEFAULT_PROFILE sls remove --stage v1; \
+  AWS_PROFILE=$(AWS_PROFILE) sls remove --stage v1; \
 )

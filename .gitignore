@@ -22,7 +22,7 @@ Icon?
 *.pdf
 *.txt
 *.zip
-*.sample.*
+*.sh
 
 # Exclude potential downloaded files
 docx
@@ -36,8 +36,8 @@ pdf
 
 # Allow specific sample directory documents
 !/sample/README.md
-!/sample/*/*.md
-!/sample/*/output/*.docx
-!/sample/*/output/*.pdf
-!/sample/template/*.txt
+!/sample/**/*.sample.*
+!/sample/**/*.md
+!/sample/**/output/*.docx
+!/sample/**/output/*.pdf
 !/src/requirements/*.txt

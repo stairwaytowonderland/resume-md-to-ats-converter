@@ -96,7 +96,7 @@ custom:
     apiType: 'aws'
   apigwBinary:
     types:
-      # - 'application/octet-stream'
+      - 'application/octet-stream'
       - 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       - 'application/pdf'
       # - 'multipart/form-data'
