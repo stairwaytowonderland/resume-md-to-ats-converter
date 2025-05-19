@@ -185,7 +185,7 @@ The following command demonstrates basic API use.
 ```bash
 curl -X POST "https://7lm0a3cnti.execute-api.us-east-1.amazonaws.com/dev/convert/docx" \
   -H "x-api-key: ${API_KEY}" \
-  -H "Accept: application/vnd.openxmlformats-officedocument.wordprocessingml.document" \
+  -H "Accept: application/octet-stream" \
   -d "$(cat path/to/resume.md)" -o resume.docx
 ```
 
@@ -196,7 +196,7 @@ This following example also demonstrates the possibility of running the `curl` s
 ```bash
 curl -X POST "https://7lm0a3cnti.execute-api.us-east-1.amazonaws.com/dev/convert/docx" \
   -H "x-api-key: ${API_KEY}" \
-  -H "Accept: application/vnd.openxmlformats-officedocument.wordprocessingml.document" \
+  -H "Accept: application/octet-stream" \
   -F "config_options={\"style_constants\": {\"paragraph_lists\": false} \
   -d "$(cat <<'EOT'
 ...resume markdown contents...
@@ -206,6 +206,9 @@ EOT
 
 > [!NOTE]
 > The url (specifically, the `7lm0a3cnti` part) is subject to change.
+
+> [!NOTE]
+> The mimetype `application/vnd.openxmlformats-officedocument.wordprocessingml.document` will also work in the `Accept` header, e.g. `-H Accept: application/vnd.openxmlformats-officedocument.wordprocessingml.document`
 
 > [!TIP]
 > - The `--data` (`-d`) parameter can also be used for local API requests (see the [Local Examples](#local-examples-), below).

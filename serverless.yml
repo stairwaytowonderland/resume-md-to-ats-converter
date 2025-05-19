@@ -17,29 +17,6 @@ provider:
         description: API key for limited usage tier
         enabled: true
 
-    usagePlans:
-      - name: standard
-        description: Standard usage plan
-        apiKeys:
-          - resume-converter-api-key-${self:provider.stage}
-        quota:
-          limit: 1000
-          period: MONTH
-        throttle:
-          burstLimit: 10
-          rateLimit: 5
-
-      - name: limited
-        description: Limited usage plan
-        apiKeys:
-          - resume-converter-limited-key-${self:provider.stage}
-        quota:
-          limit: 100
-          period: MONTH
-        throttle:
-          burstLimit: 5
-          rateLimit: 2
-
 plugins:
   - serverless-wsgi
   - serverless-apigw-binary
@@ -89,6 +66,25 @@ functions:
 
 custom:
   pipLayer: resume-converter-pip-layer-${self:provider.stage}
+  usagePlan:
+    - name: standard
+      description: Standard usage plan
+      apiKey: resume-converter-api-key-${self:provider.stage}
+      quota:
+        limit: 1000
+        period: MONTH
+      throttle:
+        burstLimit: 10
+        rateLimit: 5
+    - name: limited
+      description: Limited usage plan
+      apiKey: resume-converter-limited-key-${self:provider.stage}
+      quota:
+        limit: 100
+        period: MONTH
+      throttle:
+        burstLimit: 5
+        rateLimit: 2
   wsgi:
     app: src/api.application
     pythonBin: python3
@@ -98,7 +94,7 @@ custom:
     types:
       - 'application/octet-stream'
       - 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      - 'application/pdf'
+      # - 'application/pdf'
       # - 'multipart/form-data'
   pythonRequirements:
     fileName: src/requirements/requirements-api.txt
