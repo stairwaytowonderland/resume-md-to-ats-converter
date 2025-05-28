@@ -24,6 +24,37 @@ This project allows you to maintain your resume in an easily editable Markdown f
 
 
 
+## Important Files 🗂️
+
+```
+<project>/
+├── data/                        # Default output directory
+├── sample/
+│   ├── example/
+│   │   ├── example.md           # Real world example resume with mock data
+│   │   └── output/
+│   │       ├── example.docx     # Example docx ouput from example
+│   │       └── example.pdf      # Example pdf ouput from example
+│   └── template/
+│       ├── sample.md            # Sample resume template
+│       └── output/
+│           ├── sample.docx      # Example docx ouput from sample
+│           └── sample.pdf       # Example pdf ouput from sample
+├── src/
+│   ├── api.py                   # Main API script
+│   ├── api_config.py            # API configuration file
+│   ├── resume_config.py         # Default configuration file for conversion script
+│   └── resume_md_to_docx.py     # Main conversion script
+├── Makefile                     # Contains helpful commands for managing the project
+└── REAMDE.md                    # This README file
+
+```
+
+> [!NOTE]
+> *There are more files and directories in the project than what's shown above; the above just lists any files (and directories) that would be relevant to a typical user.*
+
+
+
 ## Sample Template 🖼️
 
 A [sample Markdown resume](./sample/template/sample.md) (`sample/template/sample.md`) is included in this project. You may copy or download it and use it as a *template* to create your own Markdown resume.
@@ -417,37 +448,6 @@ This provides an interactive interface to:
 |-----|:---------:|
 | **Local** | ✅ |
 | **AWS** | ❌ |
-
-
-
-## Important Files 🗂️
-
-```
-<project>/
-├── data/                        # Default output directory
-├── sample/
-│   ├── example/
-│   │   ├── example.md           # Real world example resume with mock data
-│   │   └── output/
-│   │       ├── example.docx     # Example docx ouput from example
-│   │       └── example.pdf      # Example pdf ouput from example
-│   └── template/
-│       ├── sample.md            # Sample resume template
-│       └── output/
-│           ├── sample.docx      # Example docx ouput from sample
-│           └── sample.pdf       # Example pdf ouput from sample
-├── src/
-│   ├── api.py                   # Main API script
-│   ├── api_config.py            # API configuration file
-│   ├── resume_config.py         # Default configuration file for conversion script
-│   └── resume_md_to_docx.py     # Main conversion script
-├── Makefile                     # Contains helpful commands for managing the project
-└── REAMDE.md                    # This README file
-
-```
-
-> [!NOTE]
-> *There are more files and directories in the project than what's shown above; the above just lists any files (and directories) that would be relevant to a typical user.*
 
 
 
