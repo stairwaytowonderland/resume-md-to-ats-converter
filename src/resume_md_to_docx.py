@@ -22,7 +22,7 @@ SCRIPT_DIR = Path(__file__).parent
 ##############################
 # Define some defaults at module level for better performance
 ##############################
-DEFAULT_OUTPUT_DIR = SCRIPT_DIR.parent / "output"
+DEFAULT_OUTPUT_DIR = SCRIPT_DIR.parent / "data"
 DEFAULT_CONFIG_FILE = SCRIPT_DIR / "resume_config.yaml"
 DOCX_EXTENSION = "docx"
 PDF_EXTENSION = "pdf"

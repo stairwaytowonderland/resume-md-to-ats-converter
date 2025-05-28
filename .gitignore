@@ -1,6 +1,10 @@
+*.git
 *.bak
-*.backup
+*.old
+*.new
 *.orig
+*.backup
+*.hidden
 *.private
 *.~*
 
@@ -16,17 +20,19 @@ Icon?
 .idea
 .vscode
 
+/data
+
 # Exclude document files generally
-*.docx
 *.md
+*.docx
 *.pdf
 *.txt
 *.zip
 *.sh
 
 # Exclude potential downloaded files
-docx
 md
+docx
 pdf
 
 # Allow specific directories and files

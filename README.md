@@ -205,14 +205,12 @@ EOT
 ```
 
 > [!NOTE]
-> The url (specifically, the `7lm0a3cnti` part) is subject to change.
-
-> [!NOTE]
-> The mimetype `application/vnd.openxmlformats-officedocument.wordprocessingml.document` will also work in the `Accept` header, e.g. `-H Accept: application/vnd.openxmlformats-officedocument.wordprocessingml.document`
+> - The url (specifically, the `7lm0a3cnti` part) is subject to change
+> - The mimetype `application/vnd.openxmlformats-officedocument.wordprocessingml.document` will also work in the `Accept` header, e.g. `-H Accept: application/vnd.openxmlformats-officedocument.wordprocessingml.document`
 
 > [!TIP]
-> - The `--data` (`-d`) parameter can also be used for local API requests (see the [Local Examples](#local-examples-), below).
-> - If `input_file` and request data (`-d`) are both used, the input file will take precedence. This preference is configured in [`api_config.yaml`](./src/api_config.yaml) as the `input.prefer_file` boolean setting (currently set to `true`).
+> - The `--data` (`-d`) parameter can also be used for local API requests (see the [Local Examples](#local-examples-), below)
+> - If `input_file` and request data (`-d`) are both used, the input file will take precedence. This preference is configured in [`api_config.yaml`](./src/api_config.yaml) as the `input.prefer_file` boolean setting (currently set to `true`)
 
 ##### AWS Serverless 🛸
 
@@ -284,7 +282,7 @@ make && make install
 
 ### Basic usage 🍰
 
-By default, the name of the output file will match that of the input file, but with the appropriate extension. The **output files** will be in the project's [`output/`](./output/) directory unless other specified (with the `-o` or `--output` option).
+By default, the name of the output file will match that of the input file, but with the appropriate extension. The **output files** will be in the project's [`data/`](./data/) directory unless other specified (with the `-o` or `--output` option).
 
 #### ✨ Interactive mode 📱
 
@@ -301,7 +299,7 @@ Run in manual mode, specifying an input file:
 
 ```bash
 # This will create a file called "resume.docx" in
-# the "output/" directory, i.e. "output/resume.docx"
+# the "data/" directory, i.e. "data/resume.docx"
 python src/resume_md_to_docx.py -i resume.md
 ```
 
@@ -317,10 +315,10 @@ python src/resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/exampl
 
 ### ✨ Produce a PDF 📕
 
-Adding `--pdf` to any of the above commands will also produce a `.pdf` file in the same directory as the `.docx` file (this will be the project's [`output/`](./output/) directory if the *output* option isn't set):
+Adding `--pdf` to any of the above commands will also produce a `.pdf` file in the same directory as the `.docx` file (this will be the project's [`data/`](./data/) directory if the *output* option isn't set):
 
 ```bash
-# This will create 2 files: "output/example.docx" and "output/example.pdf"
+# This will create 2 files: "sample/example/output/example.docx" and "sample/example/output/example.pdf"
 python src/resume_md_to_docx.py -i sample/example/example.md --pdf
 ```
 
@@ -426,7 +424,7 @@ This provides an interactive interface to:
 
 ```
 <project>/
-├── output/                      # Default output directory
+├── data/                        # Default output directory
 ├── sample/
 │   ├── example/
 │   │   ├── example.md           # Real world example resume with mock data
