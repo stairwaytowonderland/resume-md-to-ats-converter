@@ -43,33 +43,34 @@ class ResumeSection(Enum):
         docx_heading (str): The text to use as a heading in the Word document
         add_space_before_h3 (bool): Whether to add a blank line before each h3 heading
                                    (except the first after h2)
+        add_space_before_h2 (bool): Whether to add a blank line before the h2 section
     """
 
-    ABOUT = ("About", "PROFESSIONAL SUMMARY", False)
-    SKILLS = ("Top Skills", "TOP SKILLS", False)
-    EXPERIENCE = ("Experience", "PROFESSIONAL EXPERIENCE", True)
-    EDUCATION = ("Education", "EDUCATION", True)
-    CERTIFICATIONS = ("Licenses & certifications", "LICENSES & CERTIFICATIONS", True)
-    CONTACT = ("Contact", "CONTACT INFORMATION", False)
+    ABOUT = ("About", "PROFESSIONAL SUMMARY", False, False)
+    SKILLS = ("Top Skills", "TOP SKILLS", False, False)
+    EXPERIENCE = ("Experience", "PROFESSIONAL EXPERIENCE", True, False)
+    EDUCATION = ("Education", "EDUCATION", False, False)
+    CERTIFICATIONS = (
+        "Licenses & certifications",
+        "LICENSES & CERTIFICATIONS",
+        True,
+        False,
+    )
+    PROJECTS = ("Projects", "PROJECTS", True, True)
+    CONTACT = ("Contact", "CONTACT INFORMATION", False, False)
 
     def __init__(
         self,
         markdown_heading: str,
         docx_heading: str,
         add_space_before_h3: bool = False,
+        add_space_before_h2: bool = False,
     ):
-        """Initialize ResumeSection enum
-
-        Args:
-            markdown_heading (str): The text of the h2 heading in the markdown file
-            docx_heading (str): The text to use as a heading in the Word document
-            add_space_before_h3 (bool): Whether to add a blank line before each h3 heading
-                                       (except the first after h2). Defaults to False.
-        """
         self.markdown_heading = markdown_heading
         self.docx_heading = docx_heading
         self.markdown_heading_lower = markdown_heading.lower()
         self.add_space_before_h3 = add_space_before_h3
+        self.add_space_before_h2 = add_space_before_h2
 
     def matches(self, text):
         """Check if the given text matches this section's markdown_heading (case insensitive)
@@ -698,36 +699,55 @@ def create_ats_resume(
 
     # Define section processors with their specific processing functions
     section_processors = [
-        (ResumeSection.ABOUT, process_header_section),
+        (ResumeSection.ABOUT, process_header_section, True),  # Always required
         (
             ResumeSection.ABOUT,
             lambda doc, soup: process_about_section(document=doc, soup=soup),
+            False,
         ),
         (
             ResumeSection.SKILLS,
             lambda doc, soup: process_skills_section(doc, soup),
+            False,
         ),
         (
             ResumeSection.EXPERIENCE,
             lambda doc, soup: process_experience_section(doc, soup),
+            False,
         ),
         (
-            ResumeSection.EDUCATION,
-            lambda doc, soup: process_education_section(doc, soup),
+            ResumeSection.PROJECTS,
+            lambda doc, soup: process_projects_section(doc, soup),
+            False,
         ),
         (
             ResumeSection.CERTIFICATIONS,
             lambda doc, soup: process_certifications_section(doc, soup),
+            False,
+        ),
+        (
+            ResumeSection.EDUCATION,
+            lambda doc, soup: process_education_section(doc, soup),
+            False,
         ),
         (
             ResumeSection.CONTACT,
             lambda doc, soup: process_contact_section(doc, soup),
+            False,
         ),
     ]
 
-    # Process each section
-    for section_type, processor in section_processors:
-        processor(document, soup)
+    # Process each section with error handling
+    for section_type, processor, required in section_processors:
+        try:
+            processor(document, soup)
+        except Exception as e:
+            if required:
+                raise  # Re-raise for required sections
+            else:
+                print(
+                    f"⚠️  Warning: Could not process {section_type.docx_heading}: {str(e)}"
+                )
 
     # Save the document
     document.save(output_file)
@@ -864,7 +884,7 @@ def process_about_section(
     section_h2 = _prepare_section(document, soup, ResumeSection.ABOUT)
 
     if not section_h2:
-        return
+        return  # Gracefully exit if section doesn't exist
 
     current_element = section_h2.find_next_sibling()
 
@@ -955,7 +975,7 @@ def process_skills_section(
     section_h2 = _prepare_section(document, soup, ResumeSection.SKILLS)
 
     if not section_h2:
-        return
+        return  # Gracefully exit if section doesn't exist
 
     current_element = section_h2.find_next_sibling()
 
@@ -981,7 +1001,7 @@ def process_experience_section(
     section_h2 = _prepare_section(document, soup, ResumeSection.EXPERIENCE)
 
     if not section_h2:
-        return
+        return  # Gracefully exit if section doesn't exist
 
     # Find all job entries (h3 headings under Experience)
     current_element = section_h2.find_next_sibling()
@@ -1184,6 +1204,10 @@ def process_education_section(
         soup,
         ResumeSection.EDUCATION,
     )
+
+    if not section_h2:
+        return  # Gracefully exit if section doesn't exist
+
     _process_simple_section(
         document,
         section_h2,
@@ -1209,9 +1233,43 @@ def process_certifications_section(
         soup,
         ResumeSection.CERTIFICATIONS,
     )
-    _process_certifications(
+
+    if not section_h2:
+        return  # Gracefully exit if section doesn't exist
+
+    _process_projects_or_certifications(
         document,
         section_h2,
+        ResumeSection.CERTIFICATIONS.add_space_before_h3,
+    )
+
+
+def process_projects_section(
+    document: Document,
+    soup: BeautifulSoup,
+) -> None:
+    """Process the Special Projects section
+
+    Args:
+        document: The Word document object
+        soup: BeautifulSoup object of the HTML content
+
+    Returns:
+        None
+    """
+    section_h2 = _prepare_section(
+        document,
+        soup,
+        ResumeSection.PROJECTS,
+    )
+
+    if not section_h2:
+        return  # Gracefully exit if section doesn't exist
+
+    _process_projects_or_certifications(
+        document,
+        section_h2,
+        ResumeSection.PROJECTS.add_space_before_h3,
     )
 
 
@@ -1233,6 +1291,10 @@ def process_contact_section(
         soup,
         ResumeSection.CONTACT,
     )
+
+    if not section_h2:
+        return  # Gracefully exit if section doesn't exist
+
     _process_simple_section(
         document,
         section_h2,
@@ -1338,6 +1400,8 @@ def _prepare_section(
     section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
 
     if not section_h2:
+        # Log that section was not found (optional)
+        print(f"ℹ️  Section '{section_type.docx_heading}' not found in document")
         return None
 
     # Use the generic function instead of the specific one
@@ -1348,6 +1412,10 @@ def _prepare_section(
         p = document.add_paragraph()
         run = p.add_run()
         run.add_break(DOCX_BREAK_TYPE.PAGE)
+
+    # Add extra space before h2 section if requested (but not if there's already a page break)
+    elif section_type.add_space_before_h2:
+        _add_space_paragraph(document, ConfigHelper.get_style_constant("font_size_pts"))
 
     # Add the section heading
     use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h2")
@@ -1378,6 +1446,9 @@ def _process_simple_section(
     Returns:
         None
     """
+    if not section_h2:
+        return
+
     current_element = section_h2.find_next_sibling()
 
     while current_element and current_element.name != "h2":
@@ -1789,9 +1860,10 @@ def _add_heading_or_paragraph(
         return document.add_heading(text, level=heading_level)
 
 
-def _process_certifications(
+def _process_projects_or_certifications(
     document: Document,
     section_h2: BeautifulSoup,
+    add_space: bool = False,
 ) -> None:
     """Process the certifications section with its specific structure
 
@@ -1802,8 +1874,8 @@ def _process_certifications(
     Returns:
         None
     """
-    # Get the add_space_before_h3 setting from the section type
-    add_space_before_h3 = ResumeSection.CERTIFICATIONS.add_space_before_h3
+    if not section_h2:
+        return
 
     current_element = section_h2.find_next_sibling()
     first_h3_after_h2 = True  # Track the first h3 after h2
@@ -1816,8 +1888,8 @@ def _process_certifications(
             heading_level = HeadingsHelper.get_level_for_tag("h3")
 
             # Add blank line before h3 except for the first one
-            # Only add space if add_space_before_h3 is True
-            if add_space_before_h3 and not first_h3_after_h2:
+            # Only add space if add_space is True
+            if add_space and not first_h3_after_h2:
                 document.add_paragraph()
             else:
                 first_h3_after_h2 = False  # After first h3 is processed
@@ -1832,10 +1904,19 @@ def _process_certifications(
             # Look for next elements - either blockquote or organization info directly
             next_element = current_element.find_next_sibling()
 
+            # Process any paragraph text that comes after h3 but before blockquote
+            while next_element and next_element.name == "p":
+                # Add the paragraph text
+                para = document.add_paragraph()
+                _process_text_for_hyperlinks(para, next_element.get_text().strip())
+
+                # Move to the next element
+                next_element = next_element.find_next_sibling()
+
             # Handle blockquote (optional)
             if next_element and next_element.name == "blockquote":
                 # Process the blockquote contents
-                _process_certification_blockquote(document, next_element)
+                _process_project_or_certification_blockquote(document, next_element)
 
             # If no blockquote, look for organization info directly
             elif next_element:
@@ -1870,7 +1951,7 @@ def _process_certifications(
         current_element = current_element.find_next_sibling()
 
 
-def _process_certification_blockquote(
+def _process_project_or_certification_blockquote(
     document: Document,
     blockquote: BS4_Element,
 ) -> None:
@@ -1883,35 +1964,68 @@ def _process_certification_blockquote(
     Returns:
         None
     """
-    # Process the organization name (first element)
-    org_element = blockquote.find(["h4", "h5", "h6", "strong"])
-    if org_element:
-        if org_element.name.startswith("h"):
-            # It's a heading
-            heading_level = HeadingsHelper.get_level_for_tag(org_element.name)
-            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
-                org_element.name
-            )
-            _add_heading_or_paragraph(
-                document,
-                org_element.text.strip(),
-                heading_level,
-                use_paragraph_style=use_paragraph_style,
-            )
-        elif org_element.name == "strong":
-            # It's bold text
-            org_para = document.add_paragraph()
-            org_run = org_para.add_run(org_element.text.strip())
-            org_run.bold = True
+    # Find organization info first and mark it as processed
+    org_element = None
+    org_processed = False
 
-    # Process all paragraphs and text content
-    # Find all p tags and loose text nodes directly under blockquote
+    # Look for organization info (first strong element or heading)
     for item in blockquote.contents:
-        # Skip elements we've already processed or that are empty
-        if (isinstance(item, str) and not item.strip()) or item == org_element:
+        # Skip empty strings
+        if isinstance(item, str) and not item.strip():
             continue
 
-        # Check if it's a heading (h5, h6, etc.)
+        if hasattr(item, "name") and item.name in ["h4", "h5", "h6"]:
+            # It's a heading - process as organization with formatting preservation
+            heading_level = HeadingsHelper.get_level_for_tag(item.name)
+            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(item.name)
+
+            # Create the heading/paragraph and process child elements to preserve formatting
+            if use_paragraph_style:
+                para = document.add_paragraph()
+                # Process child elements to preserve italic formatting
+                for child in item.children:
+                    if getattr(child, "name", None) == "em":
+                        run = para.add_run(child.text)
+                        run.italic = True
+                    elif getattr(child, "name", None) == "strong":
+                        run = para.add_run(child.text)
+                        run.bold = True
+                    elif child.string:
+                        run = para.add_run(child.string)
+            else:
+                heading = document.add_heading(level=heading_level)
+                # Process child elements to preserve italic formatting
+                for child in item.children:
+                    if getattr(child, "name", None) == "em":
+                        run = heading.add_run(child.text)
+                        run.italic = True
+                    elif getattr(child, "name", None) == "strong":
+                        run = heading.add_run(child.text)
+                        run.bold = True
+                    elif child.string:
+                        run = heading.add_run(child.string)
+
+            org_element = item
+            org_processed = True
+            break
+        elif hasattr(item, "name") and item.name == "p":
+            strong_tag = item.find("strong")
+            if strong_tag and not org_processed:
+                # It's a paragraph with bold text - process as organization (no colon)
+                org_para = document.add_paragraph()
+                org_run = org_para.add_run(strong_tag.text.strip())
+                org_run.bold = True
+                org_element = item
+                org_processed = True
+                break
+
+    # Process all other content, skipping the organization element we already processed
+    for item in blockquote.contents:
+        # Skip the organization element we already processed or empty strings
+        if item == org_element or (isinstance(item, str) and not item.strip()):
+            continue
+
+        # Process headings that aren't the organization element
         if (
             hasattr(item, "name")
             and item.name
@@ -1920,42 +2034,79 @@ def _process_certification_blockquote(
         ):
             heading_level = HeadingsHelper.get_level_for_tag(item.name)
             use_paragraph_style = HeadingsHelper.should_use_paragraph_style(item.name)
-            _add_heading_or_paragraph(
-                document,
-                item.text.strip(),
-                heading_level,
-                use_paragraph_style=use_paragraph_style,
-            )
-            continue
 
-        # Check if it's the date with italics (should be last non-empty element)
-        if hasattr(item, "find") and item.find("em"):
-            em_tag = item.find("em")
-            date_text = em_tag.text.strip()
-            date_para = document.add_paragraph()
-
-            # Check if inside a hyperlink
-            parent_a = em_tag.find_parent("a")
-            if parent_a and parent_a.get("href"):
-                _add_hyperlink(date_para, date_text, parent_a["href"])
+            # Process with formatting preservation instead of using item.text.strip()
+            if use_paragraph_style:
+                para = document.add_paragraph()
+                # Process child elements to preserve italic formatting
+                for child in item.children:
+                    if getattr(child, "name", None) == "em":
+                        run = para.add_run(child.text)
+                        run.italic = True
+                    elif getattr(child, "name", None) == "strong":
+                        run = para.add_run(child.text)
+                        run.bold = True
+                    elif child.string:
+                        run = para.add_run(child.string)
             else:
-                date_run = date_para.add_run(date_text)
-                date_run.italic = True
+                heading = document.add_heading(level=heading_level)
+                # Process child elements to preserve italic formatting
+                for child in item.children:
+                    if getattr(child, "name", None) == "em":
+                        run = heading.add_run(child.text)
+                        run.italic = True
+                    elif getattr(child, "name", None) == "strong":
+                        run = heading.add_run(child.text)
+                        run.bold = True
+                    elif child.string:
+                        run = heading.add_run(child.string)
             continue
 
-        # Handle normal text content (like "Some details")
-        if isinstance(item, str) and item.strip():
-            # It's a direct text node
+        # Handle paragraphs (but skip if it's the org_element)
+        elif hasattr(item, "name") and item.name == "p" and item != org_element:
+            # Check if this paragraph contains date information (em tag)
+            if item.find("em"):
+                em_tag = item.find("em")
+                date_text = em_tag.text.strip()
+                date_para = document.add_paragraph()
+
+                # Check if the date is hyperlinked
+                parent_a = em_tag.find_parent("a")
+                if parent_a and parent_a.get("href"):
+                    _add_hyperlink(date_para, date_text, parent_a["href"])
+                else:
+                    date_run = date_para.add_run(date_text)
+                    date_run.italic = True
+            else:
+                # Regular paragraph - process with hyperlink detection
+                para = document.add_paragraph()
+
+                # Process child elements to preserve formatting and hyperlinks
+                for child in item.children:
+                    # Handle bold text (strong tags) - but only add colon if NOT organization
+                    if getattr(child, "name", None) == "strong":
+                        # Since this isn't the org_element, add colon after strong text
+                        run = para.add_run(child.text + ":")
+                        run.bold = True
+                    # Handle italic text (em tags)
+                    elif getattr(child, "name", None) == "em":
+                        run = para.add_run(child.text)
+                        run.italic = True
+                    # Handle links
+                    elif getattr(child, "name", None) == "a" and child.get("href"):
+                        _add_hyperlink(para, child.text, child.get("href"))
+                    # Regular text with potential hyperlinks
+                    elif child.string:
+                        _process_text_for_hyperlinks(para, child.string)
+
+        # Handle bullet lists
+        elif hasattr(item, "name") and item.name == "ul":
+            _add_bullet_list(document, item)
+
+        # Handle direct text nodes (strings)
+        elif isinstance(item, str) and item.strip():
             para = document.add_paragraph()
             _process_text_for_hyperlinks(para, item.strip())
-        elif hasattr(item, "name"):
-            if item.name == "p":
-                # It's a paragraph
-                para = document.add_paragraph()
-                _process_text_for_hyperlinks(para, item.text.strip())
-            elif item.name == "ul":
-                # It's a bullet list
-                _add_bullet_list(document, item)
 
 
 ##############################
