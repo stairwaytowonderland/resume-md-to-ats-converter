@@ -1964,149 +1964,150 @@ def _process_project_or_certification_blockquote(
     Returns:
         None
     """
-    # Find organization info first and mark it as processed
-    org_element = None
-    org_processed = False
+    # Find and process organization info
+    org_element, _ = _find_organization_element(blockquote)
 
-    # Look for organization info (first strong element or heading)
-    for item in blockquote.contents:
-        # Skip empty strings
-        if isinstance(item, str) and not item.strip():
-            continue
-
-        if hasattr(item, "name") and item.name in ["h4", "h5", "h6"]:
-            # It's a heading - process as organization with formatting preservation
-            heading_level = HeadingsHelper.get_level_for_tag(item.name)
-            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(item.name)
-
-            # Create the heading/paragraph and process child elements to preserve formatting
-            if use_paragraph_style:
-                para = document.add_paragraph()
-                # Process child elements to preserve italic formatting
-                for child in item.children:
-                    if getattr(child, "name", None) == "em":
-                        run = para.add_run(child.text)
-                        run.italic = True
-                    elif getattr(child, "name", None) == "strong":
-                        run = para.add_run(child.text)
-                        run.bold = True
-                    elif child.string:
-                        run = para.add_run(child.string)
-            else:
-                heading = document.add_heading(level=heading_level)
-                # Process child elements to preserve italic formatting
-                for child in item.children:
-                    if getattr(child, "name", None) == "em":
-                        run = heading.add_run(child.text)
-                        run.italic = True
-                    elif getattr(child, "name", None) == "strong":
-                        run = heading.add_run(child.text)
-                        run.bold = True
-                    elif child.string:
-                        run = heading.add_run(child.string)
-
-            org_element = item
-            org_processed = True
-            break
-        elif hasattr(item, "name") and item.name == "p":
-            strong_tag = item.find("strong")
-            if strong_tag and not org_processed:
-                # It's a paragraph with bold text - process as organization (no colon)
+    if org_element:
+        if org_element.name in ["h4", "h5", "h6"]:
+            _create_heading_with_formatting_preservation(document, org_element)
+        else:  # paragraph with strong tag
+            strong_tag = org_element.find("strong")
+            if strong_tag:
                 org_para = document.add_paragraph()
                 org_run = org_para.add_run(strong_tag.text.strip())
                 org_run.bold = True
-                org_element = item
-                org_processed = True
-                break
 
-    # Process all other content, skipping the organization element we already processed
+    # Process all other content
     for item in blockquote.contents:
-        # Skip the organization element we already processed or empty strings
         if item == org_element or (isinstance(item, str) and not item.strip()):
             continue
 
-        # Process headings that aren't the organization element
         if (
             hasattr(item, "name")
             and item.name
             and item.name.startswith("h")
             and item != org_element
         ):
-            heading_level = HeadingsHelper.get_level_for_tag(item.name)
-            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(item.name)
+            _create_heading_with_formatting_preservation(document, item)
 
-            # Process with formatting preservation instead of using item.text.strip()
-            if use_paragraph_style:
-                para = document.add_paragraph()
-                # Process child elements to preserve italic formatting
-                for child in item.children:
-                    if getattr(child, "name", None) == "em":
-                        run = para.add_run(child.text)
-                        run.italic = True
-                    elif getattr(child, "name", None) == "strong":
-                        run = para.add_run(child.text)
-                        run.bold = True
-                    elif child.string:
-                        run = para.add_run(child.string)
-            else:
-                heading = document.add_heading(level=heading_level)
-                # Process child elements to preserve italic formatting
-                for child in item.children:
-                    if getattr(child, "name", None) == "em":
-                        run = heading.add_run(child.text)
-                        run.italic = True
-                    elif getattr(child, "name", None) == "strong":
-                        run = heading.add_run(child.text)
-                        run.bold = True
-                    elif child.string:
-                        run = heading.add_run(child.string)
-            continue
-
-        # Handle paragraphs (but skip if it's the org_element)
         elif hasattr(item, "name") and item.name == "p" and item != org_element:
-            # Check if this paragraph contains date information (em tag)
-            if item.find("em"):
-                em_tag = item.find("em")
-                date_text = em_tag.text.strip()
-                date_para = document.add_paragraph()
-
-                # Check if the date is hyperlinked
-                parent_a = em_tag.find_parent("a")
-                if parent_a and parent_a.get("href"):
-                    _add_hyperlink(date_para, date_text, parent_a["href"])
-                else:
-                    date_run = date_para.add_run(date_text)
-                    date_run.italic = True
-            else:
-                # Regular paragraph - process with hyperlink detection
+            if not _process_date_paragraph(document, item):
+                # Regular paragraph
                 para = document.add_paragraph()
+                _process_element_children_with_formatting(
+                    para, item, add_colon_to_strong=True
+                )
 
-                # Process child elements to preserve formatting and hyperlinks
-                for child in item.children:
-                    # Handle bold text (strong tags) - but only add colon if NOT organization
-                    if getattr(child, "name", None) == "strong":
-                        # Since this isn't the org_element, add colon after strong text
-                        run = para.add_run(child.text + ":")
-                        run.bold = True
-                    # Handle italic text (em tags)
-                    elif getattr(child, "name", None) == "em":
-                        run = para.add_run(child.text)
-                        run.italic = True
-                    # Handle links
-                    elif getattr(child, "name", None) == "a" and child.get("href"):
-                        _add_hyperlink(para, child.text, child.get("href"))
-                    # Regular text with potential hyperlinks
-                    elif child.string:
-                        _process_text_for_hyperlinks(para, child.string)
-
-        # Handle bullet lists
         elif hasattr(item, "name") and item.name == "ul":
             _add_bullet_list(document, item)
 
-        # Handle direct text nodes (strings)
         elif isinstance(item, str) and item.strip():
             para = document.add_paragraph()
             _process_text_for_hyperlinks(para, item.strip())
+
+
+def _process_element_children_with_formatting(
+    paragraph: DOCX_Paragraph, element: BS4_Element, add_colon_to_strong: bool = False
+) -> None:
+    """Process child elements of an HTML element and add them to a paragraph with proper formatting
+
+    Args:
+        paragraph: The Word paragraph to add content to
+        element: BeautifulSoup element whose children to process
+        add_colon_to_strong: Whether to add a colon after strong elements
+    """
+    for child in element.children:
+        if getattr(child, "name", None) == "strong":
+            text = child.text + (":" if add_colon_to_strong else "")
+            run = paragraph.add_run(text)
+            run.bold = True
+        elif getattr(child, "name", None) == "em":
+            run = paragraph.add_run(child.text)
+            run.italic = True
+        elif getattr(child, "name", None) == "a" and child.get("href"):
+            _add_hyperlink(paragraph, child.text, child.get("href"))
+        elif child.string:
+            _process_text_for_hyperlinks(paragraph, child.string)
+
+
+def _create_heading_with_formatting_preservation(
+    document: Document,
+    element: BS4_Element,
+    heading_level: int = None,
+    use_paragraph_style: bool = None,
+) -> None:
+    """Create a heading or paragraph from an element while preserving child formatting
+
+    Args:
+        document: The Word document object
+        element: BeautifulSoup element to process
+        heading_level: Heading level to use (if None, will be determined from element)
+        use_paragraph_style: Whether to use paragraph style (if None, will be determined)
+    """
+    if heading_level is None:
+        heading_level = HeadingsHelper.get_level_for_tag(element.name)
+    if use_paragraph_style is None:
+        use_paragraph_style = HeadingsHelper.should_use_paragraph_style(element.name)
+
+    if use_paragraph_style:
+        para = document.add_paragraph()
+        _process_element_children_with_formatting(para, element)
+    else:
+        heading = document.add_heading(level=heading_level)
+        _process_element_children_with_formatting(heading, element)
+
+
+def _find_organization_element(
+    blockquote: BS4_Element,
+) -> tuple[BS4_Element | None, bool]:
+    """Find and return the organization element from a blockquote
+
+    Args:
+        blockquote: BeautifulSoup blockquote element
+
+    Returns:
+        tuple: (organization_element, was_processed)
+    """
+    for item in blockquote.contents:
+        if isinstance(item, str) and not item.strip():
+            continue
+
+        if hasattr(item, "name") and item.name in ["h4", "h5", "h6"]:
+            return item, False
+        elif hasattr(item, "name") and item.name == "p":
+            strong_tag = item.find("strong")
+            if strong_tag:
+                return item, False
+
+    return None, False
+
+
+def _process_date_paragraph(document: Document, paragraph_element: BS4_Element) -> bool:
+    """Process a paragraph that contains date information (em tags)
+
+    Args:
+        document: The Word document object
+        paragraph_element: BeautifulSoup paragraph element
+
+    Returns:
+        bool: True if date was processed, False otherwise
+    """
+    em_tag = paragraph_element.find("em")
+    if not em_tag:
+        return False
+
+    date_text = em_tag.text.strip()
+    date_para = document.add_paragraph()
+
+    # Check if the date is hyperlinked
+    parent_a = em_tag.find_parent("a")
+    if parent_a and parent_a.get("href"):
+        _add_hyperlink(date_para, date_text, parent_a["href"])
+    else:
+        date_run = date_para.add_run(date_text)
+        date_run.italic = True
+
+    return True
 
 
 ##############################
