@@ -213,7 +213,7 @@ Another Degree
 
 > #### A Different Org
 > ##### Alternate Name • Something after a bullet
-> Some details
+> **Label** some details
 >
 > *Issued Month Year • Expires Month Year*
 
