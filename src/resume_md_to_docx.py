@@ -44,20 +44,22 @@ class ResumeSection(Enum):
         add_space_before_h3 (bool): Whether to add a blank line before each h3 heading
                                    (except the first after h2)
         add_space_before_h2 (bool): Whether to add a blank line before the h2 section
+        order (int): The order in which this section should appear in the document
     """
 
-    ABOUT = ("About", "PROFESSIONAL SUMMARY", False, False)
-    SKILLS = ("Top Skills", "TOP SKILLS", False, False)
-    EXPERIENCE = ("Experience", "PROFESSIONAL EXPERIENCE", True, False)
-    EDUCATION = ("Education", "EDUCATION", False, False)
+    ABOUT = ("About", "PROFESSIONAL SUMMARY", False, False, 1)
+    SKILLS = ("Top Skills", "TOP SKILLS", False, False, 2)
+    EXPERIENCE = ("Experience", "PROFESSIONAL EXPERIENCE", True, False, 3)
+    PROJECTS = ("Projects", "PROJECTS", True, True, 4)
     CERTIFICATIONS = (
         "Licenses & certifications",
         "LICENSES & CERTIFICATIONS",
         True,
         False,
+        5,
     )
-    PROJECTS = ("Projects", "PROJECTS", True, True)
-    CONTACT = ("Contact", "CONTACT INFORMATION", False, False)
+    EDUCATION = ("Education", "EDUCATION", False, False, 6)
+    CONTACT = ("Contact", "CONTACT INFORMATION", False, False, 7)
 
     def __init__(
         self,
@@ -65,12 +67,14 @@ class ResumeSection(Enum):
         docx_heading: str,
         add_space_before_h3: bool = False,
         add_space_before_h2: bool = False,
+        order: int = 999,
     ):
         self.markdown_heading = markdown_heading
         self.docx_heading = docx_heading
         self.markdown_heading_lower = markdown_heading.lower()
         self.add_space_before_h3 = add_space_before_h3
         self.add_space_before_h2 = add_space_before_h2
+        self.order = order
 
     def matches(self, text):
         """Check if the given text matches this section's markdown_heading (case insensitive)
@@ -82,6 +86,15 @@ class ResumeSection(Enum):
             bool: True if text matches markdown_heading (case insensitive), False otherwise
         """
         return text.lower() == self.markdown_heading_lower
+
+    @classmethod
+    def get_ordered_sections(cls):
+        """Get all resume sections ordered by their order property
+
+        Returns:
+            list: List of ResumeSection enum values sorted by order
+        """
+        return sorted(cls, key=lambda section: section.order)
 
 
 class JobSubsection(Enum):
@@ -697,45 +710,38 @@ def create_ats_resume(
         section.left_margin = Inches(doc_defaults["margin_left_right"])
         section.right_margin = Inches(doc_defaults["margin_left_right"])
 
-    # Define section processors with their specific processing functions
-    section_processors = [
-        (ResumeSection.ABOUT, process_header_section, True),  # Always required
-        (
-            ResumeSection.ABOUT,
-            lambda doc, soup: process_about_section(document=doc, soup=soup),
-            False,
-        ),
-        (
-            ResumeSection.SKILLS,
-            lambda doc, soup: process_skills_section(doc, soup),
-            False,
-        ),
-        (
-            ResumeSection.EXPERIENCE,
-            lambda doc, soup: process_experience_section(doc, soup),
-            False,
-        ),
-        (
-            ResumeSection.PROJECTS,
-            lambda doc, soup: process_projects_section(doc, soup),
-            False,
-        ),
-        (
-            ResumeSection.CERTIFICATIONS,
-            lambda doc, soup: process_certifications_section(doc, soup),
-            False,
-        ),
-        (
-            ResumeSection.EDUCATION,
-            lambda doc, soup: process_education_section(doc, soup),
-            False,
-        ),
-        (
-            ResumeSection.CONTACT,
-            lambda doc, soup: process_contact_section(doc, soup),
-            False,
-        ),
-    ]
+    # Define processor mapping
+    section_processor_map = {
+        ResumeSection.ABOUT: [
+            (process_header_section, True),  # Header always required
+            (lambda doc, soup: process_about_section(document=doc, soup=soup), False),
+        ],
+        ResumeSection.SKILLS: [
+            (lambda doc, soup: process_skills_section(doc, soup), False),
+        ],
+        ResumeSection.EXPERIENCE: [
+            (lambda doc, soup: process_experience_section(doc, soup), False),
+        ],
+        ResumeSection.PROJECTS: [
+            (lambda doc, soup: process_projects_section(doc, soup), False),
+        ],
+        ResumeSection.CERTIFICATIONS: [
+            (lambda doc, soup: process_certifications_section(doc, soup), False),
+        ],
+        ResumeSection.EDUCATION: [
+            (lambda doc, soup: process_education_section(doc, soup), False),
+        ],
+        ResumeSection.CONTACT: [
+            (lambda doc, soup: process_contact_section(doc, soup), False),
+        ],
+    }
+
+    # Build section processors in order
+    section_processors = []
+    for section_type in ResumeSection.get_ordered_sections():
+        if section_type in section_processor_map:
+            for processor, required in section_processor_map[section_type]:
+                section_processors.append((section_type, processor, required))
 
     # Process each section with error handling
     for section_type, processor, required in section_processors:
