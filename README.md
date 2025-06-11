@@ -59,8 +59,8 @@ This project allows you to maintain your resume in an easily editable Markdown f
 
 A [sample Markdown resume](./sample/template/sample.md) (`sample/template/sample.md`) is included in this project. You may copy or download it and use it as a *template* to create your own Markdown resume.
 
-> [!CAUTION]
-> For basic functionality, the **`h2`** level headings **should not** be changed; however if you feel so inclined, you can modify the `ResumeSection` *enum* according to your needs (see the [Resume Sections](#resume-sections-) section for more details).
+> [!IMPORTANT]
+> Any changes to `h2` heading text in your markdown file must be reflected in the corresponding `markdown_heading` values in the `resume_sections` configuration. See the [Resume Sections](#resume-sections-) section for more details.
 
 You can [download the sample `.docx` document](./sample/template/output/sample.docx) (`sample/template/output/sample.docx`) and open it in *Microsoft Word* or *Google Docs* (or another application capable of viewing `.docx` files) to see how the sample Markdown file is rendered.
 
@@ -105,8 +105,9 @@ The converter maps Markdown headings to ATS-friendly Word document headings usin
 | About | PROFESSIONAL SUMMARY |
 | Top Skills | CORE SKILLS |
 | Experience | PROFESSIONAL EXPERIENCE |
-| Education | EDUCATION |
+| Projects | PROJECTS |
 | Linceces & Certifications | LICENSES & CERTIFICATIONS |
+| Education | EDUCATION |
 | Contact | CONTACT INFORMATION |
 
 > [!Tip]
@@ -117,7 +118,25 @@ The converter maps Markdown headings to ATS-friendly Word document headings usin
 > [!NOTE]
 > *Only applies if [running locally](#local-usage-), or you're [deployling](#development-) your own*
 
-If you need to customize these mappings, you can modify the `ResumeSection` enum in [src/resume_md_to_docx.py](./src/resume_md_to_docx.py).
+If you need to customize these mappings, you can modify the `resume_sections` configuration block in [`resume_config.yaml`](./src/resume_config.yaml). For example:
+
+```yaml
+resume_sections:
+  about:
+    markdown_heading: "About Me"  # Changed from "About"
+    docx_heading: "PROFESSIONAL SUMMARY"
+    add_space_before_h3: false
+    add_space_before_h2: false
+  skills:
+    markdown_heading: "Core Skills"  # Changed from "Top Skills"
+    docx_heading: "TECHNICAL EXPERTISE"  # Changed heading text
+    add_space_before_h3: false
+    add_space_before_h2: false
+  # ... other sections
+```
+
+> [!IMPORTANT]
+> Remember that any changes to the `markdown_heading` values must match the corresponding h2 headings in your markdown resume file.
 
 
 

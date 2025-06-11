@@ -119,3 +119,40 @@ paragraph_headings:
   h6:
     level: 5
     paragraph_heading_size: 10
+
+resume_sections:
+  about:
+    markdown_heading: "About"
+    docx_heading: "PROFESSIONAL SUMMARY"
+    add_space_before_h3: false
+    add_space_before_h2: false
+  skills:
+    markdown_heading: "Top Skills"
+    docx_heading: "TOP SKILLS"
+    add_space_before_h3: false
+    add_space_before_h2: false
+  experience:
+    markdown_heading: "Experience"
+    docx_heading: "PROFESSIONAL EXPERIENCE"
+    add_space_before_h3: true
+    add_space_before_h2: false
+  projects:
+    markdown_heading: "Projects"
+    docx_heading: "PROJECTS"
+    add_space_before_h3: true
+    add_space_before_h2: true
+  certifications:
+    markdown_heading: "Licenses & certifications"
+    docx_heading: "LICENSES & CERTIFICATIONS"
+    add_space_before_h3: true
+    add_space_before_h2: false
+  education:
+    markdown_heading: "Education"
+    docx_heading: "EDUCATION"
+    add_space_before_h3: false
+    add_space_before_h2: false
+  contact:
+    markdown_heading: "Contact"
+    docx_heading: "CONTACT INFORMATION"
+    add_space_before_h3: false
+    add_space_before_h2: false

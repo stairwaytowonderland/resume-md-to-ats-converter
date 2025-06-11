@@ -35,46 +35,28 @@ EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 ##############################
 # Configs
 ##############################
-class ResumeSection(Enum):
-    """Maps markdown heading titles to their corresponding document headings
+class ResumeSection:
+    """Dynamic resume section configuration based on YAML config"""
 
-    Properties:
-        markdown_heading (str): The text of the h2 heading in the markdown file
-        docx_heading (str): The text to use as a heading in the Word document
-        add_space_before_h3 (bool): Whether to add a blank line before each h3 heading
-                                   (except the first after h2)
-        add_space_before_h2 (bool): Whether to add a blank line before the h2 section
-        order (int): The order in which this section should appear in the document
-    """
+    _sections = {}
+    _section_order = []  # Preserve order from YAML
+    _initialized = False
 
-    ABOUT = ("About", "PROFESSIONAL SUMMARY", False, False, 1)
-    SKILLS = ("Top Skills", "TOP SKILLS", False, False, 2)
-    EXPERIENCE = ("Experience", "PROFESSIONAL EXPERIENCE", True, False, 3)
-    PROJECTS = ("Projects", "PROJECTS", True, True, 4)
-    CERTIFICATIONS = (
-        "Licenses & certifications",
-        "LICENSES & CERTIFICATIONS",
-        True,
-        False,
-        5,
-    )
-    EDUCATION = ("Education", "EDUCATION", False, False, 6)
-    CONTACT = ("Contact", "CONTACT INFORMATION", False, False, 7)
+    def __init__(self, key: str, config: dict, order_index: int):
+        """Initialize a resume section from configuration
 
-    def __init__(
-        self,
-        markdown_heading: str,
-        docx_heading: str,
-        add_space_before_h3: bool = False,
-        add_space_before_h2: bool = False,
-        order: int = 999,
-    ):
-        self.markdown_heading = markdown_heading
-        self.docx_heading = docx_heading
-        self.markdown_heading_lower = markdown_heading.lower()
-        self.add_space_before_h3 = add_space_before_h3
-        self.add_space_before_h2 = add_space_before_h2
-        self.order = order
+        Args:
+            key: The section key (e.g., 'about', 'skills')
+            config: Dictionary containing section configuration
+            order_index: The position in the YAML file (0-based)
+        """
+        self.key = key
+        self.markdown_heading = config["markdown_heading"]
+        self.docx_heading = config["docx_heading"]
+        self.markdown_heading_lower = self.markdown_heading.lower()
+        self.add_space_before_h3 = config.get("add_space_before_h3", False)
+        self.add_space_before_h2 = config.get("add_space_before_h2", False)
+        self.order = order_index  # Use position in YAML as order
 
     def matches(self, text):
         """Check if the given text matches this section's markdown_heading (case insensitive)
@@ -88,13 +70,82 @@ class ResumeSection(Enum):
         return text.lower() == self.markdown_heading_lower
 
     @classmethod
-    def get_ordered_sections(cls):
-        """Get all resume sections ordered by their order property
+    def init_from_config(cls, resume_sections_config: dict):
+        """Initialize all resume sections from configuration
+
+        Args:
+            resume_sections_config: Ordered dictionary containing all section configurations
+                                  (order preserved from YAML)
+        """
+        cls._sections = {}
+        cls._section_order = []
+
+        # Process sections in the order they appear in the YAML
+        for order_index, (key, config) in enumerate(resume_sections_config.items()):
+            section = cls(key, config, order_index)
+            cls._sections[key.upper()] = section
+            cls._section_order.append(section)
+
+        cls._initialized = True
+
+    @classmethod
+    def get_section(cls, key: str):
+        """Get a section by key
+
+        Args:
+            key: Section key (case insensitive)
 
         Returns:
-            list: List of ResumeSection enum values sorted by order
+            ResumeSection instance or None if not found
         """
-        return sorted(cls, key=lambda section: section.order)
+        cls._check_initialized()
+        return cls._sections.get(key.upper())
+
+    @classmethod
+    def get_ordered_sections(cls):
+        """Get all resume sections in the order they appear in the YAML config
+
+        Returns:
+            list: List of ResumeSection instances in YAML order
+        """
+        cls._check_initialized()
+        return cls._section_order.copy()
+
+    @classmethod
+    def all_sections(cls):
+        """Get all sections as a dictionary
+
+        Returns:
+            dict: Dictionary of section_key -> ResumeSection
+        """
+        cls._check_initialized()
+        return cls._sections.copy()
+
+    @classmethod
+    def _check_initialized(cls):
+        """Check if sections have been initialized from config"""
+        if not cls._initialized:
+            raise RuntimeError(
+                "ResumeSection has not been initialized. Call ResumeSection.init_from_config() first."
+            )
+
+    def __str__(self):
+        return (
+            f"ResumeSection({self.key}: {self.markdown_heading} -> {self.docx_heading})"
+        )
+
+    def __repr__(self):
+        return self.__str__()
+
+
+# Create class attributes for backward compatibility
+ABOUT = None
+SKILLS = None
+EXPERIENCE = None
+PROJECTS = None
+CERTIFICATIONS = None
+EDUCATION = None
+CONTACT = None
 
 
 class JobSubsection(Enum):
@@ -281,6 +332,8 @@ class ConfigLoader:
             print_success_msg (bool): Whether to print success message after loading.
                                    Defaults to False.
         """
+        from collections import OrderedDict
+
         import yaml
         from yaml.parser import ParserError
 
@@ -315,79 +368,123 @@ class ConfigLoader:
                 "h5": {"level": 4, "paragraph_heading_size": 11},
                 "h6": {"level": 5, "paragraph_heading_size": 10},
             },
+            "resume_sections": OrderedDict(
+                [
+                    (
+                        "about",
+                        {
+                            "markdown_heading": "About",
+                            "docx_heading": "PROFESSIONAL SUMMARY",
+                            "add_space_before_h3": False,
+                            "add_space_before_h2": False,
+                        },
+                    ),
+                    (
+                        "skills",
+                        {
+                            "markdown_heading": "Top Skills",
+                            "docx_heading": "TOP SKILLS",
+                            "add_space_before_h3": False,
+                            "add_space_before_h2": False,
+                        },
+                    ),
+                    (
+                        "experience",
+                        {
+                            "markdown_heading": "Experience",
+                            "docx_heading": "PROFESSIONAL EXPERIENCE",
+                            "add_space_before_h3": True,
+                            "add_space_before_h2": False,
+                        },
+                    ),
+                    (
+                        "projects",
+                        {
+                            "markdown_heading": "Projects",
+                            "docx_heading": "PROJECTS",
+                            "add_space_before_h3": True,
+                            "add_space_before_h2": True,
+                        },
+                    ),
+                    (
+                        "certifications",
+                        {
+                            "markdown_heading": "Licenses & certifications",
+                            "docx_heading": "LICENSES & CERTIFICATIONS",
+                            "add_space_before_h3": True,
+                            "add_space_before_h2": False,
+                        },
+                    ),
+                    (
+                        "education",
+                        {
+                            "markdown_heading": "Education",
+                            "docx_heading": "EDUCATION",
+                            "add_space_before_h3": False,
+                            "add_space_before_h2": False,
+                        },
+                    ),
+                    (
+                        "contact",
+                        {
+                            "markdown_heading": "Contact",
+                            "docx_heading": "CONTACT INFORMATION",
+                            "add_space_before_h3": False,
+                            "add_space_before_h2": False,
+                        },
+                    ),
+                ]
+            ),
         }
 
         # Try to load the YAML config file
         if os.path.exists(config_file):
             try:
+                # Use a custom YAML loader that preserves order
+                class OrderedLoader(yaml.SafeLoader):
+                    pass
+
+                def construct_mapping(loader, node):
+                    loader.flatten_mapping(node)
+                    return OrderedDict(loader.construct_pairs(node))
+
+                OrderedLoader.add_constructor(
+                    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, construct_mapping
+                )
+
                 with open(config_file, "r") as f:
-                    yaml_config = yaml.safe_load(f)
+                    yaml_config = yaml.load(f, OrderedLoader)
 
-                # Use the YAML values directly if they exist
                 if yaml_config and isinstance(yaml_config, dict):
-                    # Replace document_defaults if provided
-                    if "document_defaults" in yaml_config:
-                        self._config["document_defaults"] = yaml_config[
-                            "document_defaults"
-                        ]
+                    # Replace resume_sections if provided (preserving order)
+                    if "resume_sections" in yaml_config:
+                        self._config["resume_sections"] = yaml_config["resume_sections"]
 
-                    # Replace style_constants if provided
-                    if "style_constants" in yaml_config:
-                        self._config["style_constants"] = yaml_config["style_constants"]
-
-                    if "paragraph_lists" in yaml_config:
-                        self._config["paragraph_lists"] = yaml_config["paragraph_lists"]
-
-                    # Replace paragraph_headings if provided
-                    if "paragraph_headings" in yaml_config:
-                        self._config["paragraph_headings"] = yaml_config[
-                            "paragraph_headings"
-                        ]
-
-                    # Process document styles - need to handle RGBColor and Pt objects
+                    # Validate document styles after loading
                     if "document_styles" in yaml_config:
-                        document_styles = {}
+                        validated_styles = {}
                         for style_name, properties in yaml_config[
                             "document_styles"
                         ].items():
-                            style_props = {}
+                            validated_styles[style_name] = _validate_style_properties(
+                                properties
+                            )
+                        self._config["document_styles"] = validated_styles
 
-                            # Convert font_size to Pt objects
-                            if "font_size" in properties and isinstance(
-                                properties["font_size"], (int, float)
+                    # Update other sections as before...
+                    for section in [
+                        "document_defaults",
+                        "style_constants",
+                        "paragraph_lists",
+                        "paragraph_headings",
+                    ]:
+                        if section in yaml_config:
+                            if isinstance(yaml_config[section], dict) and isinstance(
+                                self._config.get(section, {}), dict
                             ):
-                                style_props["font_size"] = Pt(properties["font_size"])
-
-                            # Convert color to RGBColor objects
-                            if "color" in properties and isinstance(
-                                properties["color"], str
-                            ):
-                                style_props["color"] = RGBColor.from_string(
-                                    properties["color"]
-                                )
-
-                            # Convert indent values to Inches
-                            for indent_key in ["indent_left", "indent_right"]:
-                                if indent_key in properties and isinstance(
-                                    properties[indent_key], (int, float)
-                                ):
-                                    style_props[indent_key] = Inches(
-                                        properties[indent_key]
-                                    )
-
-                            # Copy over all other properties directly
-                            for key, value in properties.items():
-                                if key not in [
-                                    "font_size",
-                                    "color",
-                                    "indent_left",
-                                    "indent_right",
-                                ]:
-                                    style_props[key] = value
-
-                            document_styles[style_name] = style_props
-
-                        self._config["document_styles"] = document_styles
+                                self._config[section].update(yaml_config[section])
+                            else:
+                                self._config[section] = yaml_config[section]
 
                     if print_success_msg:
                         print(f"✅ Config loaded from {config_file}")
@@ -440,6 +537,15 @@ class ConfigLoader:
             dict: Markdown headings configuration
         """
         return self._config.get("paragraph_headings", {})
+
+    @property
+    def resume_sections(self) -> dict:
+        """Get resume sections configuration (order preserved)
+
+        Returns:
+            dict: Resume sections configuration in YAML order
+        """
+        return self._config.get("resume_sections", {})
 
     def get_style_constant(self, key: str, default=None):
         """Get a specific style constant value
@@ -679,6 +785,19 @@ def create_ats_resume(
     if paragraph_style_headings is None:
         paragraph_style_headings = {}
 
+    # Initialize ResumeSection from config (order preserved from YAML)
+    ResumeSection.init_from_config(config_loader.resume_sections)
+
+    # Set module-level variables for backward compatibility
+    global ABOUT, SKILLS, EXPERIENCE, PROJECTS, CERTIFICATIONS, EDUCATION, CONTACT
+    ABOUT = ResumeSection.get_section("ABOUT")
+    SKILLS = ResumeSection.get_section("SKILLS")
+    EXPERIENCE = ResumeSection.get_section("EXPERIENCE")
+    PROJECTS = ResumeSection.get_section("PROJECTS")
+    CERTIFICATIONS = ResumeSection.get_section("CERTIFICATIONS")
+    EDUCATION = ResumeSection.get_section("EDUCATION")
+    CONTACT = ResumeSection.get_section("CONTACT")
+
     # Initialize ConfigHelper and HeadingsHelper with config
     ConfigHelper.init(config_loader.config)
     HeadingsHelper.init(config_loader.config, paragraph_style_headings)
@@ -712,31 +831,31 @@ def create_ats_resume(
 
     # Define processor mapping
     section_processor_map = {
-        ResumeSection.ABOUT: [
+        ABOUT: [
             (process_header_section, True),  # Header always required
             (lambda doc, soup: process_about_section(document=doc, soup=soup), False),
         ],
-        ResumeSection.SKILLS: [
+        SKILLS: [
             (lambda doc, soup: process_skills_section(doc, soup), False),
         ],
-        ResumeSection.EXPERIENCE: [
+        EXPERIENCE: [
             (lambda doc, soup: process_experience_section(doc, soup), False),
         ],
-        ResumeSection.PROJECTS: [
+        PROJECTS: [
             (lambda doc, soup: process_projects_section(doc, soup), False),
         ],
-        ResumeSection.CERTIFICATIONS: [
+        CERTIFICATIONS: [
             (lambda doc, soup: process_certifications_section(doc, soup), False),
         ],
-        ResumeSection.EDUCATION: [
+        EDUCATION: [
             (lambda doc, soup: process_education_section(doc, soup), False),
         ],
-        ResumeSection.CONTACT: [
+        CONTACT: [
             (lambda doc, soup: process_contact_section(doc, soup), False),
         ],
     }
 
-    # Build section processors in order
+    # Build section processors in YAML order
     section_processors = []
     for section_type in ResumeSection.get_ordered_sections():
         if section_type in section_processor_map:
@@ -887,7 +1006,7 @@ def process_about_section(
     Returns:
         None
     """
-    section_h2 = _prepare_section(document, soup, ResumeSection.ABOUT)
+    section_h2 = _prepare_section(document, soup, ABOUT)
 
     if not section_h2:
         return  # Gracefully exit if section doesn't exist
@@ -978,7 +1097,7 @@ def process_skills_section(
     Returns:
         None
     """
-    section_h2 = _prepare_section(document, soup, ResumeSection.SKILLS)
+    section_h2 = _prepare_section(document, soup, SKILLS)
 
     if not section_h2:
         return  # Gracefully exit if section doesn't exist
@@ -1004,7 +1123,7 @@ def process_experience_section(
     Returns:
         None
     """
-    section_h2 = _prepare_section(document, soup, ResumeSection.EXPERIENCE)
+    section_h2 = _prepare_section(document, soup, EXPERIENCE)
 
     if not section_h2:
         return  # Gracefully exit if section doesn't exist
@@ -1014,7 +1133,7 @@ def process_experience_section(
     # Use a set of element IDs instead of element objects
     processed_element_ids = set()
     processed_elements = set()
-    add_space_before_h3 = ResumeSection.EXPERIENCE.add_space_before_h3
+    add_space_before_h3 = EXPERIENCE.add_space_before_h3
 
     while current_element and current_element.name != "h2":
         # Get unique ID for this element
@@ -1208,7 +1327,7 @@ def process_education_section(
     section_h2 = _prepare_section(
         document,
         soup,
-        ResumeSection.EDUCATION,
+        EDUCATION,
     )
 
     if not section_h2:
@@ -1217,7 +1336,7 @@ def process_education_section(
     _process_simple_section(
         document,
         section_h2,
-        add_space=ResumeSection.EDUCATION.add_space_before_h3,
+        add_space=EDUCATION.add_space_before_h3,
     )
 
 
@@ -1237,7 +1356,7 @@ def process_certifications_section(
     section_h2 = _prepare_section(
         document,
         soup,
-        ResumeSection.CERTIFICATIONS,
+        CERTIFICATIONS,
     )
 
     if not section_h2:
@@ -1246,7 +1365,7 @@ def process_certifications_section(
     _process_projects_or_certifications(
         document,
         section_h2,
-        ResumeSection.CERTIFICATIONS.add_space_before_h3,
+        CERTIFICATIONS.add_space_before_h3,
     )
 
 
@@ -1266,7 +1385,7 @@ def process_projects_section(
     section_h2 = _prepare_section(
         document,
         soup,
-        ResumeSection.PROJECTS,
+        PROJECTS,
     )
 
     if not section_h2:
@@ -1275,7 +1394,7 @@ def process_projects_section(
     _process_projects_or_certifications(
         document,
         section_h2,
-        ResumeSection.PROJECTS.add_space_before_h3,
+        PROJECTS.add_space_before_h3,
     )
 
 
@@ -1295,7 +1414,7 @@ def process_contact_section(
     section_h2 = _prepare_section(
         document,
         soup,
-        ResumeSection.CONTACT,
+        CONTACT,
     )
 
     if not section_h2:
@@ -1304,13 +1423,157 @@ def process_contact_section(
     _process_simple_section(
         document,
         section_h2,
-        add_space=ResumeSection.CONTACT.add_space_before_h3,
+        add_space=CONTACT.add_space_before_h3,
     )
 
 
 ##############################
 # Primary Helpers
 ##############################
+def _convert_hex_to_rgb_color(color_value: str | RGBColor) -> RGBColor | None:
+    """Convert hex color string to RGBColor object
+
+    Args:
+        color_value: Either a hex string or already an RGBColor object
+
+    Returns:
+        RGBColor object or None if conversion fails
+    """
+    if isinstance(color_value, str):
+        hex_color = color_value.lstrip("#")
+        if len(hex_color) == 6:
+            try:
+                r = int(hex_color[0:2], 16)
+                g = int(hex_color[2:4], 16)
+                b = int(hex_color[4:6], 16)
+                return RGBColor(r, g, b)
+            except ValueError:
+                return None
+    elif hasattr(color_value, "rgb"):  # Already an RGBColor
+        return color_value
+    return None
+
+
+def _apply_font_properties(font_obj, properties: dict) -> None:
+    """Apply font properties to a font object
+
+    Args:
+        font_obj: The font object (from style.font or run.font)
+        properties: Dictionary containing font properties
+    """
+    if "font_name" in properties:
+        font_obj.name = properties["font_name"]
+    if "font_size" in properties:
+        font_obj.size = Pt(properties["font_size"])
+    if "bold" in properties:
+        font_obj.bold = properties["bold"]
+    if "italic" in properties:
+        font_obj.italic = properties["italic"]
+    if "underline" in properties:
+        font_obj.underline = properties["underline"]
+    if "color" in properties:
+        rgb_color = _convert_hex_to_rgb_color(properties["color"])
+        if rgb_color:
+            font_obj.color.rgb = rgb_color
+
+
+def _apply_paragraph_format_properties(paragraph_format, properties: dict) -> None:
+    """Apply paragraph format properties to a paragraph format object
+
+    Args:
+        paragraph_format: The paragraph format object
+        properties: Dictionary containing paragraph format properties
+    """
+    if "line_spacing" in properties:
+        paragraph_format.line_spacing = properties["line_spacing"]
+    if "space_after" in properties:
+        paragraph_format.space_after = Pt(properties["space_after"])
+    if "indent_left" in properties:
+        paragraph_format.left_indent = Inches(properties["indent_left"])
+    if "indent_right" in properties:
+        paragraph_format.right_indent = Inches(properties["indent_right"])
+    if "alignment" in properties:
+        paragraph_format.alignment = properties["alignment"]
+
+
+def _create_hyperlink_style(document: Document, hyperlink_props: dict) -> bool:
+    """Create a Hyperlink character style if it doesn't exist
+
+    Args:
+        document: The Word document object
+        hyperlink_props: Dictionary containing hyperlink style properties
+
+    Returns:
+        bool: True if style was created successfully, False otherwise
+    """
+    if "Hyperlink" in document.styles:
+        return True  # Already exists
+
+    try:
+        hyperlink_style = document.styles.add_style(
+            "Hyperlink", DOCX_STYLE_TYPE.CHARACTER
+        )
+        validated_props = _validate_style_properties(hyperlink_props)
+        _apply_font_properties(hyperlink_style.font, validated_props)
+        return True
+    except Exception as e:
+        print(f"Warning: Could not create Hyperlink style: {str(e)}")
+        return False
+
+
+def _validate_style_properties(properties: dict) -> dict:
+    """Validate and clean style properties with type checking
+
+    Args:
+        properties: Raw properties dictionary
+
+    Returns:
+        dict: Validated and cleaned properties
+    """
+    valid_props = {}
+
+    # Font properties with type validation
+    font_prop_types = {
+        "font_name": str,
+        "font_size": (int, float),
+        "bold": bool,
+        "italic": bool,
+        "underline": bool,
+        "color": str,
+    }
+
+    for prop, expected_type in font_prop_types.items():
+        if prop in properties:
+            value = properties[prop]
+            if isinstance(value, expected_type):
+                valid_props[prop] = value
+            else:
+                print(
+                    f"Warning: Invalid type for {prop}, expected {expected_type.__name__}, got {type(value).__name__}"
+                )
+
+    # Paragraph format properties with type validation
+    para_prop_types = {
+        "line_spacing": (int, float),
+        "space_after": (int, float),
+        "indent_left": (int, float),
+        "indent_right": (int, float),
+        "alignment": int,  # DOCX alignment constants
+    }
+
+    for prop, expected_type in para_prop_types.items():
+        if prop in properties:
+            value = properties[prop]
+            if isinstance(value, expected_type):
+                valid_props[prop] = value
+            else:
+                print(
+                    f"Warning: Invalid type for {prop}, expected {expected_type.__name__}, got {type(value).__name__}"
+                )
+
+    return valid_props
+
+
 def _apply_document_styles(
     document: Document, styles: dict = None, style_constants: dict = None
 ) -> None:
@@ -1325,64 +1588,31 @@ def _apply_document_styles(
         print("Warning: No styles or style constants provided, using defaults")
         return
 
-    if "Hyperlink" in styles and "Hyperlink" not in document.styles:
-        hyperlink_props = styles["Hyperlink"]
-        try:
-            hyperlink_style = document.styles.add_style(
-                "Hyperlink", DOCX_STYLE_TYPE.CHARACTER
-            )
+    # Handle Hyperlink style creation if needed
+    if "Hyperlink" in styles:
+        _create_hyperlink_style(document, styles["Hyperlink"])
 
-            # Apply font properties from the config
-            if "font_name" in hyperlink_props:
-                hyperlink_style.font.name = hyperlink_props["font_name"]
-            if "font_size" in hyperlink_props:
-                hyperlink_style.font.size = hyperlink_props["font_size"]
-            if "underline" in hyperlink_props:
-                hyperlink_style.font.underline = hyperlink_props["underline"]
-            if "color" in hyperlink_props and isinstance(hyperlink_props["color"], str):
-                hyperlink_style.font.color.rgb = RGBColor.from_string(
-                    hyperlink_props["color"]
-                )
-        except Exception as e:
-            print(f"Warning: Could not create Hyperlink style: {str(e)}")
-
+    # Apply properties to existing styles
     for style_name, properties in styles.items():
-
         if style_name == "Hyperlink" and style_name not in document.styles:
-            continue  # Already handled above
+            continue  # Already handled above or creation failed
 
         try:
-            # Get the style object from document
             style = document.styles[style_name]
 
-            # Apply font properties
-            if "font_name" in properties:
-                style.font.name = properties["font_name"]
-            if "font_size" in properties:
-                style.font.size = properties["font_size"]
-            if "bold" in properties:
-                style.font.bold = properties["bold"]
-            if "italic" in properties:
-                style.font.italic = properties["italic"]
-            if "underline" in properties:
-                style.font.underline = properties["underline"]
-            if "color" in properties:
-                style.font.color.rgb = properties["color"]
+            # Validate properties before applying them
+            validated_props = _validate_style_properties(properties)
 
-            # Apply paragraph format properties
+            # Apply font properties using helper function
+            _apply_font_properties(style.font, validated_props)
+
+            # Apply paragraph format properties if the style supports them
             if hasattr(style, "paragraph_format"):
-                if "line_spacing" in properties:
-                    style.paragraph_format.line_spacing = properties["line_spacing"]
-                if "space_after" in properties:
-                    style.paragraph_format.space_after = properties["space_after"]
-                if "indent_left" in properties:
-                    style.paragraph_format.left_indent = properties["indent_left"]
-                if "indent_right" in properties:
-                    style.paragraph_format.right_indent = properties["indent_right"]
-                if "alignment" in properties:
-                    style.paragraph_format.alignment = properties["alignment"]
+                _apply_paragraph_format_properties(
+                    style.paragraph_format, validated_props
+                )
 
-        except (KeyError, AttributeError) as e:
+        except (KeyError, AttributeError, ValueError) as e:
             print(
                 f"Warning: Could not apply all properties to '{style_name}': {str(e)}"
             )
