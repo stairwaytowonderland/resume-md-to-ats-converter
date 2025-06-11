@@ -35,119 +35,6 @@ EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 ##############################
 # Configs
 ##############################
-class ResumeSection:
-    """Dynamic resume section configuration based on YAML config"""
-
-    _sections = {}
-    _section_order = []  # Preserve order from YAML
-    _initialized = False
-
-    def __init__(self, key: str, config: dict, order_index: int):
-        """Initialize a resume section from configuration
-
-        Args:
-            key: The section key (e.g., 'about', 'skills')
-            config: Dictionary containing section configuration
-            order_index: The position in the YAML file (0-based)
-        """
-        self.key = key
-        self.markdown_heading = config["markdown_heading"]
-        self.docx_heading = config["docx_heading"]
-        self.markdown_heading_lower = self.markdown_heading.lower()
-        self.add_space_before_h3 = config.get("add_space_before_h3", False)
-        self.add_space_before_h2 = config.get("add_space_before_h2", False)
-        self.order = order_index  # Use position in YAML as order
-
-    def matches(self, text):
-        """Check if the given text matches this section's markdown_heading (case insensitive)
-
-        Args:
-            text (str): Text to compare against markdown_heading
-
-        Returns:
-            bool: True if text matches markdown_heading (case insensitive), False otherwise
-        """
-        return text.lower() == self.markdown_heading_lower
-
-    @classmethod
-    def init_from_config(cls, resume_sections_config: dict):
-        """Initialize all resume sections from configuration
-
-        Args:
-            resume_sections_config: Ordered dictionary containing all section configurations
-                                  (order preserved from YAML)
-        """
-        cls._sections = {}
-        cls._section_order = []
-
-        # Process sections in the order they appear in the YAML
-        for order_index, (key, config) in enumerate(resume_sections_config.items()):
-            section = cls(key, config, order_index)
-            cls._sections[key.upper()] = section
-            cls._section_order.append(section)
-
-        cls._initialized = True
-
-    @classmethod
-    def get_section(cls, key: str):
-        """Get a section by key
-
-        Args:
-            key: Section key (case insensitive)
-
-        Returns:
-            ResumeSection instance or None if not found
-        """
-        cls._check_initialized()
-        return cls._sections.get(key.upper())
-
-    @classmethod
-    def get_ordered_sections(cls):
-        """Get all resume sections in the order they appear in the YAML config
-
-        Returns:
-            list: List of ResumeSection instances in YAML order
-        """
-        cls._check_initialized()
-        return cls._section_order.copy()
-
-    @classmethod
-    def all_sections(cls):
-        """Get all sections as a dictionary
-
-        Returns:
-            dict: Dictionary of section_key -> ResumeSection
-        """
-        cls._check_initialized()
-        return cls._sections.copy()
-
-    @classmethod
-    def _check_initialized(cls):
-        """Check if sections have been initialized from config"""
-        if not cls._initialized:
-            raise RuntimeError(
-                "ResumeSection has not been initialized. Call ResumeSection.init_from_config() first."
-            )
-
-    def __str__(self):
-        return (
-            f"ResumeSection({self.key}: {self.markdown_heading} -> {self.docx_heading})"
-        )
-
-    def __repr__(self):
-        return self.__str__()
-
-
-# Create class attributes for backward compatibility
-ABOUT = None
-SKILLS = None
-EXPERIENCE = None
-PROJECTS = None
-CERTIFICATIONS = None
-EDUCATION = None
-CONTACT = None
-
-
 class JobSubsection(Enum):
     """Maps markdown subsection headings to their corresponding document headings
 
@@ -269,6 +156,109 @@ class PdfConverterPaths(Enum):
 ##############################
 # Helper Classes
 ##############################
+class ResumeSection:
+    """Dynamic resume section configuration based on YAML config"""
+
+    _sections = {}
+    _section_order = []  # Preserve order from YAML
+    _initialized = False
+
+    def __init__(self, key: str, config: dict, order_index: int):
+        """Initialize a resume section from configuration
+
+        Args:
+            key: The section key (e.g., 'about', 'skills')
+            config: Dictionary containing section configuration
+            order_index: The position in the YAML file (0-based)
+        """
+        self.key = key
+        self.markdown_heading = config["markdown_heading"]
+        self.docx_heading = config["docx_heading"]
+        self.markdown_heading_lower = self.markdown_heading.lower()
+        self.add_space_before_h3 = config.get("add_space_before_h3", False)
+        self.add_space_before_h2 = config.get("add_space_before_h2", False)
+        self.order = order_index  # Use position in YAML as order
+
+    def matches(self, text):
+        """Check if the given text matches this section's markdown_heading (case insensitive)
+
+        Args:
+            text (str): Text to compare against markdown_heading
+
+        Returns:
+            bool: True if text matches markdown_heading (case insensitive), False otherwise
+        """
+        return text.lower() == self.markdown_heading_lower
+
+    @classmethod
+    def init_from_config(cls, resume_sections_config: dict):
+        """Initialize all resume sections from configuration
+
+        Args:
+            resume_sections_config: Ordered dictionary containing all section configurations
+                                  (order preserved from YAML)
+        """
+        cls._sections = {}
+        cls._section_order = []
+
+        # Process sections in the order they appear in the YAML
+        for order_index, (key, config) in enumerate(resume_sections_config.items()):
+            section = cls(key, config, order_index)
+            cls._sections[key.upper()] = section
+            cls._section_order.append(section)
+
+        cls._initialized = True
+
+    @classmethod
+    def get_section(cls, key: str):
+        """Get a section by key
+
+        Args:
+            key: Section key (case insensitive)
+
+        Returns:
+            ResumeSection instance or None if not found
+        """
+        cls._check_initialized()
+        return cls._sections.get(key.upper())
+
+    @classmethod
+    def get_ordered_sections(cls):
+        """Get all resume sections in the order they appear in the YAML config
+
+        Returns:
+            list: List of ResumeSection instances in YAML order
+        """
+        cls._check_initialized()
+        return cls._section_order.copy()
+
+    @classmethod
+    def all_sections(cls):
+        """Get all sections as a dictionary
+
+        Returns:
+            dict: Dictionary of section_key -> ResumeSection
+        """
+        cls._check_initialized()
+        return cls._sections.copy()
+
+    @classmethod
+    def _check_initialized(cls):
+        """Check if sections have been initialized from config"""
+        if not cls._initialized:
+            raise RuntimeError(
+                "ResumeSection has not been initialized. Call ResumeSection.init_from_config() first."
+            )
+
+    def __str__(self):
+        return (
+            f"ResumeSection({self.key}: {self.markdown_heading} -> {self.docx_heading})"
+        )
+
+    def __repr__(self):
+        return self.__str__()
+
+
 class OutputFilePath:
     """Class to handle output file path generation
 
@@ -788,16 +778,6 @@ def create_ats_resume(
     # Initialize ResumeSection from config (order preserved from YAML)
     ResumeSection.init_from_config(config_loader.resume_sections)
 
-    # Set module-level variables for backward compatibility
-    global ABOUT, SKILLS, EXPERIENCE, PROJECTS, CERTIFICATIONS, EDUCATION, CONTACT
-    ABOUT = ResumeSection.get_section("ABOUT")
-    SKILLS = ResumeSection.get_section("SKILLS")
-    EXPERIENCE = ResumeSection.get_section("EXPERIENCE")
-    PROJECTS = ResumeSection.get_section("PROJECTS")
-    CERTIFICATIONS = ResumeSection.get_section("CERTIFICATIONS")
-    EDUCATION = ResumeSection.get_section("EDUCATION")
-    CONTACT = ResumeSection.get_section("CONTACT")
-
     # Initialize ConfigHelper and HeadingsHelper with config
     ConfigHelper.init(config_loader.config)
     HeadingsHelper.init(config_loader.config, paragraph_style_headings)
@@ -829,31 +809,52 @@ def create_ats_resume(
         section.left_margin = Inches(doc_defaults["margin_left_right"])
         section.right_margin = Inches(doc_defaults["margin_left_right"])
 
-    # Define processor mapping
-    section_processor_map = {
-        ABOUT: [
+    # Define processor mapping using dynamic section access
+    section_processor_map = {}
+
+    # Get sections dynamically using _get_section helper
+    about_section = ResumeSection.get_section("ABOUT")
+    if about_section:
+        section_processor_map[about_section] = [
             (process_header_section, True),  # Header always required
             (lambda doc, soup: process_about_section(document=doc, soup=soup), False),
-        ],
-        SKILLS: [
+        ]
+
+    skills_section = ResumeSection.get_section("SKILLS")
+    if skills_section:
+        section_processor_map[skills_section] = [
             (lambda doc, soup: process_skills_section(doc, soup), False),
-        ],
-        EXPERIENCE: [
+        ]
+
+    experience_section = ResumeSection.get_section("EXPERIENCE")
+    if experience_section:
+        section_processor_map[experience_section] = [
             (lambda doc, soup: process_experience_section(doc, soup), False),
-        ],
-        PROJECTS: [
+        ]
+
+    projects_section = ResumeSection.get_section("PROJECTS")
+    if projects_section:
+        section_processor_map[projects_section] = [
             (lambda doc, soup: process_projects_section(doc, soup), False),
-        ],
-        CERTIFICATIONS: [
+        ]
+
+    certifications_section = ResumeSection.get_section("CERTIFICATIONS")
+    if certifications_section:
+        section_processor_map[certifications_section] = [
             (lambda doc, soup: process_certifications_section(doc, soup), False),
-        ],
-        EDUCATION: [
+        ]
+
+    education_section = ResumeSection.get_section("EDUCATION")
+    if education_section:
+        section_processor_map[education_section] = [
             (lambda doc, soup: process_education_section(doc, soup), False),
-        ],
-        CONTACT: [
+        ]
+
+    contact_section = ResumeSection.get_section("CONTACT")
+    if contact_section:
+        section_processor_map[contact_section] = [
             (lambda doc, soup: process_contact_section(doc, soup), False),
-        ],
-    }
+        ]
 
     # Build section processors in YAML order
     section_processors = []
@@ -1006,7 +1007,8 @@ def process_about_section(
     Returns:
         None
     """
-    section_h2 = _prepare_section(document, soup, ABOUT)
+    about_section = ResumeSection.get_section("ABOUT")
+    section_h2 = _prepare_section(document, soup, about_section)
 
     if not section_h2:
         return  # Gracefully exit if section doesn't exist
@@ -1097,7 +1099,8 @@ def process_skills_section(
     Returns:
         None
     """
-    section_h2 = _prepare_section(document, soup, SKILLS)
+    skills_section = ResumeSection.get_section("SKILLS")
+    section_h2 = _prepare_section(document, soup, skills_section)
 
     if not section_h2:
         return  # Gracefully exit if section doesn't exist
@@ -1123,7 +1126,8 @@ def process_experience_section(
     Returns:
         None
     """
-    section_h2 = _prepare_section(document, soup, EXPERIENCE)
+    experience_section = ResumeSection.get_section("EXPERIENCE")
+    section_h2 = _prepare_section(document, soup, experience_section)
 
     if not section_h2:
         return  # Gracefully exit if section doesn't exist
@@ -1133,7 +1137,7 @@ def process_experience_section(
     # Use a set of element IDs instead of element objects
     processed_element_ids = set()
     processed_elements = set()
-    add_space_before_h3 = EXPERIENCE.add_space_before_h3
+    add_space_before_h3 = experience_section.add_space_before_h3
 
     while current_element and current_element.name != "h2":
         # Get unique ID for this element
@@ -1324,10 +1328,11 @@ def process_education_section(
     Returns:
         None
     """
+    education_section = ResumeSection.get_section("EDUCATION")
     section_h2 = _prepare_section(
         document,
         soup,
-        EDUCATION,
+        education_section,
     )
 
     if not section_h2:
@@ -1336,7 +1341,7 @@ def process_education_section(
     _process_simple_section(
         document,
         section_h2,
-        add_space=EDUCATION.add_space_before_h3,
+        add_space=education_section.add_space_before_h3,
     )
 
 
@@ -1353,10 +1358,11 @@ def process_certifications_section(
     Returns:
         None
     """
+    certifications_section = ResumeSection.get_section("CERTIFICATIONS")
     section_h2 = _prepare_section(
         document,
         soup,
-        CERTIFICATIONS,
+        certifications_section,
     )
 
     if not section_h2:
@@ -1365,7 +1371,7 @@ def process_certifications_section(
     _process_projects_or_certifications(
         document,
         section_h2,
-        CERTIFICATIONS.add_space_before_h3,
+        certifications_section.add_space_before_h3,
     )
 
 
@@ -1382,10 +1388,11 @@ def process_projects_section(
     Returns:
         None
     """
+    projects_section = ResumeSection.get_section("PROJECTS")
     section_h2 = _prepare_section(
         document,
         soup,
-        PROJECTS,
+        projects_section,
     )
 
     if not section_h2:
@@ -1394,7 +1401,7 @@ def process_projects_section(
     _process_projects_or_certifications(
         document,
         section_h2,
-        PROJECTS.add_space_before_h3,
+        projects_section.add_space_before_h3,
     )
 
 
@@ -1411,10 +1418,11 @@ def process_contact_section(
     Returns:
         None
     """
+    contact_section = ResumeSection.get_section("CONTACT")
     section_h2 = _prepare_section(
         document,
         soup,
-        CONTACT,
+        contact_section,
     )
 
     if not section_h2:
@@ -1423,7 +1431,7 @@ def process_contact_section(
     _process_simple_section(
         document,
         section_h2,
-        add_space=CONTACT.add_space_before_h3,
+        add_space=contact_section.add_space_before_h3,
     )
 
 
