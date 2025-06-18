@@ -18,7 +18,7 @@ style_constants:
   top_skills_separator: " | "  # Separator for top skills area
   top_skills_bold: true  # Enable/disable bold formatting for top skills
   key_skills_separator_markdown: " • "  # Separator for key skills area
-  key_skills_separator: " · "  # Separator for key skills area
+  key_skills_separator: ", "  # Separator for key skills area (·)
   key_skills_bold: true  # Enable/disable bold formatting for key skills
   paragraph_after_h4_line_spacing: 1.35  # Line spacing for date/location line
   paragraph_after_h4_font_size: 10  # Font size for date/location line
