@@ -1650,20 +1650,28 @@ def _prepare_section(
     section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
 
     if not section_h2:
-        # Log that section was not found (optional)
         print(f"ℹ️  Section '{section_type.docx_heading}' not found in document")
         return None
 
-    # Use the generic function instead of the specific one
+    # Check if there's an HR before this section
     section_page_break = _has_hr_before_element(section_h2)
 
-    # Add page break if requested
+    # Add page break if HR is found
     if section_page_break:
-        p = document.add_paragraph()
-        run = p.add_run()
-        run.add_break(DOCX_BREAK_TYPE.PAGE)
-
-    # Add extra space before h2 section if requested (but not if there's already a page break)
+        # Get the last paragraph in the document
+        if document.paragraphs:
+            last_para = document.paragraphs[-1]
+            # Add page break to the LAST paragraph instead of creating a new one
+            if last_para.runs:
+                last_para.runs[-1].add_break(DOCX_BREAK_TYPE.PAGE)
+            else:
+                run = last_para.add_run()
+                run.add_break(DOCX_BREAK_TYPE.PAGE)
+        else:
+            # No paragraphs exist, create one with page break
+            p = document.add_paragraph()
+            run = p.add_run()
+            run.add_break(DOCX_BREAK_TYPE.PAGE)
     elif section_type.add_space_before_h2:
         _add_space_paragraph(document, ConfigHelper.get_style_constant("font_size_pts"))
 
