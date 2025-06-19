@@ -10,6 +10,7 @@ document_defaults:
 # Style constants - general formatting preferences
 style_constants:
   font_size_pts: 11
+  space_paragraph_font_size: 10
   indent_inches: 0.25
   bullet_indent_inches: 0.5
   horizontal_line_char: "_"  # Character for horizontal lines
@@ -55,7 +56,8 @@ document_styles:
     # bold: true
     # underline: true
     color: "365F91"
-    space_before: 28
+    # space_before: 24
+    space_after: 4
 
   Heading 2:  # H2 - Company names
     # font_name: "Helvetica Neue"
@@ -72,7 +74,7 @@ document_styles:
     # bold: true
     # italic: false
     color: "4F81BD"
-    space_before: 4
+    # space_before: 4
 
   Heading 4:  # H4 - Subsections
     # font_name: "Helvetica Neue"
@@ -129,7 +131,8 @@ resume_sections:
   about:
     markdown_heading: "About"
     docx_heading: "PROFESSIONAL SUMMARY"
-    add_space_before_h3: false
+    space_before_h3: 16
+    add_space_before_h3: true
     add_space_before_h2: false
   skills:
     markdown_heading: "Top Skills"
@@ -139,6 +142,7 @@ resume_sections:
   experience:
     markdown_heading: "Experience"
     docx_heading: "PROFESSIONAL EXPERIENCE"
+    space_before_h3: 18
     add_space_before_h3: true
     add_space_before_h2: false
   projects:
