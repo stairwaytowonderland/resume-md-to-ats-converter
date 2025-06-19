@@ -342,6 +342,9 @@ class ConfigLoader:
                 "horizontal_line_char": "_",
                 "horizontal_line_length": 50,
                 "paragraph_after_h4_line_spacing": 0.20,
+                "paragraph_after_h4_font_size": 10,
+                "key_skills_line_spacing": 0.20,
+                "key_skills_font_size": 10,
             },
             "document_styles": {},
             "paragraph_lists": {
@@ -2708,34 +2711,54 @@ def _process_horizontal_skills_list(
     Returns:
         DOCX_Paragraph: The created paragraph
     """
-    # Determine which separators and bold setting to use
+    # Get configuration based on skills type
     if is_top_skills:
-        input_separator = custom_input_separator or ConfigHelper.get_style_constant(
-            "top_skills_separator_markdown", " • "
-        )
-        output_separator = custom_output_separator or ConfigHelper.get_style_constant(
-            "top_skills_separator", " | "
-        )
-        apply_bold = ConfigHelper.get_style_constant("top_skills_bold", False)
+        config_prefix = "top_skills"
+        default_input_sep = " • "
+        default_output_sep = " | "
         use_formatted_paragraph = True
     else:
-        input_separator = custom_input_separator or ConfigHelper.get_style_constant(
-            "key_skills_separator_markdown", " • "
-        )
-        output_separator = custom_output_separator or ConfigHelper.get_style_constant(
-            "key_skills_separator", " · "
-        )
-        apply_bold = ConfigHelper.get_style_constant("key_skills_bold", False)
+        config_prefix = "key_skills"
+        default_input_sep = " · "
+        default_output_sep = ", "
         use_formatted_paragraph = False
+
+    # Get separators and formatting options
+    input_separator = custom_input_separator or ConfigHelper.get_style_constant(
+        f"{config_prefix}_separator_markdown", default_input_sep
+    )
+    output_separator = custom_output_separator or ConfigHelper.get_style_constant(
+        f"{config_prefix}_separator", default_output_sep
+    )
+    apply_bold = ConfigHelper.get_style_constant(f"{config_prefix}_bold", False)
+
+    # Get font size and line spacing (key skills specific)
+    font_size = ConfigHelper.get_style_constant(f"{config_prefix}_font_size", None)
+    line_spacing = ConfigHelper.get_style_constant(
+        f"{config_prefix}_line_spacing", None
+    )
 
     # Parse skills from text
     skills = [s.strip() for s in text.split(input_separator.strip())]
     skills = [s for s in skills if s]
 
     # Format and add to document
-    return _format_skills_list(
+    paragraph = _format_skills_list(
         document, skills, output_separator, apply_bold, use_formatted_paragraph
     )
+
+    # Apply additional formatting if specified and not using formatted paragraph
+    if not use_formatted_paragraph:
+        # Apply font size to all runs in the paragraph
+        if font_size:
+            for run in paragraph.runs:
+                run.font.size = Pt(font_size)
+
+        # Apply line spacing to the paragraph
+        if line_spacing:
+            paragraph.paragraph_format.line_spacing = line_spacing
+
+    return paragraph
 
 
 def _add_formatted_paragraph(

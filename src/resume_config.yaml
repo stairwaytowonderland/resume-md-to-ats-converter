@@ -17,11 +17,13 @@ style_constants:
   top_skills_separator_markdown: " • "  # Separator for top skills area
   top_skills_separator: " | "  # Separator for top skills area
   top_skills_bold: true  # Enable/disable bold formatting for top skills
-  key_skills_separator_markdown: " • "  # Separator for key skills area
-  key_skills_separator: ", "  # Separator for key skills area (·)
+  key_skills_separator_markdown: " · "  # Separator for key skills area
+  key_skills_separator: ", "  # Separator for key skills area
   key_skills_bold: true  # Enable/disable bold formatting for key skills
   paragraph_after_h4_line_spacing: 1.35  # Line spacing for date/location line
   paragraph_after_h4_font_size: 10  # Font size for date/location line
+  key_skills_line_spacing: 1.35  # Line spacing for key skills line
+  key_skills_font_size: 10  # Font size for key skills line
   paragraph_lists: yes  # Enable/disable paragraph-style lists
 
 # Document styles - Word document style definitions
@@ -97,7 +99,7 @@ document_styles:
 
 paragraph_lists:
   ul:
-    bullet_character: "•"  # Custom bullet character to use in lists
+    bullet_character: "•"  # Custom bullet character to use in lists (●, •, ◦, ·, etc.)
     paragraph_delimiter: "\n"  # Line delimiter for paragraph-style lists
 
 paragraph_headings:
