@@ -55,6 +55,7 @@ document_styles:
     # bold: true
     # underline: true
     color: "365F91"
+    space_before: 28
 
   Heading 2:  # H2 - Company names
     # font_name: "Helvetica Neue"
@@ -62,6 +63,7 @@ document_styles:
     # bold: true
     # italic: false
     color: "4F81BD"
+    space_before: 10
 
   Heading 3:  # H3 - Role titles
     # font_name: "Helvetica Neue"
@@ -70,6 +72,7 @@ document_styles:
     # bold: true
     # italic: false
     color: "4F81BD"
+    space_before: 4
 
   Heading 4:  # H4 - Subsections
     # font_name: "Helvetica Neue"
@@ -142,7 +145,7 @@ resume_sections:
     markdown_heading: "Projects"
     docx_heading: "PROJECTS"
     add_space_before_h3: true
-    add_space_before_h2: true
+    add_space_before_h2: false
   certifications:
     markdown_heading: "Licenses & certifications"
     docx_heading: "LICENSES & CERTIFICATIONS"

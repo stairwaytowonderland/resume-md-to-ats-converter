@@ -1497,6 +1497,8 @@ def _apply_paragraph_format_properties(paragraph_format, properties: dict) -> No
     """
     if "line_spacing" in properties:
         paragraph_format.line_spacing = properties["line_spacing"]
+    if "space_before" in properties:
+        paragraph_format.space_before = Pt(properties["space_before"])
     if "space_after" in properties:
         paragraph_format.space_after = Pt(properties["space_after"])
     if "indent_left" in properties:
@@ -1567,6 +1569,7 @@ def _validate_style_properties(properties: dict) -> dict:
     para_prop_types = {
         "line_spacing": (int, float),
         "space_after": (int, float),
+        "space_before": (int, float),
         "indent_left": (int, float),
         "indent_right": (int, float),
         "alignment": int,  # DOCX alignment constants
