@@ -69,7 +69,7 @@ document_styles:
     # italic: false
     color: "4F81BD"
     space_before: 8
-    line_spacing: 1.0
+    # line_spacing: 1.0
 
   Heading 3:  # H3 - Role titles
     # font_name: "Helvetica Neue"
@@ -151,7 +151,7 @@ resume_sections:
     docx_heading: "PROFESSIONAL EXPERIENCE"
     add_space_before_h2: false
     add_space_before_h3: true
-    space_before_h3: 14
+    space_before_h3: 16
     space_after_h3: 0
     add_space_before_h4: true
     space_before_h4: 8
@@ -167,6 +167,9 @@ resume_sections:
     docx_heading: "LICENSES & CERTIFICATIONS"
     add_space_before_h2: false
     add_space_before_h3: true
+    add_space_before_h4: true
+    space_before_h3: 16
+    space_before_h4: 4
   education:
     markdown_heading: "Education"
     docx_heading: "EDUCATION"

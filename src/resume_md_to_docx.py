@@ -1422,11 +1422,19 @@ def process_certifications_section(
     )
     space_after_h3 = certifications_section.space_after_h3
 
+    add_space_before_h4 = certifications_section.add_space_before_h4
+    space_before_h4 = (
+        certifications_section.space_before_h4 if add_space_before_h4 else None
+    )
+    space_after_h4 = certifications_section.space_after_h4
+
     _process_projects_or_certifications(
         document,
         section_h2,
-        space_before=space_before_h3,
-        space_after=space_after_h3,
+        space_before_h3=space_before_h3,
+        space_after_h3=space_after_h3,
+        space_before_h4=space_before_h4,
+        space_after_h4=space_after_h4,
     )
 
 
@@ -2214,8 +2222,10 @@ def _add_heading_or_paragraph(
 def _process_projects_or_certifications(
     document: Document,
     section_h2: BeautifulSoup,
-    space_before: int | None = None,
-    space_after: int | None = None,
+    space_before_h3: int | None = None,
+    space_after_h3: int | None = None,
+    space_before_h4: int | None = None,
+    space_after_h4: int | None = None,
 ) -> None:
     """Process the certifications section with its specific structure
 
@@ -2248,11 +2258,11 @@ def _process_projects_or_certifications(
                 # space_after=space_after,
             )
 
-            if space_before and not first_h3_after_h2:
+            if space_before_h3 and not first_h3_after_h2:
                 _add_space_before_or_after(
                     para,
-                    space_before,
-                    space_after,
+                    space_before_h3,
+                    space_after_h3,
                 )
 
             else:
@@ -2273,7 +2283,9 @@ def _process_projects_or_certifications(
             # Handle blockquote (optional)
             if next_element and next_element.name == "blockquote":
                 # Process the blockquote contents
-                _process_project_or_certification_blockquote(document, next_element)
+                _process_project_or_certification_blockquote(
+                    document, next_element, space_before_h4, space_after_h4
+                )
 
             # If no blockquote, look for organization info directly
             elif next_element:
@@ -2311,6 +2323,8 @@ def _process_projects_or_certifications(
 def _process_project_or_certification_blockquote(
     document: Document,
     blockquote: BS4_Element,
+    space_before_h4: int | None = None,
+    space_after_h4: int | None = None,
 ) -> None:
     """Process the contents of a certification blockquote
 
@@ -2326,7 +2340,12 @@ def _process_project_or_certification_blockquote(
 
     if org_element:
         if org_element.name in ["h4", "h5", "h6"]:
-            _create_heading_with_formatting_preservation(document, org_element)
+            _create_heading_with_formatting_preservation(
+                document,
+                org_element,
+                space_before=space_before_h4,
+                space_after=space_after_h4,
+            )
         else:  # paragraph with strong tag
             strong_tag = org_element.find("strong")
             if strong_tag:
@@ -2392,6 +2411,8 @@ def _create_heading_with_formatting_preservation(
     element: BS4_Element,
     heading_level: int | None = None,
     use_paragraph_style: bool = None,
+    space_before: int | None = None,
+    space_after: int | None = None,
 ) -> None:
     """Create a heading or paragraph from an element while preserving child formatting
 
@@ -2408,10 +2429,16 @@ def _create_heading_with_formatting_preservation(
 
     if use_paragraph_style:
         para = document.add_paragraph()
-        _process_element_children_with_formatting(para, element)
     else:
-        heading = document.add_heading(level=heading_level)
-        _process_element_children_with_formatting(heading, element)
+        para = document.add_heading(level=heading_level)
+
+    _process_element_children_with_formatting(para, element)
+
+    _add_space_before_or_after(
+        para,
+        space_before,
+        space_after,
+    )
 
 
 def _find_organization_element(
