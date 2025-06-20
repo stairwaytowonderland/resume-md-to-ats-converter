@@ -176,14 +176,14 @@ class ResumeSection:
         self.docx_heading = config["docx_heading"]
         self.markdown_heading_lower = self.markdown_heading.lower()
         self.add_space_before_h2 = config.get("add_space_before_h2", False)
-        self.space_before_h2 = config.get("space_before_h2", 10)
-        self.space_after_h2 = config.get("space_after_h2", 0)
+        self.space_before_h2 = config.get("space_before_h2", None)
+        self.space_after_h2 = config.get("space_after_h2", None)
         self.add_space_before_h3 = config.get("add_space_before_h3", False)
-        self.space_before_h3 = config.get("space_before_h3", 10)
-        self.space_after_h3 = config.get("space_after_h3", 0)
+        self.space_before_h3 = config.get("space_before_h3", None)
+        self.space_after_h3 = config.get("space_after_h3", None)
         self.add_space_before_h4 = config.get("add_space_before_h4", False)
-        self.space_before_h4 = config.get("space_before_h4", 10)
-        self.space_after_h4 = config.get("space_after_h4", 0)
+        self.space_before_h4 = config.get("space_before_h4", None)
+        self.space_after_h4 = config.get("space_after_h4", None)
         self.order = order_index  # Use position in YAML as order
 
     def matches(self, text):
@@ -348,8 +348,8 @@ class ConfigLoader:
                 "bullet_indent_inches": 0.5,
                 "horizontal_line_char": "_",
                 "horizontal_line_length": 50,
-                "paragraph_after_h4_line_spacing": 1.3,
-                "paragraph_after_h4_font_size": 10,
+                "date_location_line_spacing": 1.3,
+                "date_location_font_size": 10,
                 "key_skills_line_spacing": 1.3,
                 "key_skills_font_size": 10,
                 "position_title_line_spacing": 1.2,
@@ -1033,6 +1033,7 @@ def process_about_section(
 
     add_space_before_h3 = about_section.add_space_before_h3
     space_before_h3 = about_section.space_before_h3 if add_space_before_h3 else None
+    space_after_h3 = about_section.space_after_h3
 
     if not section_h2:
         return  # Gracefully exit if section doesn't exist
@@ -1100,6 +1101,7 @@ def process_about_section(
                 bold=highlights_subsection.bold,
                 italic=highlights_subsection.italic,
                 space_before=space_before_h3,
+                space_after=space_after_h3,
             )
             processed_elements.add(current_element)
 
@@ -1414,10 +1416,17 @@ def process_certifications_section(
     if not section_h2:
         return  # Gracefully exit if section doesn't exist
 
+    add_space_before_h3 = certifications_section.add_space_before_h3
+    space_before_h3 = (
+        certifications_section.space_before_h3 if add_space_before_h3 else None
+    )
+    space_after_h3 = certifications_section.space_after_h3
+
     _process_projects_or_certifications(
         document,
         section_h2,
-        certifications_section.add_space_before_h3,
+        space_before=space_before_h3,
+        space_after=space_after_h3,
     )
 
 
@@ -1444,10 +1453,15 @@ def process_projects_section(
     if not section_h2:
         return  # Gracefully exit if section doesn't exist
 
+    add_space_before_h3 = projects_section.add_space_before_h3
+    space_before_h3 = projects_section.space_before_h3 if add_space_before_h3 else None
+    space_after_h3 = projects_section.space_after_h3
+
     _process_projects_or_certifications(
         document,
         section_h2,
-        projects_section.add_space_before_h3,
+        space_before_h3,
+        space_after_h3,
     )
 
 
@@ -1918,8 +1932,8 @@ def _process_job_entry(
     document: Document,
     job_element: BS4_Element,
     processed_elements: set[BS4_Element],
-    space_before: int = None,
-    space_after: int = None,
+    space_before: int | None = None,
+    space_after: int | None = None,
 ) -> set[BS4_Element]:
     """Process a job entry (h3) and its related elements
 
@@ -2046,8 +2060,8 @@ def _process_position(
     document: Document,
     element: BS4_Element,
     processed_elements: set[BS4_Element],
-    space_before: int = None,
-    space_after: int = None,
+    space_before: int | None = None,
+    space_after: int | None = None,
 ) -> set[BS4_Element]:
     """Process a position entry (h4) and its related elements
 
@@ -2111,7 +2125,7 @@ def _process_position(
 
                     reduced_spacing = float(
                         ConfigHelper.get_style_constant(
-                            "paragraph_after_h4_line_spacing", 1.2
+                            "date_location_line_spacing", 1.2
                         )
                     )
                     combo_para = document.add_paragraph()
@@ -2119,7 +2133,7 @@ def _process_position(
 
                     # Get font size from config
                     date_loc_font_size = ConfigHelper.get_style_constant(
-                        "paragraph_after_h4_font_size", None
+                        "date_location_font_size", None
                     )
 
                     # Add date with appropriate formatting
@@ -2154,9 +2168,9 @@ def _add_heading_or_paragraph(
     use_paragraph_style: bool = False,
     bold: bool = True,
     italic: bool = False,
-    font_size: int = None,
-    space_before: int = None,
-    space_after: int = None,
+    font_size: int | None = None,
+    space_before: int | None = None,
+    space_after: int | None = None,
 ) -> DOCX_Paragraph:
     """Add either a heading or a formatted paragraph based on preference
 
@@ -2200,7 +2214,8 @@ def _add_heading_or_paragraph(
 def _process_projects_or_certifications(
     document: Document,
     section_h2: BeautifulSoup,
-    add_space: bool = False,
+    space_before: int | None = None,
+    space_after: int | None = None,
 ) -> None:
     """Process the certifications section with its specific structure
 
@@ -2224,23 +2239,24 @@ def _process_projects_or_certifications(
             use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h3")
             heading_level = HeadingsHelper.get_level_for_tag("h3")
 
-            # Add blank line before h3 except for the first one
-            # Only add space if add_space is True
-            if add_space and not first_h3_after_h2:
-                # document.add_paragraph()
-                _add_space_paragraph(
-                    document,
-                    ConfigHelper.get_style_constant("font_size_pts"),
-                )
-            else:
-                first_h3_after_h2 = False  # After first h3 is processed
-
-            _add_heading_or_paragraph(
+            para = _add_heading_or_paragraph(
                 document,
                 cert_name,
                 heading_level,
                 use_paragraph_style=use_paragraph_style,
+                # space_before=space_before,
+                # space_after=space_after,
             )
+
+            if space_before and not first_h3_after_h2:
+                _add_space_before_or_after(
+                    para,
+                    space_before,
+                    space_after,
+                )
+
+            else:
+                first_h3_after_h2 = False  # After first h3 is processed
 
             # Look for next elements - either blockquote or organization info directly
             next_element = current_element.find_next_sibling()
@@ -2374,7 +2390,7 @@ def _process_element_children_with_formatting(
 def _create_heading_with_formatting_preservation(
     document: Document,
     element: BS4_Element,
-    heading_level: int = None,
+    heading_level: int | None = None,
     use_paragraph_style: bool = None,
 ) -> None:
     """Create a heading or paragraph from an element while preserving child formatting
@@ -2862,7 +2878,7 @@ def _add_formatted_paragraph(
     italic: bool = False,
     alignment: DOCX_PARAGRAPH_ALIGN = None,
     indentation: float = None,
-    font_size: int = None,
+    font_size: int | None = None,
 ) -> DOCX_Paragraph:
     """Add a paragraph with consistent formatting
 
@@ -3109,7 +3125,7 @@ def _add_horizontal_line_simple(document: Document) -> None:
 
 
 def _add_space_paragraph(
-    document: Document, font_size: int = None, space_before: int = None
+    document: Document, font_size: int | None = None, space_before: int | None = None
 ) -> None:
     """Add a paragraph with extra space after it
 
@@ -3131,7 +3147,9 @@ def _add_space_paragraph(
 
 
 def _add_space_before_or_after(
-    paragraph: DOCX_Paragraph, space_before: int = None, space_after: int = None
+    paragraph: DOCX_Paragraph,
+    space_before: int | None = None,
+    space_after: int | None = None,
 ) -> None:
     """Add a paragraph with extra space after it
 
@@ -3142,16 +3160,10 @@ def _add_space_before_or_after(
     Returns:
         None
     """
-    paragraph.paragraph_format.space_before = Pt(
-        space_before
-        if space_before is not None
-        else ConfigHelper.get_style_constant("space_before", 10)
-    )
-    paragraph.paragraph_format.space_after = Pt(
-        space_after
-        if space_after is not None
-        else ConfigHelper.get_style_constant("space_after", 0)
-    )
+    if space_before:
+        paragraph.paragraph_format.space_before = Pt(space_before)
+    if space_after:
+        paragraph.paragraph_format.space_after = Pt(space_after)
 
 
 def _ensure_sentence_ending(text: str) -> str:
