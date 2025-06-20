@@ -1154,7 +1154,12 @@ def process_experience_section(
         None
     """
     experience_section = ResumeSection.get_section("EXPERIENCE")
-    section_h2 = _prepare_section(document, soup, experience_section)
+    section_h2 = _prepare_section(
+        document,
+        soup,
+        experience_section,
+        space_after=experience_section.space_after_h2,
+    )
 
     if not section_h2:
         return  # Gracefully exit if section doesn't exist
@@ -1299,8 +1304,9 @@ def process_experience_section(
                             next_heading = looking_ahead
 
                     # Add space if this is the last role or before a new role (most likely h4)
-                    if not next_heading or next_heading.name in ["h4"]:
-                        _add_space_paragraph(document, 8)
+                    # TODO: can this be removed?
+                    # if not next_heading or next_heading.name in ["h4"]:
+                    #     _add_space_paragraph(document, 8)
 
                 # RESPONSIBILITIES subsection (standalone)
                 elif (
@@ -1464,12 +1470,14 @@ def process_projects_section(
     add_space_before_h3 = projects_section.add_space_before_h3
     space_before_h3 = projects_section.space_before_h3 if add_space_before_h3 else None
     space_after_h3 = projects_section.space_after_h3
+    space_after_h4 = projects_section.space_after_h4
 
     _process_projects_or_certifications(
         document,
         section_h2,
-        space_before_h3,
-        space_after_h3,
+        space_before_h3=space_before_h3,
+        space_after_h3=space_after_h3,
+        space_after_h4=space_after_h4,
     )
 
 
@@ -1720,6 +1728,11 @@ def _prepare_section(
         print(f"ℹ️  Section '{section_type.docx_heading}' not found in document")
         return None
 
+    space_before = space_before or (
+        section_type.add_space_before_h2 and section_type.space_before_h2
+    )
+    space_after = space_after or section_type.space_after_h2
+
     # Check if there's an HR before this section
     section_page_break = _has_hr_before_element(section_h2)
 
@@ -1739,8 +1752,10 @@ def _prepare_section(
             p = document.add_paragraph()
             run = p.add_run()
             run.add_break(DOCX_BREAK_TYPE.PAGE)
-    elif section_type.add_space_before_h2:
-        _add_space_paragraph(document, ConfigHelper.get_style_constant("font_size_pts"))
+
+    # TODO: can this be removed?
+    # elif section_type.add_space_before_h2:
+    #     _add_space_paragraph(document, ConfigHelper.get_style_constant("font_size_pts"))
 
     # Add the section heading
     use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h2")
@@ -1965,11 +1980,10 @@ def _process_job_entry(
 
     # Otherwise add normal spacing if needed
     # TODO: this can probably be removed
-    # elif space_before_h3:
-    #     prev_heading = job_element.find_previous(["h2", "h3"])
-    #     if prev_heading and prev_heading.name == "h3":
-    #         para = document.add_paragraph()
-    #         _add_space_paragraph(document, space_before=space_before_h3)
+    elif space_before:
+        prev_heading = job_element.find_previous(["h2", "h3"])
+        if prev_heading and prev_heading.name == "h2":
+            space_before = None
 
     # Add the company name as h3
     use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h3")
@@ -2261,12 +2275,16 @@ def _process_projects_or_certifications(
             if space_before_h3 and not first_h3_after_h2:
                 _add_space_before_or_after(
                     para,
-                    space_before_h3,
-                    space_after_h3,
+                    space_before=space_before_h3,
                 )
 
             else:
                 first_h3_after_h2 = False  # After first h3 is processed
+
+            _add_space_before_or_after(
+                para,
+                space_after=space_after_h3,
+            )
 
             # Look for next elements - either blockquote or organization info directly
             next_element = current_element.find_next_sibling()
