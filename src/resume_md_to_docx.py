@@ -175,10 +175,15 @@ class ResumeSection:
         self.markdown_heading = config["markdown_heading"]
         self.docx_heading = config["docx_heading"]
         self.markdown_heading_lower = self.markdown_heading.lower()
-        self.space_before_h3 = config.get("space_before_h3", 10)
-        self.add_space_before_h3 = config.get("add_space_before_h3", False)
-        self.space_before_h2 = config.get("space_before_h2", 10)
         self.add_space_before_h2 = config.get("add_space_before_h2", False)
+        self.space_before_h2 = config.get("space_before_h2", 10)
+        self.space_after_h2 = config.get("space_after_h2", 0)
+        self.add_space_before_h3 = config.get("add_space_before_h3", False)
+        self.space_before_h3 = config.get("space_before_h3", 10)
+        self.space_after_h3 = config.get("space_after_h3", 0)
+        self.add_space_before_h4 = config.get("add_space_before_h4", False)
+        self.space_before_h4 = config.get("space_before_h4", 10)
+        self.space_after_h4 = config.get("space_after_h4", 0)
         self.order = order_index  # Use position in YAML as order
 
     def matches(self, text):
@@ -343,10 +348,11 @@ class ConfigLoader:
                 "bullet_indent_inches": 0.5,
                 "horizontal_line_char": "_",
                 "horizontal_line_length": 50,
-                "paragraph_after_h4_line_spacing": 0.20,
+                "paragraph_after_h4_line_spacing": 1.3,
                 "paragraph_after_h4_font_size": 10,
-                "key_skills_line_spacing": 0.20,
+                "key_skills_line_spacing": 1.3,
                 "key_skills_font_size": 10,
+                "position_title_line_spacing": 1.2,
             },
             "document_styles": {},
             "paragraph_lists": {
@@ -1013,7 +1019,18 @@ def process_about_section(
         None
     """
     about_section = ResumeSection.get_section("ABOUT")
-    section_h2 = _prepare_section(document, soup, about_section)
+    add_space_before_h2 = about_section.add_space_before_h2
+    space_before_h2 = about_section.space_before_h2 if add_space_before_h2 else None
+    space_after_h2 = about_section.space_after_h2
+
+    section_h2 = _prepare_section(
+        document,
+        soup,
+        about_section,
+        space_before=space_before_h2,
+        space_after=space_after_h2,
+    )
+
     add_space_before_h3 = about_section.add_space_before_h3
     space_before_h3 = about_section.space_before_h3 if add_space_before_h3 else None
 
@@ -1149,6 +1166,13 @@ def process_experience_section(
     space_before_h3 = (
         experience_section.space_before_h3 if add_space_before_h3 else None
     )
+    space_after_h3 = experience_section.space_after_h3
+
+    add_space_before_h4 = experience_section.add_space_before_h4
+    space_before_h4 = (
+        experience_section.space_before_h4 if add_space_before_h4 else None
+    )
+    space_after_h4 = experience_section.space_after_h4
 
     while current_element and current_element.name != "h2":
         # Get unique ID for this element
@@ -1163,12 +1187,14 @@ def process_experience_section(
         if current_element.name == "h3":
             # Process job entry and mark as processed
             processed_elements = _process_job_entry(
-                document, current_element, set(), space_before_h3
+                document, current_element, set(), space_before_h3, space_after_h3
             )
             processed_element_ids.add(element_id)
         elif current_element.name == "h4" and element_id not in processed_element_ids:
             # Process position and mark as processed
-            processed_elements = _process_position(document, current_element, set())
+            processed_elements = _process_position(
+                document, current_element, set(), space_before_h4, space_after_h4
+            )
             processed_element_ids.add(element_id)
 
         elif (
@@ -1224,6 +1250,9 @@ def process_experience_section(
                     use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
                         current_element.name
                     )
+                    key_skills_heading_line_spacing = ConfigHelper.get_style_constant(
+                        "key_skills_heading_line_spacing", None
+                    )
                     skills_heading = _add_heading_or_paragraph(
                         document,
                         subsection.full_heading,
@@ -1232,6 +1261,12 @@ def process_experience_section(
                         bold=subsection.bold,
                         italic=subsection.italic,
                     )
+
+                    # Set line spacing for the heading
+                    if key_skills_heading_line_spacing:
+                        skills_heading.paragraph_format.line_spacing = (
+                            key_skills_heading_line_spacing
+                        )
 
                     # Get skills from next element
                     next_element = current_element.find_next_sibling()
@@ -1644,6 +1679,8 @@ def _prepare_section(
     document: Document,
     soup: BeautifulSoup,
     section_type: ResumeSection,
+    space_before: int | None = None,
+    space_after: int | None = None,
 ) -> BS4_Element | None:
     """Universal preliminary section preparation
 
@@ -1691,6 +1728,8 @@ def _prepare_section(
         section_type.docx_heading,
         heading_level,
         use_paragraph_style=use_paragraph_style,
+        space_before=space_before,
+        space_after=space_after,
     )
 
     return section_h2
@@ -1879,7 +1918,8 @@ def _process_job_entry(
     document: Document,
     job_element: BS4_Element,
     processed_elements: set[BS4_Element],
-    space_before_h3: bool = None,
+    space_before: int = None,
+    space_after: int = None,
 ) -> set[BS4_Element]:
     """Process a job entry (h3) and its related elements
 
@@ -1887,7 +1927,8 @@ def _process_job_entry(
         document: The Word document object
         job_element: BeautifulSoup element for the job heading
         processed_elements: Set of elements already processed
-        space_before_h3: Whether to add space before h3 headings (except first)
+        space_before: Whether to add space before h3 headings (except first)
+        space_after: Space after h3 heading, if any
 
     Returns:
         Updated set of processed elements
@@ -1916,7 +1957,8 @@ def _process_job_entry(
         job_title,
         heading_level,
         use_paragraph_style=use_paragraph_style,
-        space_before=space_before_h3,
+        space_before=space_before,
+        space_after=space_after,
     )
 
     # Mark the h3 as processed
@@ -2004,6 +2046,8 @@ def _process_position(
     document: Document,
     element: BS4_Element,
     processed_elements: set[BS4_Element],
+    space_before: int = None,
+    space_after: int = None,
 ) -> set[BS4_Element]:
     """Process a position entry (h4) and its related elements
 
@@ -2011,21 +2055,32 @@ def _process_position(
         document: The Word document object
         job: BeautifulSoup element
         processed_elements: Set of elements already processed
+        space_before: Whether to add space before h4 headings
+        space_after: Space after h4 heading, if any
 
     Returns:
         Updated set of processed elements
     """
     position_title = element.text.strip()
 
+    position_line_spacing = ConfigHelper.get_style_constant(
+        "position_title_line_spacing", None
+    )
+
     # Add the position heading
     heading_level = HeadingsHelper.get_level_for_tag(element.name)
     use_paragraph_style = HeadingsHelper.should_use_paragraph_style(element.name)
-    _add_heading_or_paragraph(
+    position_para = _add_heading_or_paragraph(
         document,
         position_title,
         heading_level,
         use_paragraph_style=use_paragraph_style,
+        space_before=space_before,
+        space_after=space_after,
     )
+
+    if position_line_spacing:
+        position_para.paragraph_format.line_spacing = position_line_spacing
 
     processed_elements.add(element)
     next_element = element.find_next_sibling()
@@ -2056,7 +2111,7 @@ def _process_position(
 
                     reduced_spacing = float(
                         ConfigHelper.get_style_constant(
-                            "paragraph_after_h4_line_spacing", 0.80
+                            "paragraph_after_h4_line_spacing", 1.2
                         )
                     )
                     combo_para = document.add_paragraph()
@@ -2101,6 +2156,7 @@ def _add_heading_or_paragraph(
     italic: bool = False,
     font_size: int = None,
     space_before: int = None,
+    space_after: int = None,
 ) -> DOCX_Paragraph:
     """Add either a heading or a formatted paragraph based on preference
 
@@ -2132,11 +2188,11 @@ def _add_heading_or_paragraph(
     else:
         para = document.add_heading(text, level=heading_level)
 
-    if space_before:
-        _add_space_before(
-            para,
-            space_before,
-        )
+    _add_space_before_or_after(
+        para,
+        space_before,
+        space_after,
+    )
 
     return para
 
@@ -3067,19 +3123,16 @@ def _add_space_paragraph(
     if font_size is None:
         font_size = ConfigHelper.get_style_constant("font_size_pts", 11)
 
-    if space_before is None:
-        space_before = ConfigHelper.get_style_constant(
-            "space_paragraph_font_size", font_size
-        )
-
     p = document.add_paragraph()
     p.add_run()
     # run.text = " "  # Add a space character to create a blank line
     # run.font.size = Pt(font_size)
-    _add_space_before(p, space_before)
+    _add_space_before_or_after(p, space_before)
 
 
-def _add_space_before(paragraph: DOCX_Paragraph, space_before: int = None) -> None:
+def _add_space_before_or_after(
+    paragraph: DOCX_Paragraph, space_before: int = None, space_after: int = None
+) -> None:
     """Add a paragraph with extra space after it
 
     Args:
@@ -3089,13 +3142,16 @@ def _add_space_before(paragraph: DOCX_Paragraph, space_before: int = None) -> No
     Returns:
         None
     """
-    if space_before is None:
-        space_before = ConfigHelper.get_style_constant(
-            "space_paragraph_font_size",
-            ConfigHelper.get_style_constant("font_size_pts", 11),
-        )
-
-    paragraph.paragraph_format.space_before = Pt(space_before)
+    paragraph.paragraph_format.space_before = Pt(
+        space_before
+        if space_before is not None
+        else ConfigHelper.get_style_constant("space_before", 10)
+    )
+    paragraph.paragraph_format.space_after = Pt(
+        space_after
+        if space_after is not None
+        else ConfigHelper.get_style_constant("space_after", 0)
+    )
 
 
 def _ensure_sentence_ending(text: str) -> str:

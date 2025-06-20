@@ -10,7 +10,8 @@ document_defaults:
 # Style constants - general formatting preferences
 style_constants:
   font_size_pts: 11
-  space_paragraph_font_size: 10
+  space_before: 10
+  space_after: 0
   indent_inches: 0.25
   bullet_indent_inches: 0.5
   horizontal_line_char: "_"  # Character for horizontal lines
@@ -21,10 +22,12 @@ style_constants:
   key_skills_separator_markdown: " · "  # Separator for key skills area
   key_skills_separator: ", "  # Separator for key skills area
   key_skills_bold: true  # Enable/disable bold formatting for key skills
-  paragraph_after_h4_line_spacing: 1.35  # Line spacing for date/location line
-  paragraph_after_h4_font_size: 10  # Font size for date/location line
   key_skills_line_spacing: 1.35  # Line spacing for key skills line
   key_skills_font_size: 10  # Font size for key skills line
+  key_skills_heading_line_spacing: 1.0  # Line spacing for key skills heading
+  paragraph_after_h4_line_spacing: 1.35  # Line spacing for date/location line
+  paragraph_after_h4_font_size: 10  # Font size for date/location line
+  position_title_line_spacing: 1.0  # Line spacing for position title line
   paragraph_lists: yes  # Enable/disable paragraph-style lists
 
 # Document styles - Word document style definitions
@@ -66,6 +69,7 @@ document_styles:
     # italic: false
     color: "4F81BD"
     space_before: 10
+    line_spacing: 1.0
 
   Heading 3:  # H3 - Role titles
     # font_name: "Helvetica Neue"
@@ -74,7 +78,7 @@ document_styles:
     # bold: true
     # italic: false
     color: "4F81BD"
-    # space_before: 4
+    space_before: 4
 
   Heading 4:  # H4 - Subsections
     # font_name: "Helvetica Neue"
@@ -132,6 +136,7 @@ resume_sections:
     markdown_heading: "About"
     docx_heading: "PROFESSIONAL SUMMARY"
     space_before_h3: 16
+    space_after_h2: 16
     add_space_before_h3: true
     add_space_before_h2: false
   skills:
@@ -143,8 +148,12 @@ resume_sections:
     markdown_heading: "Experience"
     docx_heading: "PROFESSIONAL EXPERIENCE"
     space_before_h3: 18
+    space_after_h3: 0
     add_space_before_h3: true
     add_space_before_h2: false
+    add_space_before_h4: true
+    # space_before_h4: 6
+    space_after_h4: 0
   projects:
     markdown_heading: "Projects"
     docx_heading: "PROJECTS"
