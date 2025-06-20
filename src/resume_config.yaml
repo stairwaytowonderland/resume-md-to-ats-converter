@@ -2,10 +2,16 @@
 
 # Document defaults - controls margins and page size
 document_defaults:
-  margin_top_bottom: 0.7  # in inches
+  margin_top: 0.5  # in inches
+  margin_bottom: 1.0  # in inches
   margin_left_right: 0.8  # in inches
   page_width: 8.5  # in inches (US Letter)
   page_height: 11.0  # in inches (US Letter)
+  # Page number settings
+  page_numbers_enabled: true
+  page_numbers_alignment: "center"  # left, center, right
+  page_numbers_format: "with_total"     # simple, with_total
+  page_numbers_text: "Page {page} of {total}"
 
 # Style constants - general formatting preferences
 style_constants:
@@ -16,6 +22,7 @@ style_constants:
   bullet_indent_inches: 0.5
   horizontal_line_char: "_"  # Character for horizontal lines
   horizontal_line_length: 50  # Length of horizontal line
+  header_specialty_space_after: 4  # Space after headings
   top_skills_separator_markdown: " • "  # Separator for top skills area
   top_skills_separator: " | "  # Separator for top skills area
   top_skills_bold: true  # Enable/disable bold formatting for top skills
@@ -29,6 +36,8 @@ style_constants:
   date_location_font_size: 10  # Font size for date/location line
   position_title_line_spacing: 1.0  # Line spacing for position title line
   paragraph_lists: yes  # Enable/disable paragraph-style lists
+  page_number_font_size: 8
+  page_number_font_name: "Helvetica Neue"
 
 # Document styles - Word document style definitions
 document_styles:

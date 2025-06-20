@@ -337,7 +337,8 @@ class ConfigLoader:
         # Default empty configuration structure
         self._config = {
             "document_defaults": {
-                "margin_top_bottom": 0.7,
+                "margin_top": 0.7,
+                "margin_bottom": 0.7,
                 "margin_left_right": 0.8,
                 "page_width": 8.5,
                 "page_height": 11.0,
@@ -547,6 +548,34 @@ class ConfigLoader:
             dict: Resume sections configuration in YAML order
         """
         return self._config.get("resume_sections", {})
+
+    @property
+    def page_numbers_enabled(self) -> bool:
+        """Get whether page numbers are enabled"""
+        return self._config.get("document_defaults", {}).get(
+            "page_numbers_enabled", False
+        )
+
+    @property
+    def page_numbers_alignment(self) -> str:
+        """Get page numbers alignment"""
+        return self._config.get("document_defaults", {}).get(
+            "page_numbers_alignment", "center"
+        )
+
+    @property
+    def page_numbers_format(self) -> str:
+        """Get page numbers format"""
+        return self._config.get("document_defaults", {}).get(
+            "page_numbers_format", "simple"
+        )
+
+    @property
+    def page_numbers_text(self) -> str:
+        """Get page numbers text format"""
+        return self._config.get("document_defaults", {}).get(
+            "page_numbers_text", "Page {page} of {total}"
+        )
 
     def get_style_constant(self, key: str, default=None):
         """Get a specific style constant value
@@ -815,8 +844,8 @@ def create_ats_resume(
     for section in document.sections:
         section.page_width = Inches(doc_defaults["page_width"])
         section.page_height = Inches(doc_defaults["page_height"])
-        section.top_margin = Inches(doc_defaults["margin_top_bottom"])
-        section.bottom_margin = Inches(doc_defaults["margin_top_bottom"])
+        section.top_margin = Inches(doc_defaults["margin_top"])
+        section.bottom_margin = Inches(doc_defaults["margin_bottom"])
         section.left_margin = Inches(doc_defaults["margin_left_right"])
         section.right_margin = Inches(doc_defaults["margin_left_right"])
 
@@ -885,6 +914,9 @@ def create_ats_resume(
                 print(
                     f"⚠️  Warning: Could not process {section_type.docx_heading}: {str(e)}"
                 )
+
+    # Add page numbers if enabled
+    _add_configured_page_numbers(document, config_loader)
 
     # Save the document
     document.save(output_file)
@@ -999,6 +1031,13 @@ def process_header_section(
             specialty_para = document.add_paragraph()
             specialty_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
             specialty_para.add_run(current_p.text)
+            header_specialty_space_after = ConfigHelper.get_style_constant(
+                "header_specialty_space_after", None
+            )
+            if header_specialty_space_after:
+                specialty_para.paragraph_format.space_after = Pt(
+                    header_specialty_space_after
+                )
             current_p = current_p.find_next_sibling()
 
     # Add horizontal line
@@ -2510,6 +2549,120 @@ def _process_date_paragraph(document: Document, paragraph_element: BS4_Element) 
         date_run.italic = True
 
     return True
+
+
+def _add_configured_page_numbers(
+    document: Document, config_loader: ConfigLoader
+) -> None:
+    """Add page numbers based on configuration settings
+
+    Args:
+        document: The Word document object
+        config_loader: ConfigLoader instance with page number settings
+    """
+    if not config_loader.page_numbers_enabled:
+        return
+
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    section = document.sections[0]
+    footer = section.footer
+    footer_para = footer.paragraphs[0]
+
+    # Set alignment
+    alignment_map = {
+        "left": DOCX_PARAGRAPH_ALIGN.LEFT,
+        "center": DOCX_PARAGRAPH_ALIGN.CENTER,
+        "right": DOCX_PARAGRAPH_ALIGN.RIGHT,
+    }
+    footer_para.alignment = alignment_map.get(
+        config_loader.page_numbers_alignment.lower(), DOCX_PARAGRAPH_ALIGN.CENTER
+    )
+
+    # Clear existing content
+    footer_para.clear()
+
+    # Get font settings from configuration
+    font_size = ConfigHelper.get_style_constant("page_number_font_size", 10)
+    font_name = ConfigHelper.get_style_constant("page_number_font_name", "Calibri")
+
+    if config_loader.page_numbers_format == "simple":
+        # Simple page numbers
+        run = footer_para.add_run()
+        run.font.size = Pt(font_size)
+        run.font.name = font_name
+
+        fldChar1 = OxmlElement("w:fldChar")
+        fldChar1.set(qn("w:fldCharType"), "begin")
+        instrText = OxmlElement("w:instrText")
+        instrText.text = "PAGE"
+        fldChar2 = OxmlElement("w:fldChar")
+        fldChar2.set(qn("w:fldCharType"), "end")
+
+        run._r.append(fldChar1)
+        run._r.append(instrText)
+        run._r.append(fldChar2)
+
+    elif config_loader.page_numbers_format == "with_total":
+        # Page X of Y format
+        format_text = config_loader.page_numbers_text
+        parts = format_text.split("{page}")
+
+        if len(parts) == 2:
+            before_page, after_page_part = parts
+            after_page_parts = after_page_part.split("{total}")
+
+            if len(after_page_parts) == 2:
+                between_page_total, after_total = after_page_parts
+
+                # Add text before page number
+                if before_page:
+                    run = footer_para.add_run(before_page)
+                    run.font.size = Pt(font_size)
+                    run.font.name = font_name
+
+                # Add current page number field
+                run1 = footer_para.add_run()
+                run1.font.size = Pt(font_size)
+                run1.font.name = font_name
+
+                fldChar1 = OxmlElement("w:fldChar")
+                fldChar1.set(qn("w:fldCharType"), "begin")
+                instrText1 = OxmlElement("w:instrText")
+                instrText1.text = "PAGE"
+                fldChar2 = OxmlElement("w:fldChar")
+                fldChar2.set(qn("w:fldCharType"), "end")
+                run1._r.append(fldChar1)
+                run1._r.append(instrText1)
+                run1._r.append(fldChar2)
+
+                # Add text between page and total
+                if between_page_total:
+                    run = footer_para.add_run(between_page_total)
+                    run.font.size = Pt(font_size)
+                    run.font.name = font_name
+
+                # Add total pages field
+                run2 = footer_para.add_run()
+                run2.font.size = Pt(font_size)
+                run2.font.name = font_name
+
+                fldChar3 = OxmlElement("w:fldChar")
+                fldChar3.set(qn("w:fldCharType"), "begin")
+                instrText2 = OxmlElement("w:instrText")
+                instrText2.text = "NUMPAGES"
+                fldChar4 = OxmlElement("w:fldChar")
+                fldChar4.set(qn("w:fldCharType"), "end")
+                run2._r.append(fldChar3)
+                run2._r.append(instrText2)
+                run2._r.append(fldChar4)
+
+                # Add text after total
+                if after_total:
+                    run = footer_para.add_run(after_total)
+                    run.font.size = Pt(font_size)
+                    run.font.name = font_name
 
 
 ##############################
