@@ -2,27 +2,42 @@
 
 # Document defaults - controls margins and page size
 document_defaults:
-  margin_top_bottom: 0.7  # in inches
+  margin_top: 0.5  # in inches
+  margin_bottom: 1.0  # in inches
   margin_left_right: 0.8  # in inches
   page_width: 8.5  # in inches (US Letter)
   page_height: 11.0  # in inches (US Letter)
+  # Page number settings
+  page_numbers_enabled: true
+  page_numbers_alignment: "center"  # left, center, right
+  page_numbers_format: "with_total"     # simple, with_total
+  page_numbers_text: "Page {page} of {total}"
 
 # Style constants - general formatting preferences
 style_constants:
   font_size_pts: 11
+  space_before: 10
+  space_after: 0
   indent_inches: 0.25
   bullet_indent_inches: 0.5
   horizontal_line_char: "_"  # Character for horizontal lines
   horizontal_line_length: 50  # Length of horizontal line
+  header_specialty_space_after: 4  # Space after headings
   top_skills_separator_markdown: " • "  # Separator for top skills area
   top_skills_separator: " | "  # Separator for top skills area
   top_skills_bold: true  # Enable/disable bold formatting for top skills
-  key_skills_separator_markdown: " • "  # Separator for key skills area
-  key_skills_separator: ", "  # Separator for key skills area (·)
+  key_skills_separator_markdown: " · "  # Separator for key skills area
+  key_skills_separator: ", "  # Separator for key skills area
   key_skills_bold: true  # Enable/disable bold formatting for key skills
-  paragraph_after_h4_line_spacing: 1.35  # Line spacing for date/location line
-  paragraph_after_h4_font_size: 10  # Font size for date/location line
+  key_skills_line_spacing: 1.25  # Line spacing for key skills line
+  key_skills_font_size: 10  # Font size for key skills line
+  key_skills_heading_line_spacing: 1.0  # Line spacing for key skills heading
+  date_location_line_spacing: 1.2  # Line spacing for date/location line
+  date_location_font_size: 10  # Font size for date/location line
+  position_title_line_spacing: 1.0  # Line spacing for position title line
   paragraph_lists: yes  # Enable/disable paragraph-style lists
+  page_number_font_size: 8
+  page_number_font_name: "Helvetica Neue"
 
 # Document styles - Word document style definitions
 document_styles:
@@ -53,6 +68,8 @@ document_styles:
     # bold: true
     # underline: true
     color: "365F91"
+    space_before: 18
+    space_after: 4
 
   Heading 2:  # H2 - Company names
     # font_name: "Helvetica Neue"
@@ -60,6 +77,8 @@ document_styles:
     # bold: true
     # italic: false
     color: "4F81BD"
+    space_before: 8
+    line_spacing: 1.0
 
   Heading 3:  # H3 - Role titles
     # font_name: "Helvetica Neue"
@@ -68,6 +87,7 @@ document_styles:
     # bold: true
     # italic: false
     color: "4F81BD"
+    space_before: 8
 
   Heading 4:  # H4 - Subsections
     # font_name: "Helvetica Neue"
@@ -75,6 +95,7 @@ document_styles:
     # bold: true
     # italic: true
     color: "4F81BD"
+    space_before: 8
 
   Heading 5:  # H5 - Responsibilities, Details
     # font_name: "Helvetica Neue"
@@ -97,7 +118,7 @@ document_styles:
 
 paragraph_lists:
   ul:
-    bullet_character: "•"  # Custom bullet character to use in lists
+    bullet_character: "•"  # Custom bullet character to use in lists (●, •, ◦, ·, etc.)
     paragraph_delimiter: "\n"  # Line delimiter for paragraph-style lists
 
 paragraph_headings:
@@ -124,35 +145,50 @@ resume_sections:
   about:
     markdown_heading: "About"
     docx_heading: "PROFESSIONAL SUMMARY"
-    add_space_before_h3: false
     add_space_before_h2: false
+    space_after_h2: 14
+    add_space_before_h3: true
+    space_before_h3: 16
+    space_after_h3: 4
   skills:
     markdown_heading: "Top Skills"
     docx_heading: "TOP SKILLS"
-    add_space_before_h3: false
     add_space_before_h2: false
+    add_space_before_h3: false
   experience:
     markdown_heading: "Experience"
     docx_heading: "PROFESSIONAL EXPERIENCE"
-    add_space_before_h3: true
     add_space_before_h2: false
+    space_after_h2: 14
+    add_space_before_h3: true
+    space_before_h3: 24
+    space_after_h3: 0
+    add_space_before_h4: true
+    space_before_h4: 8
+    space_after_h4: 0
   projects:
     markdown_heading: "Projects"
     docx_heading: "PROJECTS"
+    add_space_before_h2: false
     add_space_before_h3: true
-    add_space_before_h2: true
+    space_before_h3: 16
+    space_after_h3: 2
+    space_after_h4: 2
   certifications:
     markdown_heading: "Licenses & certifications"
     docx_heading: "LICENSES & CERTIFICATIONS"
-    add_space_before_h3: true
     add_space_before_h2: false
+    add_space_before_h3: true
+    add_space_before_h4: true
+    space_before_h3: 16
+    space_before_h4: 4
   education:
     markdown_heading: "Education"
     docx_heading: "EDUCATION"
-    add_space_before_h3: false
     add_space_before_h2: false
+    add_space_before_h3: false
   contact:
     markdown_heading: "Contact"
     docx_heading: "CONTACT INFORMATION"
-    add_space_before_h3: false
     add_space_before_h2: false
+    add_space_before_h3: false
