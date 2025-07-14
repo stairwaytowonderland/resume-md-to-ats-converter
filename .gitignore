@@ -21,6 +21,7 @@ Icon?
 .vscode
 
 /data
+/.templates
 
 # Exclude document files generally
 *.md

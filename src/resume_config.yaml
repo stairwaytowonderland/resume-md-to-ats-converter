@@ -12,6 +12,9 @@ document_defaults:
   page_numbers_alignment: "center"  # left, center, right
   page_numbers_format: "with_total"     # simple, with_total
   page_numbers_text: "Page {page} of {total}"
+  two_column_enabled: true  # Enable the two-column layout
+  sidebar_width_ratio: 0.33  # Width ratio of left sidebar (1/3)
+  main_width_ratio: 0.67  # Width ratio of main content (2/3)
 
 # Style constants - general formatting preferences
 style_constants:

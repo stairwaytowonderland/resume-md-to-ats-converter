@@ -496,6 +496,25 @@ class ConfigLoader:
                 )
 
     @property
+    def two_column_enabled(self) -> bool:
+        """Check if two column layout is enabled"""
+        return self._config.get("document_defaults", {}).get(
+            "two_column_enabled", False
+        )
+
+    @property
+    def sidebar_width_ratio(self) -> float:
+        """Get sidebar width ratio"""
+        return self._config.get("document_defaults", {}).get(
+            "sidebar_width_ratio", 0.33
+        )
+
+    @property
+    def main_width_ratio(self) -> float:
+        """Get main column width ratio"""
+        return self._config.get("document_defaults", {}).get("main_width_ratio", 0.67)
+
+    @property
     def config(self) -> dict:
         """Get the entire configuration dictionary
 
@@ -849,71 +868,164 @@ def create_ats_resume(
         section.left_margin = Inches(doc_defaults["margin_left_right"])
         section.right_margin = Inches(doc_defaults["margin_left_right"])
 
-    # Define processor mapping using dynamic section access
-    section_processor_map = {}
-
-    # Get sections dynamically using _get_section helper
-    about_section = ResumeSection.get_section("ABOUT")
-    if about_section:
-        section_processor_map[about_section] = [
-            (process_header_section, True),  # Header always required
-            (lambda doc, soup: process_about_section(document=doc, soup=soup), False),
-        ]
-
-    skills_section = ResumeSection.get_section("SKILLS")
-    if skills_section:
-        section_processor_map[skills_section] = [
-            (lambda doc, soup: process_skills_section(doc, soup), False),
-        ]
-
-    experience_section = ResumeSection.get_section("EXPERIENCE")
-    if experience_section:
-        section_processor_map[experience_section] = [
-            (lambda doc, soup: process_experience_section(doc, soup), False),
-        ]
-
-    projects_section = ResumeSection.get_section("PROJECTS")
-    if projects_section:
-        section_processor_map[projects_section] = [
-            (lambda doc, soup: process_projects_section(doc, soup), False),
-        ]
-
-    certifications_section = ResumeSection.get_section("CERTIFICATIONS")
-    if certifications_section:
-        section_processor_map[certifications_section] = [
-            (lambda doc, soup: process_certifications_section(doc, soup), False),
-        ]
-
-    education_section = ResumeSection.get_section("EDUCATION")
-    if education_section:
-        section_processor_map[education_section] = [
-            (lambda doc, soup: process_education_section(doc, soup), False),
-        ]
-
     contact_section = ResumeSection.get_section("CONTACT")
-    if contact_section:
-        section_processor_map[contact_section] = [
-            (lambda doc, soup: process_contact_section(doc, soup), False),
-        ]
+    about_section = ResumeSection.get_section("ABOUT")
+    skills_section = ResumeSection.get_section("SKILLS")
+    certifications_section = ResumeSection.get_section("CERTIFICATIONS")
+    education_section = ResumeSection.get_section("EDUCATION")
+    experience_section = ResumeSection.get_section("EXPERIENCE")
+    projects_section = ResumeSection.get_section("PROJECTS")
 
-    # Build section processors in YAML order
-    section_processors = []
-    for section_type in ResumeSection.get_ordered_sections():
-        if section_type in section_processor_map:
-            for processor, required in section_processor_map[section_type]:
-                section_processors.append((section_type, processor, required))
+    # Check if two-column layout is enabled
+    if config_loader.two_column_enabled:
+        # Process header with name and tagline
+        process_header_section(document, soup)
 
-    # Process each section with error handling
-    for section_type, processor, required in section_processors:
-        try:
-            processor(document, soup)
-        except Exception as e:
-            if required:
-                raise  # Re-raise for required sections
-            else:
-                print(
-                    f"⚠️  Warning: Could not process {section_type.docx_heading}: {str(e)}"
-                )
+        # Create the two-column layout structure
+        about_content_cell, contact_info_cell, sidebar_cell, main_cell = (
+            _create_two_column_layout(document, config_loader)
+        )
+
+        # Process about section in the about content cell AFTER contact info
+        about_section = ResumeSection.get_section("ABOUT")
+        if about_section:
+            process_about_section(about_content_cell, soup)
+
+        # Process contact info in the contact cell (right after header, before about section)
+        contact_section = ResumeSection.get_section("CONTACT")
+        if contact_section:
+            _process_contact_info_horizontal(contact_info_cell, soup)
+
+        # Process sections for the sidebar (Top Skills, Certifications, Education)
+        sidebar_sections = []
+        first_sidebar_section = True
+
+        # Add Top Skills to sidebar
+        if skills_section:
+            process_skills_section(sidebar_cell, soup)
+            sidebar_sections.append(skills_section.docx_heading)
+            first_sidebar_section = False
+
+            # Add horizontal line after skills if there are more sections coming
+            if certifications_section or education_section:
+                _add_horizontal_line_to_cell(sidebar_cell, is_sidebar=True)
+
+        # Add Certifications to sidebar
+        if certifications_section:
+            # If this isn't the first section and no line added yet, add one now
+            if not first_sidebar_section and (
+                sidebar_sections[-1] != skills_section.docx_heading
+            ):
+                _add_horizontal_line_to_cell(sidebar_cell, is_sidebar=True)
+
+            process_certifications_section(sidebar_cell, soup)
+            sidebar_sections.append(certifications_section.docx_heading)
+            first_sidebar_section = False
+
+            # Add horizontal line after certifications if education is coming
+            if education_section:
+                _add_horizontal_line_to_cell(sidebar_cell, is_sidebar=True)
+
+        # Add Education to sidebar
+        if education_section:
+            # If this isn't the first section and no line added yet, add one now
+            if not first_sidebar_section and (
+                sidebar_sections[-1] != certifications_section.docx_heading
+            ):
+                _add_horizontal_line_to_cell(sidebar_cell, is_sidebar=True)
+
+            process_education_section(sidebar_cell, soup)
+            sidebar_sections.append(education_section.docx_heading)
+
+        # Track main sections for horizontal lines
+        main_sections = []
+        first_main_section = True
+
+        # Process Experience section
+        if experience_section:
+            # Add horizontal line before first section
+            # _add_horizontal_line_to_cell(main_cell, is_sidebar=False)
+
+            process_experience_section(main_cell, soup)
+            main_sections.append(experience_section.docx_heading)
+            first_main_section = False
+
+        # Process Projects section
+        if projects_section:
+            # Add horizontal line before projects section
+            if not first_main_section:
+                _add_horizontal_line_to_cell(main_cell, is_sidebar=False)
+
+            process_projects_section(main_cell, soup)
+            main_sections.append(projects_section.docx_heading)
+
+        # print("Applying styles to all cells...")
+        # FIXME: This overrides any custom styles applied in the section processors, which is giving a particular problem for the sidebar horizontal line spacing
+        for cell in [about_content_cell, contact_info_cell, sidebar_cell, main_cell]:
+            _apply_styles_to_cell_content(cell, document_styles)
+        # print("Styles applied.")
+    else:
+        # Define processor mapping using dynamic section access
+        section_processor_map = {}
+
+        # Get sections dynamically
+        if about_section:
+            section_processor_map[about_section] = [
+                (process_header_section, True),  # Header always required
+                (
+                    lambda doc, soup: process_about_section(document=doc, soup=soup),
+                    False,
+                ),
+            ]
+
+        if skills_section:
+            section_processor_map[skills_section] = [
+                (lambda doc, soup: process_skills_section(doc, soup), False),
+            ]
+
+        if experience_section:
+            section_processor_map[experience_section] = [
+                (lambda doc, soup: process_experience_section(doc, soup), False),
+            ]
+
+        if projects_section:
+            section_processor_map[projects_section] = [
+                (lambda doc, soup: process_projects_section(doc, soup), False),
+            ]
+
+        if certifications_section:
+            section_processor_map[certifications_section] = [
+                (lambda doc, soup: process_certifications_section(doc, soup), False),
+            ]
+
+        if education_section:
+            section_processor_map[education_section] = [
+                (lambda doc, soup: process_education_section(doc, soup), False),
+            ]
+
+        if contact_section:
+            section_processor_map[contact_section] = [
+                (lambda doc, soup: process_contact_section(doc, soup), False),
+            ]
+
+        # Build section processors in YAML order
+        section_processors = []
+        for section_type in ResumeSection.get_ordered_sections():
+            if section_type in section_processor_map:
+                for processor, required in section_processor_map[section_type]:
+                    section_processors.append((section_type, processor, required))
+
+        # Process each section with error handling
+        for section_type, processor, required in section_processors:
+            try:
+                processor(document, soup)
+            except Exception as e:
+                if required:
+                    raise  # Re-raise for required sections
+                else:
+                    print(
+                        f"⚠️  Warning: Could not process {section_type.docx_heading}: {str(e)}"
+                    )
 
     # Add page numbers if enabled
     _add_configured_page_numbers(document, config_loader)
@@ -1553,6 +1665,372 @@ def process_contact_section(
 ##############################
 # Primary Helpers
 ##############################
+def _process_contact_info_horizontal(cell, soup):
+    """Process contact info in a horizontal ribbon format with gray background
+
+    Args:
+        cell: The table cell to place contact info in
+        soup: BeautifulSoup object containing the HTML content
+    """
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    # Set gray background for the cell
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+
+    # Add gray shading
+    shading = OxmlElement("w:shd")
+    shading.set(qn("w:fill"), "BCDCFF")
+    shading.set(qn("w:val"), "clear")
+    tcPr.append(shading)
+
+    # Find the contact section
+    contact_section = soup.find("h2", string=lambda text: text.lower() == "contact")
+    if not contact_section:
+        return
+
+    # Create a paragraph for horizontal layout
+    para = cell.add_paragraph()
+    para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER  # Center the content
+
+    # Find all contact entries (paragraphs after h2 until next h2)
+    current_element = contact_section.find_next_sibling()
+    contact_items = []
+
+    while current_element and current_element.name != "h2":
+        if current_element.name == "p":
+            contact_items.append(current_element)
+        current_element = current_element.find_next_sibling()
+
+    # Add contact items horizontally with separators
+    for i, item in enumerate(contact_items):
+        # Add separator between items (except first)
+        if i > 0:
+            separator = para.add_run("  |  ")
+            separator.bold = True
+
+        # Check if this item has a strong tag (label)
+        strong_tag = item.find("strong")
+        if strong_tag:
+            # Add the label in bold
+            label_run = para.add_run(strong_tag.text.strip())
+            label_run.bold = True
+
+            # Add the value (rest of the text)
+            value_text = item.text.replace(strong_tag.text, "").strip()
+            if value_text:
+                para.add_run(f" {value_text}")
+        else:
+            # Process the entire text
+            _process_text_for_hyperlinks(para, item.text.strip())
+
+
+def _apply_styles_to_cell_content(cell, document_styles, debug=False):
+    """Apply document styles directly to table cell content following Stack Overflow approach
+
+    Args:
+        cell: The table cell containing content
+        document_styles: Dictionary of document styles from config
+        debug: Whether to print debug info
+    """
+    import re
+
+    from docx.shared import Pt, RGBColor
+
+    if debug:
+        print(f"Applying styles to cell with {len(cell.paragraphs)} paragraphs")
+
+    # StackOverflow approach: Create a direct map of style properties to apply
+    style_properties = {
+        "Normal": document_styles.get("Normal", {}),
+        "Heading 1": document_styles.get("Heading 1", {}),
+        "Heading 2": document_styles.get("Heading 2", {}),
+        "Heading 3": document_styles.get("Heading 3", {}),
+        "Heading 4": document_styles.get("Heading 4", {}),
+        "Heading 5": document_styles.get("Heading 5", {}),
+        "Hyperlink": document_styles.get("Hyperlink", {}),
+    }
+
+    # Define section heading patterns for better heading detection - make this more specific
+    heading_patterns = {
+        r"^(PROFESSIONAL\s+SUMMARY|ABOUT|SUMMARY)$": 2,
+        r"^(PROFESSIONAL\s+EXPERIENCE|WORK\s+EXPERIENCE|EXPERIENCE)$": 2,
+        r"^(TOP\s+SKILLS|SKILLS|EXPERTISE)$": 2,
+        r"^(EDUCATION|ACADEMIC)$": 2,
+        r"^(CONTACT|CONTACT\s+INFORMATION)$": 2,
+        r"^(PROJECTS|SPECIAL\s+PROJECTS)$": 2,
+        r"^(LICENSES|CERTIFICATIONS|LICENSES\s+&\s+CERTIFICATIONS)$": 2,
+    }
+
+    # Process each paragraph in the cell
+    for i, paragraph in enumerate(cell.paragraphs):
+        text = paragraph.text.strip()
+        if not text:
+            continue
+
+        # Start with Normal style as base
+        normal = style_properties["Normal"]
+
+        # Detect heading level using various methods
+        heading_level = None
+
+        # Method 1: Check if all runs are bold (common heading indicator)
+        is_bold = all(run.bold for run in paragraph.runs if run.text.strip())
+
+        # Method 2: Pattern match for section headings - this is the key fix!
+        for pattern, level in heading_patterns.items():
+            if re.match(pattern, text, re.IGNORECASE):
+                heading_level = 1
+                if debug:
+                    print(f"Heading {level} detected by pattern: '{text}'")
+                break
+
+        # Method 3: Check font size of first run if available
+        if not heading_level and paragraph.runs and is_bold:
+            first_run = paragraph.runs[0]
+            if (
+                hasattr(first_run, "font")
+                and hasattr(first_run.font, "size")
+                and first_run.font.size
+            ):
+                font_size = first_run.font.size.pt
+                if font_size >= 16:
+                    heading_level = 1  # H1
+                elif font_size >= 14:
+                    heading_level = 2  # H2 (main section headings)
+                elif font_size >= 12:
+                    heading_level = 3  # H3 (company names)
+                elif font_size >= 11:
+                    heading_level = 4  # H4 (position titles)
+
+        # Method 4: Text characteristics (length, all caps, position)
+        if not heading_level and is_bold:
+            if text.isupper() and len(text) < 40:
+                heading_level = 2  # H2 (section headings are often ALL CAPS)
+            elif len(text) < 35:
+                heading_level = 3  # H3 (company names tend to be shorter)
+            elif text.endswith(":"):
+                heading_level = 5  # H5 (subsection headings often end with colon)
+
+        # Get the appropriate style based on detection
+        style_name = f"Heading {heading_level}" if heading_level else "Normal"
+        style = style_properties.get(style_name, normal)
+
+        if debug:
+            print(f"Para {i}: '{text[:20]}...' → {style_name}")
+
+        # Apply style to all runs in paragraph (direct approach from Stack Overflow)
+        for run in paragraph.runs:
+            # Font name
+            if "font_name" in style:
+                run.font.name = style["font_name"]
+
+            # Font size
+            if "font_size" in style:
+                run.font.size = Pt(style["font_size"])
+
+            # Font color
+            if "color" in style and style["color"]:
+                try:
+                    hex_color = style["color"].lstrip("#")
+                    r = int(hex_color[0:2], 16)
+                    g = int(hex_color[2:4], 16)
+                    b = int(hex_color[4:6], 16)
+                    run.font.color.rgb = RGBColor(r, g, b)
+                except:
+                    pass
+
+            # Bold (preserve for headings)
+            if heading_level or "bold" in style:
+                run.bold = style.get("bold", heading_level is not None)
+
+            # Italic
+            if "italic" in style:
+                run.italic = style["italic"]
+
+        # Apply paragraph formatting
+        if "line_spacing" in style:
+            paragraph.paragraph_format.line_spacing = style["line_spacing"]
+
+        if "space_before" in style:
+            paragraph.paragraph_format.space_before = Pt(style["space_before"])
+
+        if "space_after" in style:
+            paragraph.paragraph_format.space_after = Pt(style["space_after"])
+
+    # Special handling for hyperlinks
+    hyperlink_style = style_properties.get("Hyperlink", {})
+    if hyperlink_style:
+        for paragraph in cell.paragraphs:
+            for run in paragraph.runs:
+                # Check for hyperlink indicators
+                if run.underline or (
+                    "http" in run.text or "www." in run.text or "@" in run.text
+                ):
+                    if "color" in hyperlink_style:
+                        try:
+                            hex_color = hyperlink_style["color"].lstrip("#")
+                            r = int(hex_color[0:2], 16)
+                            g = int(hex_color[2:4], 16)
+                            b = int(hex_color[4:6], 16)
+                            run.font.color.rgb = RGBColor(r, g, b)
+                        except:
+                            pass
+                    if "underline" in hyperlink_style:
+                        run.underline = hyperlink_style["underline"]
+
+
+def _create_table_cell_subdocument(cell, v_align="top"):
+    """Create a subdocument for a table cell
+
+    Args:
+        cell: The table cell to use as a subdocument
+        v_align: Vertical alignment ('top', 'center', 'bottom')
+
+    Returns:
+        The prepared cell object
+    """
+    # Clear any default paragraph if present
+    if len(cell.paragraphs) > 0:
+        p = cell.paragraphs[0]
+        if not p.text.strip():  # Only remove if empty
+            p._p.getparent().remove(p._p)
+
+    # Set up cell properties for proper spacing
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    # Set cell margins (0.05 inch on all sides)
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    tcMar = OxmlElement("w:tcMar")
+
+    for side, width in [("top", 60), ("start", 60), ("bottom", 60), ("end", 60)]:
+        node = OxmlElement(f"w:{side}")
+        node.set(qn("w:w"), str(width))
+        node.set(qn("w:type"), "dxa")
+        tcMar.append(node)
+
+    tcPr.append(tcMar)
+
+    # Add vertical alignment
+    tcVAlign = OxmlElement("w:vAlign")
+    tcVAlign.set(qn("w:val"), v_align)
+    tcPr.append(tcVAlign)
+
+    return cell
+
+
+def _create_two_column_layout(document, config_loader):
+    """Create the two-column layout structure with contact ribbon AFTER about section
+
+    Args:
+        document: The Word document
+        config_loader: Configuration loader with layout settings
+
+    Returns:
+        tuple: (about_content_cell, contact_info_cell, sidebar_cell, main_cell)
+    """
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    # Get page width excluding margins
+    page_width = config_loader.document_defaults.get("page_width", 8.5)
+    margins = config_loader.document_defaults.get("margin_left_right", 0.8) * 2
+    content_width = page_width - margins
+
+    # Calculate column widths
+    sidebar_width = content_width * config_loader.sidebar_width_ratio
+    main_width = content_width * config_loader.main_width_ratio
+
+    # Create about section table FIRST (1 row, 1 column) for professional summary
+    about_table = document.add_table(rows=1, cols=1)
+    about_table.allow_autofit = False
+    about_table.autofit = False
+
+    # Set up about table appearance (no borders)
+    about_table.style = "Table Grid"
+    for cell in about_table._cells:
+        cell_xml = cell._tc
+        tcPr = cell_xml.get_or_add_tcPr()
+        tcBorders = OxmlElement("w:tcBorders")
+        for border in ["top", "left", "bottom", "right"]:
+            border_elem = OxmlElement(f"w:{border}")
+            border_elem.set(qn("w:val"), "nil")
+            tcBorders.append(border_elem)
+        tcPr.append(tcBorders)
+
+    about_content_cell = _create_table_cell_subdocument(about_table.cell(0, 0))
+
+    # THEN create contact ribbon table (1 row, 1 column) AFTER about section
+    contact_table = document.add_table(rows=1, cols=1)
+    contact_table.allow_autofit = False
+    contact_table.autofit = False
+
+    # Set up contact table appearance (no borders)
+    contact_table.style = "Table Grid"
+    for cell in contact_table._cells:
+        cell_xml = cell._tc
+        tcPr = cell_xml.get_or_add_tcPr()
+        tcBorders = OxmlElement("w:tcBorders")
+        for border in ["top", "left", "bottom", "right"]:
+            border_elem = OxmlElement(f"w:{border}")
+            border_elem.set(qn("w:val"), "nil")
+            tcBorders.append(border_elem)
+        tcPr.append(tcBorders)
+
+    contact_info_cell = _create_table_cell_subdocument(
+        contact_table.cell(0, 0), v_align="center"
+    )
+
+    # Add small space after contact ribbon
+    # p = document.add_paragraph()
+    # p.paragraph_format.space_after = Pt(12)
+
+    # Create the main content table (1 row, 2 columns)
+    content_table = document.add_table(rows=1, cols=2)
+    content_table.allow_autofit = False
+    content_table.autofit = False
+
+    # Set column widths
+    content_table.columns[0].width = Inches(sidebar_width)
+    content_table.columns[1].width = Inches(main_width)
+
+    # Set up content table appearance
+    content_table.style = "Table Grid"
+    for cell in content_table._cells:
+        # Remove borders
+        cell_xml = cell._tc
+        tcPr = cell_xml.get_or_add_tcPr()
+        tcBorders = OxmlElement("w:tcBorders")
+        for border in ["top", "left", "bottom", "right"]:
+            border_elem = OxmlElement(f"w:{border}")
+            border_elem.set(qn("w:val"), "nil")
+            tcBorders.append(border_elem)
+        tcPr.append(tcBorders)
+
+    # Get and prepare the cells with correct vertical alignment
+    sidebar_cell = _create_table_cell_subdocument(
+        content_table.cell(0, 0), v_align="top"
+    )
+    main_cell = _create_table_cell_subdocument(content_table.cell(0, 1))
+
+    # Get the sidebar cell
+    sidebar_tc = content_table.cell(0, 0)._tc
+    sidebar_tcPr = sidebar_tc.get_or_add_tcPr()
+
+    # Add light gray shading
+    shading = OxmlElement("w:shd")
+    shading.set(
+        qn("w:fill"), "EEEEEE"
+    )  # Light gray background - same as contact ribbon
+    shading.set(qn("w:val"), "clear")
+    sidebar_tcPr.append(shading)
+
+    return about_content_cell, contact_info_cell, sidebar_cell, main_cell
+
+
 def _convert_hex_to_rgb_color(color_value: str | RGBColor) -> RGBColor | None:
     """Convert hex color string to RGBColor object
 
@@ -1767,10 +2245,12 @@ def _prepare_section(
         print(f"ℹ️  Section '{section_type.docx_heading}' not found in document")
         return None
 
-    space_before = space_before or (
-        section_type.add_space_before_h2 and section_type.space_before_h2
-    )
-    space_after = space_after or section_type.space_after_h2
+    if not space_before:
+        space_before = (
+            section_type.space_before_h2 if section_type.add_space_before_h2 else None
+        )
+    if not space_after:
+        space_after = section_type.space_after_h2
 
     # Check if there's an HR before this section
     section_page_break = _has_hr_before_element(section_h2)
@@ -1792,7 +2272,7 @@ def _prepare_section(
             run = p.add_run()
             run.add_break(DOCX_BREAK_TYPE.PAGE)
 
-    # TODO: can this be removed?
+    # FIXME: This should only be enabled for two_column layouts
     # elif section_type.add_space_before_h2:
     #     _add_space_paragraph(document, ConfigHelper.get_style_constant("font_size_pts"))
 
@@ -2017,22 +2497,26 @@ def _process_job_entry(
         run = p.add_run()
         run.add_break(DOCX_BREAK_TYPE.PAGE)
 
-    # Otherwise add normal spacing if needed
-    # TODO: this can probably be removed
+    # Add explicit space before h3 in two-column mode by adding an empty paragraph
     elif space_before:
-        prev_heading = job_element.find_previous(["h2", "h3"])
-        if prev_heading and prev_heading.name == "h2":
-            space_before = None
+        # Add a spacer paragraph with specific height before company name
+        spacer = document.add_paragraph()
+        spacer.add_run(" ")  # Need at least one character
+
+        # Apply the exact spacing requested from the config
+        from docx.shared import Pt
+
+        spacer.paragraph_format.space_after = Pt(space_before)
 
     # Add the company name as h3
     use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h3")
     heading_level = HeadingsHelper.get_level_for_tag("h3")
-    _add_heading_or_paragraph(
+    company_heading = _add_heading_or_paragraph(
         document,
         job_title,
         heading_level,
         use_paragraph_style=use_paragraph_style,
-        space_before=space_before,
+        # Don't pass space_before here since we handled it manually above
         space_after=space_after,
     )
 
@@ -2197,8 +2681,13 @@ def _process_position(
                         "date_location_font_size", None
                     )
 
+                    # Get separator from config (default to forward slash if not specified)
+                    date_location_separator = ConfigHelper.get_style_constant(
+                        "date_location_separator", " / "
+                    )
+
                     # Add date with appropriate formatting
-                    date_run = combo_para.add_run(date_text + " - ")
+                    date_run = combo_para.add_run(date_text + date_location_separator)
                     if next_element.find("strong"):
                         date_run.bold = True
                     if next_element.find("em"):
@@ -2247,20 +2736,23 @@ def _add_heading_or_paragraph(
     Returns:
         The created heading or paragraph object
     """
-    if use_paragraph_style:
+    has_add_heading = hasattr(document, "add_heading")
+
+    if use_paragraph_style or not has_add_heading:
+        # For cells or when paragraph style is requested, use add_paragraph
         para = document.add_paragraph()
         run = para.add_run(text)
         run.bold = bold
         run.italic = italic
 
-        # Apply appropriate font size from HeadingsHelper if not explicitly provided
+        # Apply appropriate font size
         if font_size is None:
             size_pt = HeadingsHelper.get_font_size_for_level(heading_level)
             run.font.size = Pt(size_pt)
         else:
             run.font.size = Pt(font_size)
-
     else:
+        # Only use add_heading when available (for Document objects)
         para = document.add_heading(text, level=heading_level)
 
     _add_space_before_or_after(
@@ -2484,13 +2976,32 @@ def _create_heading_with_formatting_preservation(
     if use_paragraph_style is None:
         use_paragraph_style = HeadingsHelper.should_use_paragraph_style(element.name)
 
-    if use_paragraph_style:
+    # Check if document supports add_heading
+    has_add_heading = hasattr(document, "add_heading")
+
+    if use_paragraph_style or not has_add_heading:
+        # For cells or when paragraph style is requested, use add_paragraph
         para = document.add_paragraph()
+        # For cells that were meant to be headings, apply heading formatting manually
+        if not use_paragraph_style and not has_add_heading:
+            # Get font size for this heading level
+            HeadingsHelper.get_font_size_for_level(heading_level)
+            # We'll apply formatting to child elements below
     else:
+        # Only use add_heading when available (for Document objects)
         para = document.add_heading(level=heading_level)
 
+    # Process child elements with proper formatting
     _process_element_children_with_formatting(para, element)
 
+    # For cell "headings", make sure all runs are bold
+    if not use_paragraph_style and not has_add_heading:
+        for run in para.runs:
+            run.bold = True
+            # Apply heading font size
+            run.font.size = Pt(HeadingsHelper.get_font_size_for_level(heading_level))
+
+    # Apply spacing
     _add_space_before_or_after(
         para,
         space_before,
@@ -3313,6 +3824,10 @@ def _add_horizontal_line_simple(document: Document) -> None:
     Returns:
         None
     """
+    # Skip adding horizontal line if two-column layout is enabled
+    # if ConfigHelper.get_document_defaults().get("two_column_enabled", False):
+    #     return
+
     # Get values from config with fallbacks
     line_char = ConfigHelper.get_style_constant("horizontal_line_char", "_")
     line_length = ConfigHelper.get_style_constant("horizontal_line_length", 50)
@@ -3320,6 +3835,41 @@ def _add_horizontal_line_simple(document: Document) -> None:
     p = document.add_paragraph()
     p.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
     p.add_run(line_char * line_length).bold = True
+
+
+def _add_horizontal_line_to_cell(cell, is_sidebar=False):
+    """Add a simple horizontal line to a table cell
+
+    Args:
+        cell: The cell to add the line to
+        is_sidebar: Whether this is in the sidebar (affects line length)
+    """
+    # Get values from config with fallbacks
+    line_char = ConfigHelper.get_style_constant("horizontal_line_char", "_")
+
+    if is_sidebar:
+        line_length = ConfigHelper.get_style_constant(
+            "sidebar_horizontal_line_length", 30
+        )
+        line_spacing = ConfigHelper.get_style_constant(
+            "sidebar_horizontal_line_spacing", 1.6
+        )
+    else:
+        line_length = ConfigHelper.get_style_constant("horizontal_line_length", 50)
+        line_spacing = ConfigHelper.get_style_constant("horizontal_line_spacing", 1.6)
+
+    p = cell.add_paragraph()
+    p.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
+    p.add_run(line_char * line_length)
+
+    for run in p.runs:
+        run.bold = True
+        # Set font size for the horizontal line
+        # FIXME: For some reason, correct line spacing is only applied when font is set to a value greater than 14 (H1)
+        run.font.size = Pt(16)
+
+    if line_spacing:
+        p.paragraph_format.line_spacing = line_spacing
 
 
 def _add_space_paragraph(
@@ -3475,6 +4025,14 @@ if __name__ == "__main__":
         help="Run in interactive mode, prompting for inputs",
     )
 
+    parser.add_argument(
+        "-t",
+        "--two-column",
+        dest="two_column",
+        action="store_true",
+        help="Use two-column layout with tables",
+    )
+
     args = parser.parse_args()
 
     # Check if we should run in interactive mode
@@ -3488,6 +4046,9 @@ if __name__ == "__main__":
         )
     else:
         config_loader = ConfigLoader(args.config_file)
+
+        if args.two_column:
+            config_loader._config["document_defaults"]["two_column_enabled"] = True
 
         # Use command-line arguments
         input_file = Path(args.input_file)
