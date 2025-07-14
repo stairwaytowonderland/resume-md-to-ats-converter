@@ -339,7 +339,8 @@ class ConfigLoader:
             "document_defaults": {
                 "margin_top": 0.7,
                 "margin_bottom": 0.7,
-                "margin_left_right": 0.8,
+                "margin_left": 0.2,
+                "margin_right": 0.2,
                 "page_width": 8.5,
                 "page_height": 11.0,
             },
@@ -865,8 +866,8 @@ def create_ats_resume(
         section.page_height = Inches(doc_defaults["page_height"])
         section.top_margin = Inches(doc_defaults["margin_top"])
         section.bottom_margin = Inches(doc_defaults["margin_bottom"])
-        section.left_margin = Inches(doc_defaults["margin_left_right"])
-        section.right_margin = Inches(doc_defaults["margin_left_right"])
+        section.left_margin = Inches(doc_defaults["margin_left"])
+        section.right_margin = Inches(doc_defaults["margin_right"])
 
     contact_section = ResumeSection.get_section("CONTACT")
     about_section = ResumeSection.get_section("ABOUT")
@@ -1332,6 +1333,9 @@ def process_experience_section(
     )
     space_after_h4 = experience_section.space_after_h4
 
+    # Track if this is the first job
+    first_job = True
+
     while current_element and current_element.name != "h2":
         # Get unique ID for this element
         element_id = id(current_element)
@@ -1345,9 +1349,18 @@ def process_experience_section(
         if current_element.name == "h3":
             # Process job entry and mark as processed
             processed_elements = _process_job_entry(
-                document, current_element, set(), space_before_h3, space_after_h3
+                document,
+                current_element,
+                set(),
+                space_before_h3,
+                space_after_h3,
+                is_first_job=first_job,
             )
             processed_element_ids.add(element_id)
+
+            if first_job:
+                first_job = False
+
         elif current_element.name == "h4" and element_id not in processed_element_ids:
             # Process position and mark as processed
             processed_elements = _process_position(
@@ -1881,12 +1894,13 @@ def _apply_styles_to_cell_content(cell, document_styles, debug=False):
                         run.underline = hyperlink_style["underline"]
 
 
-def _create_table_cell_subdocument(cell, v_align="top"):
+def _create_table_cell_subdocument(cell, v_align="top", cell_type=None):
     """Create a subdocument for a table cell
 
     Args:
         cell: The table cell to use as a subdocument
         v_align: Vertical alignment ('top', 'center', 'bottom')
+        cell_type: Type of cell ('about', 'contact', 'sidebar', 'main') for custom margins
 
     Returns:
         The prepared cell object
@@ -1901,12 +1915,38 @@ def _create_table_cell_subdocument(cell, v_align="top"):
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
 
-    # Set cell margins (0.05 inch on all sides)
+    # Get margin values from config based on cell type
+    margin_top = ConfigHelper.get_style_constant(
+        f"{cell_type}_cell_margin_top",
+        ConfigHelper.get_style_constant("cell_margin_top", 60),
+    )
+    margin_bottom = ConfigHelper.get_style_constant(
+        f"{cell_type}_cell_margin_bottom",
+        ConfigHelper.get_style_constant("cell_margin_bottom", 60),
+    )
+    margin_left = ConfigHelper.get_style_constant(
+        f"{cell_type}_cell_margin_left",
+        ConfigHelper.get_style_constant("cell_margin_left", 60),
+    )
+    margin_right = ConfigHelper.get_style_constant(
+        f"{cell_type}_cell_margin_right",
+        ConfigHelper.get_style_constant("cell_margin_right", 60),
+    )
+
+    # Set cell margins
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
     tcMar = OxmlElement("w:tcMar")
 
-    for side, width in [("top", 60), ("start", 60), ("bottom", 60), ("end", 60)]:
+    # Add each margin side
+    side_map = {
+        "top": margin_top,
+        "bottom": margin_bottom,
+        "start": margin_left,
+        "end": margin_right,
+    }
+
+    for side, width in side_map.items():
         node = OxmlElement(f"w:{side}")
         node.set(qn("w:w"), str(width))
         node.set(qn("w:type"), "dxa")
@@ -1937,7 +1977,9 @@ def _create_two_column_layout(document, config_loader):
 
     # Get page width excluding margins
     page_width = config_loader.document_defaults.get("page_width", 8.5)
-    margins = config_loader.document_defaults.get("margin_left_right", 0.8) * 2
+    margin_left = config_loader.document_defaults.get("margin_left", 0.2)
+    margin_right = config_loader.document_defaults.get("margin_right", 0.2)
+    margins = margin_left + margin_right
     content_width = page_width - margins
 
     # Calculate column widths
@@ -1961,7 +2003,9 @@ def _create_two_column_layout(document, config_loader):
             tcBorders.append(border_elem)
         tcPr.append(tcBorders)
 
-    about_content_cell = _create_table_cell_subdocument(about_table.cell(0, 0))
+    about_content_cell = _create_table_cell_subdocument(
+        about_table.cell(0, 0), cell_type="about"
+    )
 
     # THEN create contact ribbon table (1 row, 1 column) AFTER about section
     contact_table = document.add_table(rows=1, cols=1)
@@ -1981,7 +2025,7 @@ def _create_two_column_layout(document, config_loader):
         tcPr.append(tcBorders)
 
     contact_info_cell = _create_table_cell_subdocument(
-        contact_table.cell(0, 0), v_align="center"
+        contact_table.cell(0, 0), v_align="center", cell_type="contact"
     )
 
     # Add small space after contact ribbon
@@ -2012,9 +2056,11 @@ def _create_two_column_layout(document, config_loader):
 
     # Get and prepare the cells with correct vertical alignment
     sidebar_cell = _create_table_cell_subdocument(
-        content_table.cell(0, 0), v_align="top"
+        content_table.cell(0, 0), v_align="top", cell_type="sidebar"
     )
-    main_cell = _create_table_cell_subdocument(content_table.cell(0, 1))
+    main_cell = _create_table_cell_subdocument(
+        content_table.cell(0, 1), cell_type="main"
+    )
 
     # Get the sidebar cell
     sidebar_tc = content_table.cell(0, 0)._tc
@@ -2476,19 +2522,9 @@ def _process_job_entry(
     processed_elements: set[BS4_Element],
     space_before: int | None = None,
     space_after: int | None = None,
+    is_first_job: bool = True,
 ) -> set[BS4_Element]:
-    """Process a job entry (h3) and its related elements
-
-    Args:
-        document: The Word document object
-        job_element: BeautifulSoup element for the job heading
-        processed_elements: Set of elements already processed
-        space_before: Whether to add space before h3 headings (except first)
-        space_after: Space after h3 heading, if any
-
-    Returns:
-        Updated set of processed elements
-    """
+    """Process a job entry (h3) and its related elements"""
     job_title = job_element.text.strip()
 
     # Check for HR before h3 and add page break if found
@@ -2496,15 +2532,37 @@ def _process_job_entry(
         p = document.add_paragraph()
         run = p.add_run()
         run.add_break(DOCX_BREAK_TYPE.PAGE)
+    # Add horizontal line before job entries (except the first one)
+    elif not is_first_job and hasattr(
+        document, "tables"
+    ):  # Check if it's a cell/subdocument
+        # Get values from config with fallbacks
+        line_char = ConfigHelper.get_style_constant("horizontal_line_char", "_")
+        line_length = ConfigHelper.get_style_constant(
+            "job_entry_horizontal_line_length", 30
+        )
+        line_spacing = ConfigHelper.get_style_constant(
+            "job_entry_horizontal_line_spacing", 1.0
+        )
+
+        # Add the horizontal line
+        p = document.add_paragraph()
+        p.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
+        p.add_run(line_char * line_length)
+
+        for run in p.runs:
+            run.bold = True
+            # Set font size for the horizontal line
+            run.font.size = Pt(16)
+
+        if line_spacing:
+            p.paragraph_format.line_spacing = line_spacing
 
     # Add explicit space before h3 in two-column mode by adding an empty paragraph
     elif space_before:
         # Add a spacer paragraph with specific height before company name
         spacer = document.add_paragraph()
         spacer.add_run(" ")  # Need at least one character
-
-        # Apply the exact spacing requested from the config
-        from docx.shared import Pt
 
         spacer.paragraph_format.space_after = Pt(space_before)
 

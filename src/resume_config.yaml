@@ -4,7 +4,8 @@
 document_defaults:
   margin_top: 0.5  # in inches
   margin_bottom: 1.0  # in inches
-  margin_left_right: 0.8  # in inches
+  margin_left: 0.5  # in inches
+  margin_right: 0.5  # in inches
   page_width: 8.5  # in inches (US Letter)
   page_height: 11.0  # in inches (US Letter)
   # Page number settings
@@ -12,7 +13,7 @@ document_defaults:
   page_numbers_alignment: "center"  # left, center, right
   page_numbers_format: "with_total"     # simple, with_total
   page_numbers_text: "Page {page} of {total}"
-  two_column_enabled: true  # Enable the two-column layout
+  two_column_enabled: false  # Enable the two-column layout
   sidebar_width_ratio: 0.33  # Width ratio of left sidebar (1/3)
   main_width_ratio: 0.67  # Width ratio of main content (2/3)
 
@@ -25,6 +26,10 @@ style_constants:
   bullet_indent_inches: 0.5
   horizontal_line_char: "_"  # Character for horizontal lines
   horizontal_line_length: 50  # Length of horizontal line
+  sidebar_horizontal_line_length: 15  # Length of horizontal line
+  sidebar_horizontal_line_spacing: 1.6  # Height of horizontal line
+  job_entry_horizontal_line_length: 30  # Length of horizontal line for job entries
+  job_entry_horizontal_line_spacing: 1.0  # Height of horizontal line for job
   header_specialty_space_after: 4  # Space after headings
   top_skills_separator_markdown: " • "  # Separator for top skills area
   top_skills_separator: " | "  # Separator for top skills area
@@ -41,6 +46,17 @@ style_constants:
   paragraph_lists: yes  # Enable/disable paragraph-style lists
   page_number_font_size: 8
   page_number_font_name: "Helvetica Neue"
+
+  # Cell margin settings (in twips - 1/20th of a point)
+  cell_margin_top: 60      # Top internal margin for table cells
+  cell_margin_bottom: 60   # Bottom internal margin for table cells
+  cell_margin_left: 200     # Left internal margin for table cells
+  cell_margin_right: 200    # Right internal margin for table cells
+  # Optional specific margins for different cell types
+  about_cell_margin_top: 0    # Custom margin for about section
+  sidebar_cell_margin_left: 200  # Custom left margin for sidebar
+  main_cell_margin_left: 200    # Custom left margin for main content
+  contact_cell_margin_top: 200  # Custom top margin for contact ribbon
 
 # Document styles - Word document style definitions
 document_styles:
