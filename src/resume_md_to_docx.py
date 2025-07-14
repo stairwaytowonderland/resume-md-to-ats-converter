@@ -395,7 +395,7 @@ class ConfigLoader:
                         "experience",
                         {
                             "markdown_heading": "Experience",
-                            "docx_heading": "PROFESSIONAL EXPERIENCE",
+                            "docx_heading": "WORK EXPERIENCE",
                             "add_space_before_h3": True,
                             "add_space_before_h2": False,
                         },
@@ -413,7 +413,7 @@ class ConfigLoader:
                         "certifications",
                         {
                             "markdown_heading": "Licenses & certifications",
-                            "docx_heading": "LICENSES & CERTIFICATIONS",
+                            "docx_heading": "CERTIFICATIONS",
                             "add_space_before_h3": True,
                             "add_space_before_h2": False,
                         },

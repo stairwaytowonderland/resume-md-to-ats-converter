@@ -176,7 +176,7 @@ resume_sections:
     add_space_before_h3: false
   experience:
     markdown_heading: "Experience"
-    docx_heading: "PROFESSIONAL EXPERIENCE"
+    docx_heading: "WORK EXPERIENCE"
     add_space_before_h2: false
     space_after_h2: 14
     add_space_before_h3: true
@@ -195,7 +195,7 @@ resume_sections:
     space_after_h4: 2
   certifications:
     markdown_heading: "Licenses & certifications"
-    docx_heading: "LICENSES & CERTIFICATIONS"
+    docx_heading: "CERTIFICATIONS"
     add_space_before_h2: false
     add_space_before_h3: true
     add_space_before_h4: true
