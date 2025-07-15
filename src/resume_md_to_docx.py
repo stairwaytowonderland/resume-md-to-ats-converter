@@ -497,6 +497,19 @@ class ConfigLoader:
                 )
 
     @property
+    def sidebar_position(self) -> str:
+        """Get sidebar position (left or right)"""
+        position = self._config.get("document_defaults", {}).get(
+            "sidebar_position", "left"
+        )
+        return position.lower()
+
+    @property
+    def is_sidebar_on_right(self) -> bool:
+        """Check if sidebar should be on the right"""
+        return self.sidebar_position == "right"
+
+    @property
     def two_column_enabled(self) -> bool:
         """Check if two column layout is enabled"""
         return self._config.get("document_defaults", {}).get(
@@ -1974,6 +1987,7 @@ def _create_two_column_layout(document, config_loader):
     """
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
+    from docx.shared import Inches
 
     # Get page width excluding margins
     page_width = config_loader.document_defaults.get("page_width", 8.5)
@@ -1985,6 +1999,9 @@ def _create_two_column_layout(document, config_loader):
     # Calculate column widths
     sidebar_width = content_width * config_loader.sidebar_width_ratio
     main_width = content_width * config_loader.main_width_ratio
+
+    # Determine sidebar position (left or right)
+    sidebar_on_right = config_loader.is_sidebar_on_right
 
     # Create about section table FIRST (1 row, 1 column) for professional summary
     about_table = document.add_table(rows=1, cols=1)
@@ -2028,18 +2045,20 @@ def _create_two_column_layout(document, config_loader):
         contact_table.cell(0, 0), v_align="center", cell_type="contact"
     )
 
-    # Add small space after contact ribbon
-    # p = document.add_paragraph()
-    # p.paragraph_format.space_after = Pt(12)
-
     # Create the main content table (1 row, 2 columns)
     content_table = document.add_table(rows=1, cols=2)
     content_table.allow_autofit = False
     content_table.autofit = False
 
-    # Set column widths
-    content_table.columns[0].width = Inches(sidebar_width)
-    content_table.columns[1].width = Inches(main_width)
+    # Set column widths based on sidebar position
+    if sidebar_on_right:
+        # Main content on left, sidebar on right
+        content_table.columns[0].width = Inches(main_width)
+        content_table.columns[1].width = Inches(sidebar_width)
+    else:
+        # Sidebar on left (default), main content on right
+        content_table.columns[0].width = Inches(sidebar_width)
+        content_table.columns[1].width = Inches(main_width)
 
     # Set up content table appearance
     content_table.style = "Table Grid"
@@ -2055,22 +2074,35 @@ def _create_two_column_layout(document, config_loader):
         tcPr.append(tcBorders)
 
     # Get and prepare the cells with correct vertical alignment
-    sidebar_cell = _create_table_cell_subdocument(
-        content_table.cell(0, 0), v_align="top", cell_type="sidebar"
-    )
-    main_cell = _create_table_cell_subdocument(
-        content_table.cell(0, 1), cell_type="main"
-    )
+    if sidebar_on_right:
+        # Main content on left, sidebar on right
+        main_cell = _create_table_cell_subdocument(
+            content_table.cell(0, 0), cell_type="main"
+        )
+        sidebar_cell = _create_table_cell_subdocument(
+            content_table.cell(0, 1), v_align="top", cell_type="sidebar"
+        )
 
-    # Get the sidebar cell
-    sidebar_tc = content_table.cell(0, 0)._tc
+        # Apply background color to the right cell
+        sidebar_tc = content_table.cell(0, 1)._tc
+    else:
+        # Sidebar on left (default), main content on right
+        sidebar_cell = _create_table_cell_subdocument(
+            content_table.cell(0, 0), v_align="top", cell_type="sidebar"
+        )
+        main_cell = _create_table_cell_subdocument(
+            content_table.cell(0, 1), cell_type="main"
+        )
+
+        # Apply background color to the left cell
+        sidebar_tc = content_table.cell(0, 0)._tc
+
+    # Apply sidebar background color
     sidebar_tcPr = sidebar_tc.get_or_add_tcPr()
 
     # Add light gray shading
     shading = OxmlElement("w:shd")
-    shading.set(
-        qn("w:fill"), "EEEEEE"
-    )  # Light gray background - same as contact ribbon
+    shading.set(qn("w:fill"), "EEEEEE")  # Light gray background
     shading.set(qn("w:val"), "clear")
     sidebar_tcPr.append(shading)
 
