@@ -2591,7 +2591,7 @@ def _process_job_entry(
             p.paragraph_format.line_spacing = line_spacing
 
     # Add explicit space before h3 in two-column mode by adding an empty paragraph
-    elif space_before:
+    elif space_before and not is_first_job:
         # Add a spacer paragraph with specific height before company name
         spacer = document.add_paragraph()
         spacer.add_run(" ")  # Need at least one character
