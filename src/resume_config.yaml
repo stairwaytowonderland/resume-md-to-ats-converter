@@ -50,8 +50,11 @@ style_constants:
   horizontal_line_length: 50  # Length of horizontal line
   horizontal_line_color: "4F81BD"  # Color of horizontal lines
   horizontal_line_spacing: 1.6  # Height of horizontal line
+  header_to_about_spacing: 0.8    # Add explicit control for space between header and about
+  horizontal_line_font_size: 16
   sidebar_horizontal_line_length: 15  # Length of horizontal line
-  sidebar_horizontal_line_spacing: 1.6  # Height of horizontal line
+  sidebar_horizontal_line_color: "4F81BD"  # Color of horizontal lines in sidebar
+  sidebar_horizontal_line_font_size: 16
   job_entry_horizontal_line_length: 30  # Length of horizontal line for job entries
   job_entry_horizontal_line_spacing: 1.0  # Height of horizontal line for job
   header_specialty_space_after: 4  # Space after headings

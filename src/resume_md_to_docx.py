@@ -901,15 +901,16 @@ def create_ats_resume(
             _create_two_column_layout(document, config_loader)
         )
 
-        # Process about section in the about content cell AFTER contact info
-        about_section = ResumeSection.get_section("ABOUT")
-        if about_section:
-            process_about_section(about_content_cell, soup)
-
         # Process contact info in the contact cell (right after header, before about section)
         contact_section = ResumeSection.get_section("CONTACT")
         if contact_section:
             _process_contact_info_horizontal(contact_info_cell, soup)
+
+        about_section = ResumeSection.get_section("ABOUT")
+        if about_section:
+            # Override space before to be minimal
+            about_section.space_before_h2 = 0
+            process_about_section(about_content_cell, soup)
 
         # Process sections for the sidebar (Top Skills, Certifications, Education)
         sidebar_sections = []
@@ -4245,19 +4246,25 @@ def _add_horizontal_line_to_cell(cell, is_sidebar=False):
     # Get values from config with fallbacks
     line_char = ConfigHelper.get_style_constant("horizontal_line_char", "_")
     line_rgb_color = None
+    line_spacing = ConfigHelper.get_style_constant("horizontal_line_spacing", 1.6)
 
     if is_sidebar:
         line_length = ConfigHelper.get_style_constant(
             "sidebar_horizontal_line_length", 30
         )
-        line_spacing = ConfigHelper.get_style_constant(
-            "sidebar_horizontal_line_spacing", 1.6
+        line_color = ConfigHelper.get_style_constant(
+            "sidebar_horizontal_line_color", "000000"
+        )
+        line_font_size = ConfigHelper.get_style_constant(
+            "sidebar_horizontal_line_font_size", 16
         )
     else:
         line_length = ConfigHelper.get_style_constant("horizontal_line_length", 50)
-        line_spacing = ConfigHelper.get_style_constant("horizontal_line_spacing", 1.6)
         line_color = ConfigHelper.get_style_constant("horizontal_line_color", "000000")
         line_rgb_color = _convert_hex_to_rgb_color(line_color)
+        line_font_size = ConfigHelper.get_style_constant(
+            "horizontal_line_font_size", 16
+        )
 
     p = cell.add_paragraph()
     p.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
@@ -4267,13 +4274,22 @@ def _add_horizontal_line_to_cell(cell, is_sidebar=False):
         run.bold = True
         # Set font size for the horizontal line
         # FIXME: For some reason, correct line spacing is only applied when font is set to a value greater than 14 (H1)
-        run.font.size = Pt(16)
+        run.font.size = Pt(line_font_size)
 
         if line_rgb_color:
             run.font.color.rgb = line_rgb_color
 
+    # Get specific header-to-about spacing if it exists
     if line_spacing:
-        p.paragraph_format.line_spacing = line_spacing
+        header_to_about = ConfigHelper.get_style_constant(
+            "header_to_about_spacing", None
+        )
+        if header_to_about is not None:
+            # Use specific header-to-about spacing
+            p.paragraph_format.line_spacing = header_to_about
+        else:
+            # Use general line spacing
+            p.paragraph_format.line_spacing = line_spacing
 
 
 def _add_space_paragraph(
