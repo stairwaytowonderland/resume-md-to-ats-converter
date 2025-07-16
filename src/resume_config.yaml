@@ -9,13 +9,34 @@ document_defaults:
   page_width: 8.5  # in inches (US Letter)
   page_height: 11.0  # in inches (US Letter)
   # Page number settings
-  page_numbers_enabled: true
+  page_numbers_enabled: false
   page_numbers_alignment: "center"  # left, center, right
   page_numbers_format: "with_total"     # simple, with_total
   page_numbers_text: "Page {page} of {total}"
+  # Column settings
   two_column_enabled: false  # Enable the two-column layout
   sidebar_width_ratio: 0.33  # Width ratio of left sidebar (1/3)
   main_width_ratio: 0.67  # Width ratio of main content (2/3)
+  sidebar_position: "left"  # Position of sidebar: "left" or "right"
+
+  header_image:
+    enabled: false
+    url: "https://example.com/your-profile-image.jpg"  # Replace with your actual image URL
+    width_inches: 0.8  # Width of the image in inches
+    height_inches: 0.8  # Height of the image in inches (make equal to width for square)
+    border_color: "BCDCFF"  # Dark blue border color
+    border_width: 3  # Border width in points
+    double_border: true  # Enable double border effect using nested table
+    inner_border_color: "4F81BD"  # Color of the inner border
+    inner_border_width: 2  # Width of the inner border in points
+    border_spacing: 2  # Space between borders in points
+    position: "left"  # Position of the image (left or right)
+    margin_right: 0.5  # Margin between image and text in inches
+    padding_top: 7      # Padding above the image in points
+    padding_right: 18    # Padding to the right of the image in points
+    padding_bottom: 7   # Padding below the image in points
+    padding_left: 0     # Padding to the left of the image in points
+  header_alignment: "center"  # Alignment for header text (left, center, or right)
 
 # Style constants - general formatting preferences
 style_constants:
@@ -24,8 +45,11 @@ style_constants:
   space_after: 0
   indent_inches: 0.25
   bullet_indent_inches: 0.5
+  hr_before_job_blank_line: true  # Enable/disable blank line before job entries with HR
   horizontal_line_char: "_"  # Character for horizontal lines
   horizontal_line_length: 50  # Length of horizontal line
+  horizontal_line_color: "4F81BD"  # Color of horizontal lines
+  horizontal_line_spacing: 1.6  # Height of horizontal line
   sidebar_horizontal_line_length: 15  # Length of horizontal line
   sidebar_horizontal_line_spacing: 1.6  # Height of horizontal line
   job_entry_horizontal_line_length: 30  # Length of horizontal line for job entries
@@ -42,6 +66,7 @@ style_constants:
   key_skills_heading_line_spacing: 1.0  # Line spacing for key skills heading
   date_location_line_spacing: 1.2  # Line spacing for date/location line
   date_location_font_size: 10  # Font size for date/location line
+  date_location_separator: " / "  # Separator between date and location
   position_title_line_spacing: 1.0  # Line spacing for position title line
   paragraph_lists: yes  # Enable/disable paragraph-style lists
   page_number_font_size: 8
@@ -57,6 +82,19 @@ style_constants:
   sidebar_cell_margin_left: 200  # Custom left margin for sidebar
   main_cell_margin_left: 200    # Custom left margin for main content
   contact_cell_margin_top: 200  # Custom top margin for contact ribbon
+
+  contact_ribbon_border_width: 5  # Width of contact ribbon border in points
+  contact_ribbon_border_color: "FFFFFF"  # White border color
+  contact_ribbon_fill_color: "BCDCFF"  # Light blue fill color for contact ribbon
+
+  sidebar_border_width: 5  # Width of sidebar border in points
+  sidebar_border_color: "FFFFFF"  # White border color
+  sidebar_fill_color: "EEEEEE"  # Light gray fill color for sidebar
+
+  about_border_enabled: true  # Enable border for about section
+  about_border_width: 5  # Width of sidebar border in points
+  about_border_color: "FFFFFF"  # White border color
+  about_fill_color: "CCCCCC"  # Light gray fill color for sidebar
 
 # Document styles - Word document style definitions
 document_styles:

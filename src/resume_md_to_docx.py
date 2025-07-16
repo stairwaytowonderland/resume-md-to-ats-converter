@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from bs4.element import PageElement as BS4_Element
 from docx import Document
 from docx.enum.style import WD_STYLE_TYPE as DOCX_STYLE_TYPE
+from docx.enum.table import WD_ALIGN_VERTICAL as DOCX_CELL_ALIGN_VERTICAL
 from docx.enum.text import WD_BREAK_TYPE as DOCX_BREAK_TYPE
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT as DOCX_PARAGRAPH_ALIGN
 from docx.opc.constants import RELATIONSHIP_TYPE as DOCX_REL
@@ -1098,76 +1099,305 @@ def process_header_section(
     Returns:
         None
     """
-    # Extract header (name)
+    # Get header image settings
+    header_defaults = ConfigHelper.get_document_defaults()
+    header_image_enabled = header_defaults.get("header_image", {}).get("enabled", False)
+    header_alignment = header_defaults.get("header_alignment", "center")
+
+    # Always extract and add the main title (name) directly to the document
     name = soup.find("h1").text
+    title_para = document.add_paragraph(style="Title")
+    # Always center the title regardless of header_alignment setting
+    title_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
+    title_para.add_run(name)
 
-    # Add name as document title
-    title = document.add_heading(name, HeadingsHelper.get_level_for_tag("h1"))
-    title.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
-
-    # Add professional tagline if it exists - first paragraph after h1
+    # Extract the tagline (first paragraph after h1)
     first_p = soup.find("h1").find_next_sibling()
-    if first_p and first_p.name == "p":
-        # Check if ANY paragraph headings are specified, which indicates preference for simpler styling
-        use_paragraph_style = (
-            HeadingsHelper.any_heading_uses_paragraph_style()
-        )  # True if any heading levels use paragraph style
+    has_tagline = first_p and first_p.name == "p"
 
-        # Check if the paragraph contains emphasis (italics)
-        em_tag = first_p.find("em")
-        if em_tag:
-            # Always use paragraph style with manual formatting when paragraph_style_headings is active
-            if use_paragraph_style:
-                tagline_para = document.add_paragraph()
-                tagline_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
-                tagline_run = tagline_para.add_run(em_tag.text)
-                tagline_run.italic = True
+    # Create a table for the image and tagline only if image is enabled
+    if header_image_enabled:
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
 
-                # Set the font size to match heading style
-                tagline_run.font.size = Pt(HeadingsHelper.get_font_size_for_tag("h4"))
-            else:
-                # Use Word's built-in Subtitle style
-                tagline_para = document.add_paragraph(em_tag.text, style="Subtitle")
-                tagline_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
-                # Keep it italic despite the style
-                for run in tagline_para.runs:
-                    run.italic = True
+        # Create a 1x2 table for the header (image on left, tagline on right)
+        header_table = document.add_table(rows=1, cols=2)
+        header_table.allow_autofit = False
+        header_table.autofit = False
 
-            # Add the rest of the first paragraph as a separate paragraph if it exists
-            rest_of_p = first_p.text.replace(em_tag.text, "").strip()
-            if rest_of_p:
-                rest_para = document.add_paragraph()
-                rest_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
-                rest_para.add_run(rest_of_p)
-        else:
-            # If no emphasis tag, just add the whole paragraph
-            if use_paragraph_style:
-                tagline_para = document.add_paragraph()
-                tagline_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
-                tagline_para.add_run(first_p.text)
-            else:
-                # Use Word's built-in Subtitle style
-                tagline_para = document.add_paragraph(first_p.text, style="Subtitle")
-                tagline_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
+        # Get image settings
+        img_url = header_defaults["header_image"].get("url", "")
+        img_width = Inches(header_defaults["header_image"].get("width_inches", 1.0))
+        img_height = Inches(header_defaults["header_image"].get("height_inches", 1.0))
+        img_border_color = header_defaults["header_image"].get("border_color", "000000")
+        img_border_width = header_defaults["header_image"].get("border_width", 1)
+        margin_right = Inches(header_defaults["header_image"].get("margin_right", 0.5))
 
-        # Check for additional paragraphs before the first h2 that might contain specialty areas
-        current_p = first_p.find_next_sibling()
-        # Simply process all paragraphs until we hit a non-paragraph element (like h2)
-        while current_p and current_p.name == "p":
-            specialty_para = document.add_paragraph()
-            specialty_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
-            specialty_para.add_run(current_p.text)
-            header_specialty_space_after = ConfigHelper.get_style_constant(
-                "header_specialty_space_after", None
+        # Calculate available width and set column widths
+        page_width = header_defaults.get("page_width", 8.5)
+        margin_left = header_defaults.get("margin_left", 0.5)
+        margin_right_page = header_defaults.get("margin_right", 0.5)
+        available_width = page_width - margin_left - margin_right_page
+
+        # Set first column to exact image width plus margin
+        first_col_width = img_width + margin_right
+        second_col_width = Inches(available_width) - first_col_width
+
+        header_table.columns[0].width = first_col_width
+        header_table.columns[1].width = second_col_width
+
+        # Make table borderless
+        header_table.style = "Table Grid"
+        for cell in header_table._cells:
+            cell_xml = cell._tc
+            tcPr = cell_xml.get_or_add_tcPr()
+            tcBorders = OxmlElement("w:tcBorders")
+            for border in ["top", "left", "bottom", "right"]:
+                border_elem = OxmlElement(f"w:{border}")
+                border_elem.set(qn("w:val"), "nil")
+                tcBorders.append(border_elem)
+            tcPr.append(tcBorders)
+
+        # Add image to first cell
+        img_cell = header_table.cell(0, 0)
+        img_cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL.TOP
+
+        # Clear any existing paragraph
+        if img_cell.paragraphs:
+            p = img_cell.paragraphs[0]
+            p._element.getparent().remove(p._element)
+            p._p = None
+            p._element = None
+
+        # Check if double border is enabled
+        double_border = header_defaults["header_image"].get("double_border", False)
+
+        if double_border:
+            # Create a nested table for the double border effect
+            inner_table = img_cell.add_table(rows=1, cols=1)
+            inner_table.allow_autofit = False
+            inner_table.autofit = False
+
+            # Get padding settings with default fallback to border_spacing
+            border_spacing = header_defaults["header_image"].get("border_spacing", 4)
+            padding_top = header_defaults["header_image"].get(
+                "padding_top", border_spacing
             )
-            if header_specialty_space_after:
-                specialty_para.paragraph_format.space_after = Pt(
-                    header_specialty_space_after
-                )
-            current_p = current_p.find_next_sibling()
+            padding_right = header_defaults["header_image"].get(
+                "padding_right", border_spacing
+            )
+            padding_bottom = header_defaults["header_image"].get(
+                "padding_bottom", border_spacing
+            )
+            padding_left = header_defaults["header_image"].get(
+                "padding_left", border_spacing
+            )
 
-    # Add horizontal line
-    _add_horizontal_line_simple(document)
+            # Set inner table width to match image dimensions plus padding
+            total_width = img_width + Pt(padding_left + padding_right)
+            inner_table.columns[0].width = total_width
+
+            # Get border properties
+            inner_border_color = header_defaults["header_image"].get(
+                "inner_border_color", "4F81BD"
+            )
+            inner_border_width = header_defaults["header_image"].get(
+                "inner_border_width", 2
+            )
+
+            # Apply border to inner table cell
+            inner_cell = inner_table.cell(0, 0)
+            inner_cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL.TOP
+
+            # Apply border to inner cell
+            inner_tc = inner_cell._tc
+            inner_tcPr = inner_tc.get_or_add_tcPr()
+            inner_tcBorders = OxmlElement("w:tcBorders")
+
+            for border in ["top", "left", "bottom", "right"]:
+                border_elem = OxmlElement(f"w:{border}")
+                border_elem.set(qn("w:val"), "single")
+                border_elem.set(qn("w:sz"), str(inner_border_width * 8))
+                border_elem.set(qn("w:color"), inner_border_color)
+                inner_tcBorders.append(border_elem)
+
+            inner_tcPr.append(inner_tcBorders)
+
+            # Apply custom cell margins/padding for each side
+            tcMar = OxmlElement("w:tcMar")
+
+            # Map sides to their config values
+            side_padding = {
+                "top": padding_top * 20,  # Convert points to twips
+                "bottom": padding_bottom * 20,
+                "start": padding_left * 20,
+                "end": padding_right * 20,
+            }
+
+            # Apply each margin side with its specific value
+            for side, width in side_padding.items():
+                node = OxmlElement(f"w:{side}")
+                node.set(qn("w:w"), str(int(width)))  # Cell margins are in twips
+                node.set(qn("w:type"), "dxa")
+                tcMar.append(node)
+
+            inner_tcPr.append(tcMar)
+
+            # Clear any default paragraph
+            if inner_cell.paragraphs:
+                p = inner_cell.paragraphs[0]
+                p._element.getparent().remove(p._element)
+                p._p = None
+                p._element = None
+
+            # Add image to the inner cell with precise positioning
+            img_para = inner_cell.add_paragraph()
+            img_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
+            img_para.paragraph_format.space_before = Pt(0)
+            img_para.paragraph_format.space_after = Pt(0)
+            run = img_para.add_run()
+        else:
+            # Original approach - add directly to the cell
+            img_para = img_cell.add_paragraph()
+            run = img_para.add_run()
+
+        # Add image with border (same for both approaches)
+        try:
+            from io import BytesIO
+
+            import requests
+
+            response = requests.get(img_url)
+            img_stream = BytesIO(response.content)
+            pic = run.add_picture(img_stream, width=img_width, height=img_height)
+
+            # Get the inline element containing the picture
+            inline = pic._inline
+
+            # Alternative approach for handling shape properties that doesn't use namespaces parameter
+            picPr = None
+            for child in inline.findall(".//{*}pic"):
+                picPr = child
+                break
+
+            if picPr is not None:
+                # Find spPr element
+                spPr = None
+                for child in picPr.findall(".//{*}spPr"):
+                    spPr = child
+                    break
+
+                if spPr is not None:
+                    # Create line properties element
+                    ln = OxmlElement("a:ln")
+                    ln.set("w", str(img_border_width * 12700))  # Width in EMUs
+
+                    # Create solid fill
+                    solidFill = OxmlElement("a:solidFill")
+                    srgbClr = OxmlElement("a:srgbClr")
+                    srgbClr.set("val", img_border_color.lstrip("#"))
+                    solidFill.append(srgbClr)
+                    ln.append(solidFill)
+
+                    # Add line properties to shape properties
+                    spPr.append(ln)
+        except Exception as e:
+            print(f"Failed to add image: {str(e)}")
+
+        # Use second cell for tagline
+        text_cell = header_table.cell(0, 1)
+        text_cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL.TOP
+
+        if text_cell.paragraphs:
+            p = text_cell.paragraphs[0]
+            p._element.getparent().remove(p._element)
+            p._p = None
+            p._element = None
+
+        # Process tagline in the right cell if it exists
+        if has_tagline:
+            _process_tagline_and_specialty(text_cell, first_p, header_alignment)
+
+        # Add horizontal line to the tagline cell instead of to the document
+        # This centers it below just the tagline portion
+        _add_horizontal_line_to_cell(text_cell)
+    else:
+        # If no image, just process the tagline directly in the document
+        if has_tagline:
+            _process_tagline_and_specialty(document, first_p, header_alignment)
+
+        # Add horizontal line to the full document when no image
+        _add_horizontal_line_simple(document)
+
+
+def _process_tagline_and_specialty(container, first_p, alignment_str):
+    """Process tagline and specialty paragraphs
+
+    Args:
+        container: Document or cell to add content to
+        first_p: First paragraph element (tagline)
+        alignment_str: Alignment as string (left, right, center)
+    """
+    # Convert alignment string to docx constant
+    if alignment_str == "right":
+        alignment = DOCX_PARAGRAPH_ALIGN.RIGHT
+    elif alignment_str == "left":
+        alignment = DOCX_PARAGRAPH_ALIGN.LEFT
+    else:
+        alignment = DOCX_PARAGRAPH_ALIGN.CENTER
+
+    # Check if ANY paragraph headings are specified
+    use_paragraph_style = HeadingsHelper.any_heading_uses_paragraph_style()
+
+    # Check if the paragraph contains emphasis (italics)
+    em_tag = first_p.find("em")
+    if em_tag:
+        # Process paragraph with emphasis
+        if use_paragraph_style:
+            tagline_para = container.add_paragraph()
+            tagline_para.alignment = alignment
+            tagline_run = tagline_para.add_run(em_tag.text)
+            tagline_run.italic = True
+            tagline_run.font.size = Pt(HeadingsHelper.get_font_size_for_tag("h4"))
+        else:
+            tagline_para = container.add_paragraph(em_tag.text, style="Subtitle")
+            tagline_para.alignment = alignment
+            for run in tagline_para.runs:
+                run.italic = True
+
+        # Add the rest of the paragraph if any
+        rest_of_p = first_p.text.replace(em_tag.text, "").strip()
+        if rest_of_p:
+            rest_para = container.add_paragraph()
+            rest_para.alignment = alignment
+            rest_para.add_run(rest_of_p)
+    else:
+        # Process regular paragraph
+        if use_paragraph_style:
+            tagline_para = container.add_paragraph()
+            tagline_para.alignment = alignment
+            tagline_para.add_run(first_p.text)
+        else:
+            tagline_para = container.add_paragraph(first_p.text, style="Subtitle")
+            tagline_para.alignment = alignment
+
+    # Process additional specialty paragraphs
+    current_p = first_p.find_next_sibling()
+    while current_p and current_p.name == "p":
+        specialty_para = container.add_paragraph()
+        specialty_para.alignment = alignment
+        specialty_para.add_run(current_p.text)
+
+        # Apply spacing
+        header_specialty_space_after = ConfigHelper.get_style_constant(
+            "header_specialty_space_after", None
+        )
+        if header_specialty_space_after:
+            specialty_para.paragraph_format.space_after = Pt(
+                header_specialty_space_after
+            )
+
+        current_p = current_p.find_next_sibling()
 
 
 def process_about_section(
@@ -1707,9 +1937,30 @@ def _process_contact_info_horizontal(cell, soup):
 
     # Add gray shading
     shading = OxmlElement("w:shd")
-    shading.set(qn("w:fill"), "BCDCFF")
+    shading.set(
+        qn("w:fill"),
+        ConfigHelper.get_style_constant("contact_ribbon_fill_color", "BCDCFF"),
+    )
     shading.set(qn("w:val"), "clear")
     tcPr.append(shading)
+
+    # Add white border to the contact ribbon
+    tcBorders = OxmlElement("w:tcBorders")
+
+    # Get border settings from config
+    border_width = ConfigHelper.get_style_constant("contact_ribbon_border_width", 1)
+    border_color = ConfigHelper.get_style_constant(
+        "contact_ribbon_border_color", "FFFFFF"
+    )
+
+    for border in ["top", "left", "bottom", "right"]:
+        border_elem = OxmlElement(f"w:{border}")
+        border_elem.set(qn("w:val"), "single")  # 'single' for solid line
+        border_elem.set(qn("w:sz"), str(border_width * 8))  # Size in eighths of a point
+        border_elem.set(qn("w:color"), border_color)  # White border
+        tcBorders.append(border_elem)
+
+    tcPr.append(tcBorders)
 
     # Find the contact section
     contact_section = soup.find("h2", string=lambda text: text.lower() == "contact")
@@ -2024,6 +2275,36 @@ def _create_two_column_layout(document, config_loader):
         about_table.cell(0, 0), cell_type="about"
     )
 
+    about_tc = about_table.cell(0, 0)._tc
+
+    about_tcPr = about_tc.get_or_add_tcPr()
+
+    about_shading = OxmlElement("w:shd")
+    about_shading.set(
+        qn("w:fill"), ConfigHelper.get_style_constant("about_fill_color", "EEEEEE")
+    )  # Light gray background
+    about_shading.set(qn("w:val"), "clear")
+    about_tcPr.append(about_shading)
+
+    tcBorders = OxmlElement("w:tcBorders")
+
+    # Get border settings from config
+    border_enabled = ConfigHelper.get_style_constant("about_border_enabled", False)
+    border_width = ConfigHelper.get_style_constant("about_border_width", 1)
+    border_color = ConfigHelper.get_style_constant("about_border_color", "FFFFFF")
+
+    if border_enabled:
+        for border in ["top", "left", "bottom", "right"]:
+            border_elem = OxmlElement(f"w:{border}")
+            border_elem.set(qn("w:val"), "single")  # 'single' for solid line
+            border_elem.set(
+                qn("w:sz"), str(border_width * 8)
+            )  # Size in eighths of a point
+            border_elem.set(qn("w:color"), border_color)  # White border
+            tcBorders.append(border_elem)
+
+        about_tcPr.append(tcBorders)
+
     # THEN create contact ribbon table (1 row, 1 column) AFTER about section
     contact_table = document.add_table(rows=1, cols=1)
     contact_table.allow_autofit = False
@@ -2097,14 +2378,32 @@ def _create_two_column_layout(document, config_loader):
         # Apply background color to the left cell
         sidebar_tc = content_table.cell(0, 0)._tc
 
-    # Apply sidebar background color
+    # Apply sidebar background color and border
     sidebar_tcPr = sidebar_tc.get_or_add_tcPr()
 
     # Add light gray shading
     shading = OxmlElement("w:shd")
-    shading.set(qn("w:fill"), "EEEEEE")  # Light gray background
+    shading.set(
+        qn("w:fill"), ConfigHelper.get_style_constant("sidebar_fill_color", "EEEEEE")
+    )  # Light gray background
     shading.set(qn("w:val"), "clear")
     sidebar_tcPr.append(shading)
+
+    # Add white border to the sidebar
+    tcBorders = OxmlElement("w:tcBorders")
+
+    # Get border settings from config
+    border_width = ConfigHelper.get_style_constant("sidebar_border_width", 1)
+    border_color = ConfigHelper.get_style_constant("sidebar_border_color", "FFFFFF")
+
+    for border in ["top", "left", "bottom", "right"]:
+        border_elem = OxmlElement(f"w:{border}")
+        border_elem.set(qn("w:val"), "single")  # 'single' for solid line
+        border_elem.set(qn("w:sz"), str(border_width * 8))  # Size in eighths of a point
+        border_elem.set(qn("w:color"), border_color)  # White border
+        tcBorders.append(border_elem)
+
+    sidebar_tcPr.append(tcBorders)
 
     return about_content_cell, contact_info_cell, sidebar_cell, main_cell
 
@@ -2561,9 +2860,15 @@ def _process_job_entry(
 
     # Check for HR before h3 and add page break if found
     if _has_hr_before_element(job_element):
-        p = document.add_paragraph()
-        run = p.add_run()
-        run.add_break(DOCX_BREAK_TYPE.PAGE)
+        # Get config option for blank line - default to True if not specified
+        hr_blank_line_enabled = ConfigHelper.get_style_constant(
+            "hr_before_job_blank_line", True
+        )
+
+        if hr_blank_line_enabled:
+            p = document.add_paragraph()
+            run = p.add_run()
+            run.add_break(DOCX_BREAK_TYPE.PAGE)
     # Add horizontal line before job entries (except the first one)
     elif not is_first_job and hasattr(
         document, "tables"
@@ -3727,16 +4032,11 @@ def _has_hr_before_element(element: BS4_Element) -> bool:
     Returns:
         bool: True if there's an HR element immediately before this element, False otherwise
     """
-    if not element:
-        return False
+    prev = element.previous_sibling
+    while prev and (not prev.name or prev.name == "br"):
+        prev = prev.previous_sibling
 
-    prev_element = element.previous_sibling
-    # Skip whitespace text nodes
-    while prev_element and isinstance(prev_element, str) and prev_element.strip() == "":
-        prev_element = prev_element.previous_sibling
-
-    # Check if the previous element is an HR
-    return prev_element and prev_element.name == "hr"
+    return prev and prev.name == "hr"
 
 
 def _detect_link(text: str) -> tuple[bool, str, str, str]:
@@ -3921,10 +4221,18 @@ def _add_horizontal_line_simple(document: Document) -> None:
     # Get values from config with fallbacks
     line_char = ConfigHelper.get_style_constant("horizontal_line_char", "_")
     line_length = ConfigHelper.get_style_constant("horizontal_line_length", 50)
+    line_color = ConfigHelper.get_style_constant("horizontal_line_color", "000000")
 
     p = document.add_paragraph()
     p.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
     p.add_run(line_char * line_length).bold = True
+
+    # Set color for the horizontal line
+    if p.runs:
+        rgb_color = _convert_hex_to_rgb_color(line_color)
+        for run in p.runs:
+            run.bold = True
+            run.font.color.rgb = rgb_color
 
 
 def _add_horizontal_line_to_cell(cell, is_sidebar=False):
@@ -3936,6 +4244,7 @@ def _add_horizontal_line_to_cell(cell, is_sidebar=False):
     """
     # Get values from config with fallbacks
     line_char = ConfigHelper.get_style_constant("horizontal_line_char", "_")
+    line_rgb_color = None
 
     if is_sidebar:
         line_length = ConfigHelper.get_style_constant(
@@ -3947,6 +4256,8 @@ def _add_horizontal_line_to_cell(cell, is_sidebar=False):
     else:
         line_length = ConfigHelper.get_style_constant("horizontal_line_length", 50)
         line_spacing = ConfigHelper.get_style_constant("horizontal_line_spacing", 1.6)
+        line_color = ConfigHelper.get_style_constant("horizontal_line_color", "000000")
+        line_rgb_color = _convert_hex_to_rgb_color(line_color)
 
     p = cell.add_paragraph()
     p.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
@@ -3957,6 +4268,9 @@ def _add_horizontal_line_to_cell(cell, is_sidebar=False):
         # Set font size for the horizontal line
         # FIXME: For some reason, correct line spacing is only applied when font is set to a value greater than 14 (H1)
         run.font.size = Pt(16)
+
+        if line_rgb_color:
+            run.font.color.rgb = line_rgb_color
 
     if line_spacing:
         p.paragraph_format.line_spacing = line_spacing
