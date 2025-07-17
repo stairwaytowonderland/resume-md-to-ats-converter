@@ -36,7 +36,9 @@ document_defaults:
     padding_right: 18    # Padding to the right of the image in points
     padding_bottom: 7   # Padding below the image in points
     padding_left: 0     # Padding to the left of the image in points
+    vertical_alignment: "center"  # Vertical alignment of the image in the cell
   header_alignment: "center"  # Alignment for header text (left, center, or right)
+  vertical_alignment: "center"
 
 # Style constants - general formatting preferences
 style_constants:
@@ -86,18 +88,81 @@ style_constants:
   main_cell_margin_left: 200    # Custom left margin for main content
   contact_cell_margin_top: 200  # Custom top margin for contact ribbon
 
-  contact_ribbon_border_width: 5  # Width of contact ribbon border in points
-  contact_ribbon_border_color: "FFFFFF"  # White border color
-  contact_ribbon_fill_color: "BCDCFF"  # Light blue fill color for contact ribbon
+  contact_ribbon:
+    border_enabled: true  # Enable border for contact ribbon
+    border_top_enabled: true  # Enable/disable top border for contact ribbon
+    border_bottom_enabled: true  # Enable/disable bottom border for about ribbon
+    border_left_enabled: false  # Enable/disable left border for about ribbon
+    border_right_enabled: false  # Enable/disable right border for about ribbon
+    border_width: 5  # Width of sidebar border in points
+    border_top_width: 5
+    border_bottom_width: 5
+    border_left_width: 1
+    border_right_width: 1
+    border_color: "FFFFFF"  # White border color
+    border_top_color: "FFFFFF"
+    border_bottom_color: "FFFFFF"
+    border_left_color: "FFFFFF"
+    border_right_color: "FFFFFF"
+    fill_enabled: true
+    fill_color: "BCDCFF"  # Light blue fill color for contact ribbon
 
-  sidebar_border_width: 5  # Width of sidebar border in points
-  sidebar_border_color: "FFFFFF"  # White border color
-  sidebar_fill_color: "EEEEEE"  # Light gray fill color for sidebar
+  sidebar:
+    border_enabled: true  # Enable border for sidebar
+    border_top_enabled: true  # Enable/disable top border for sidebar
+    border_bottom_enabled: true  # Enable/disable bottom border for sidebar
+    border_left_enabled: false  # Enable/disable left border for sidebar
+    border_right_enabled: true  # Enable/disable right border for sidebar
+    border_width: 5  # Width of sidebar border in points
+    border_top_width: 5
+    border_bottom_width: 5
+    border_left_width: 1
+    border_right_width: 5
+    border_color: "FFFFFF"
+    border_top_color: "FFFFFF"
+    border_bottom_color: "FFFFFF"
+    border_left_color: "FFFFFF"
+    border_right_color: "FFFFFF"
+    fill_enabled: true
+    fill_color: "EEEEEE"  # Light gray fill color for sidebar
 
-  about_border_enabled: true  # Enable border for about section
-  about_border_width: 5  # Width of sidebar border in points
-  about_border_color: "FFFFFF"  # White border color
-  about_fill_color: "CCCCCC"  # Light gray fill color for sidebar
+  main_content:
+    border_enabled: false  # Enable border for main content
+    # border_top_enabled: false  # Enable/disable top border for sidebar
+    # border_bottom_enabled: false  # Enable/disable bottom border for sidebar
+    # border_left_enabled: false  # Enable/disable left border for sidebar
+    # border_right_enabled: false  # Enable/disable right border for sidebar
+    border_width: 0  # Width of sidebar border in points
+    # border_top_width: 0
+    # border_bottom_width: 0
+    # border_left_width: 0
+    # border_right_width: 0
+    border_color: "FFFFFF"
+    # border_top_color: "FFFFFF"
+    # border_bottom_color: "FFFFFF"
+    # border_left_color: "FFFFFF"
+    # border_right_color: "FFFFFF"
+    fill_enabled: true
+    fill_color: "FFFFFF"  # White fill color for main content
+
+  about:
+    border_enabled: true  # Enable border for about section
+    border_top_enabled: false  # Enable/disable top border for about section
+    border_bottom_enabled: true  # Enable/disable bottom border for about section
+    border_left_enabled: false  # Enable/disable left border for about section
+    border_right_enabled: false  # Enable/disable right border for about section
+    border_width: 5  # Width of about border in points
+    border_top_width: 5
+    border_bottom_width: 5
+    border_left_width: 1
+    border_right_width: 1
+    border_color: "FFFFFF"  # White border color
+    border_top_color: "FFFFFF"
+    border_bottom_color: "FFFFFF"  # White border color
+    border_left_color: "FFFFFF"
+    border_right_color: "FFFFFF"
+    fill_enabled: true
+    fill_color: "CCCCCC"  # Light gray fill color for sidebar
 
 # Document styles - Word document style definitions
 document_styles:

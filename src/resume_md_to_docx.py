@@ -1149,19 +1149,27 @@ def process_header_section(
 
         # Make table borderless
         header_table.style = "Table Grid"
+
+        # Add image to first cell
+        img_cell = header_table.cell(0, 0)
+        img_align_vertical = (
+            header_defaults["header_image"].get("vertical_alignment", "center").upper()
+        )
+        img_cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL[img_align_vertical]
+
         for cell in header_table._cells:
             cell_xml = cell._tc
             tcPr = cell_xml.get_or_add_tcPr()
             tcBorders = OxmlElement("w:tcBorders")
             for border in ["top", "left", "bottom", "right"]:
                 border_elem = OxmlElement(f"w:{border}")
+                border_elem.set(
+                    qn("w:sz"), str(img_border_width * 8)
+                )  # Width in eighths of a point
+                border_elem.set(qn("w:color"), img_border_color)
                 border_elem.set(qn("w:val"), "nil")
                 tcBorders.append(border_elem)
             tcPr.append(tcBorders)
-
-        # Add image to first cell
-        img_cell = header_table.cell(0, 0)
-        img_cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL.TOP
 
         # Clear any existing paragraph
         if img_cell.paragraphs:
@@ -1208,7 +1216,7 @@ def process_header_section(
 
             # Apply border to inner table cell
             inner_cell = inner_table.cell(0, 0)
-            inner_cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL.TOP
+            inner_cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL.CENTER
 
             # Apply border to inner cell
             inner_tc = inner_cell._tc
@@ -1307,7 +1315,10 @@ def process_header_section(
 
         # Use second cell for tagline
         text_cell = header_table.cell(0, 1)
-        text_cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL.TOP
+        header_align_vertical = header_defaults.get(
+            "vertical_alignment", "center"
+        ).upper()
+        text_cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL[header_align_vertical]
 
         if text_cell.paragraphs:
             p = text_cell.paragraphs[0]
@@ -1929,39 +1940,12 @@ def _process_contact_info_horizontal(cell, soup):
         cell: The table cell to place contact info in
         soup: BeautifulSoup object containing the HTML content
     """
-    from docx.oxml import OxmlElement
-    from docx.oxml.ns import qn
+
+    contact_ribbon_styles = ConfigHelper.get_style_constant("contact_ribbon", {})
 
     # Set gray background for the cell
     tc = cell._tc
-    tcPr = tc.get_or_add_tcPr()
-
-    # Add gray shading
-    shading = OxmlElement("w:shd")
-    shading.set(
-        qn("w:fill"),
-        ConfigHelper.get_style_constant("contact_ribbon_fill_color", "BCDCFF"),
-    )
-    shading.set(qn("w:val"), "clear")
-    tcPr.append(shading)
-
-    # Add white border to the contact ribbon
-    tcBorders = OxmlElement("w:tcBorders")
-
-    # Get border settings from config
-    border_width = ConfigHelper.get_style_constant("contact_ribbon_border_width", 1)
-    border_color = ConfigHelper.get_style_constant(
-        "contact_ribbon_border_color", "FFFFFF"
-    )
-
-    for border in ["top", "left", "bottom", "right"]:
-        border_elem = OxmlElement(f"w:{border}")
-        border_elem.set(qn("w:val"), "single")  # 'single' for solid line
-        border_elem.set(qn("w:sz"), str(border_width * 8))  # Size in eighths of a point
-        border_elem.set(qn("w:color"), border_color)  # White border
-        tcBorders.append(border_elem)
-
-    tcPr.append(tcBorders)
+    _apply_table_cell_fill_and_border_styles(contact_ribbon_styles, tc)
 
     # Find the contact section
     contact_section = soup.find("h2", string=lambda text: text.lower() == "contact")
@@ -2227,6 +2211,69 @@ def _create_table_cell_subdocument(cell, v_align="top", cell_type=None):
     return cell
 
 
+def _apply_table_cell_fill_and_border_styles(styles: dict, table_cell) -> None:
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    tcPr = table_cell.get_or_add_tcPr()
+
+    fill_enabled = styles.get("fill_enabled", True)
+
+    if fill_enabled:
+        shading = OxmlElement("w:shd")
+        shading.set(qn("w:fill"), styles.get("fill_color", "FFFFFF"))
+        shading.set(qn("w:val"), "clear")
+        tcPr.append(shading)
+
+    border_enabled = styles.get("border_enabled", False)
+
+    if border_enabled:
+        tcBorders = OxmlElement("w:tcBorders")
+
+        # Get border settings from config
+        border_width = styles.get("border_width", 1)
+        border_color = styles.get("border_color", "FFFFFF")
+
+        for border in ["top", "left", "bottom", "right"]:
+            if border == "top" and not styles.get("border_top_enabled", border_enabled):
+                continue
+            if border == "left" and not styles.get(
+                "border_left_enabled", border_enabled
+            ):
+                continue
+            if border == "bottom" and not styles.get(
+                "border_bottom_enabled", border_enabled
+            ):
+                continue
+            if border == "right" and not styles.get(
+                "border_right_enabled", border_enabled
+            ):
+                continue
+            border_elem = OxmlElement(f"w:{border}")
+            border_elem.set(qn("w:val"), "single")  # 'single' for solid line
+            if border == "top":
+                border_width = styles.get("border_top_width", border_width)
+                border_color = styles.get("border_top_color", border_color)
+            elif border == "bottom":
+                border_width = styles.get("border_bottom_width", border_width)
+                border_color = styles.get("border_bottom_color", border_color)
+            elif border == "left":
+                border_width = styles.get("border_left_width", border_width)
+                border_color = styles.get("border_left_color", border_color)
+            elif border == "right":
+                border_width = styles.get("border_right_width", border_width)
+                border_color = styles.get("border_right_color", border_color)
+            else:
+                raise ValueError(f"Unknown border type: {border}")
+            border_elem.set(
+                qn("w:sz"), str(border_width * 8)
+            )  # Size in eighths of a point
+            border_elem.set(qn("w:color"), border_color)  # White border
+            tcBorders.append(border_elem)
+
+        tcPr.append(tcBorders)
+
+
 def _create_two_column_layout(document, config_loader):
     """Create the two-column layout structure with contact ribbon AFTER about section
 
@@ -2255,6 +2302,8 @@ def _create_two_column_layout(document, config_loader):
     # Determine sidebar position (left or right)
     sidebar_on_right = config_loader.is_sidebar_on_right
 
+    about_styles = ConfigHelper.get_style_constant("about", {})
+
     # Create about section table FIRST (1 row, 1 column) for professional summary
     about_table = document.add_table(rows=1, cols=1)
     about_table.allow_autofit = False
@@ -2278,33 +2327,7 @@ def _create_two_column_layout(document, config_loader):
 
     about_tc = about_table.cell(0, 0)._tc
 
-    about_tcPr = about_tc.get_or_add_tcPr()
-
-    about_shading = OxmlElement("w:shd")
-    about_shading.set(
-        qn("w:fill"), ConfigHelper.get_style_constant("about_fill_color", "EEEEEE")
-    )  # Light gray background
-    about_shading.set(qn("w:val"), "clear")
-    about_tcPr.append(about_shading)
-
-    tcBorders = OxmlElement("w:tcBorders")
-
-    # Get border settings from config
-    border_enabled = ConfigHelper.get_style_constant("about_border_enabled", False)
-    border_width = ConfigHelper.get_style_constant("about_border_width", 1)
-    border_color = ConfigHelper.get_style_constant("about_border_color", "FFFFFF")
-
-    if border_enabled:
-        for border in ["top", "left", "bottom", "right"]:
-            border_elem = OxmlElement(f"w:{border}")
-            border_elem.set(qn("w:val"), "single")  # 'single' for solid line
-            border_elem.set(
-                qn("w:sz"), str(border_width * 8)
-            )  # Size in eighths of a point
-            border_elem.set(qn("w:color"), border_color)  # White border
-            tcBorders.append(border_elem)
-
-        about_tcPr.append(tcBorders)
+    _apply_table_cell_fill_and_border_styles(about_styles, about_tc)
 
     # THEN create contact ribbon table (1 row, 1 column) AFTER about section
     contact_table = document.add_table(rows=1, cols=1)
@@ -2367,6 +2390,7 @@ def _create_two_column_layout(document, config_loader):
 
         # Apply background color to the right cell
         sidebar_tc = content_table.cell(0, 1)._tc
+        main_tc = content_table.cell(0, 0)._tc
     else:
         # Sidebar on left (default), main content on right
         sidebar_cell = _create_table_cell_subdocument(
@@ -2378,33 +2402,13 @@ def _create_two_column_layout(document, config_loader):
 
         # Apply background color to the left cell
         sidebar_tc = content_table.cell(0, 0)._tc
+        main_tc = content_table.cell(0, 1)._tc
 
-    # Apply sidebar background color and border
-    sidebar_tcPr = sidebar_tc.get_or_add_tcPr()
+    main_content_styles = ConfigHelper.get_style_constant("main_content", {})
+    _apply_table_cell_fill_and_border_styles(main_content_styles, main_tc)
 
-    # Add light gray shading
-    shading = OxmlElement("w:shd")
-    shading.set(
-        qn("w:fill"), ConfigHelper.get_style_constant("sidebar_fill_color", "EEEEEE")
-    )  # Light gray background
-    shading.set(qn("w:val"), "clear")
-    sidebar_tcPr.append(shading)
-
-    # Add white border to the sidebar
-    tcBorders = OxmlElement("w:tcBorders")
-
-    # Get border settings from config
-    border_width = ConfigHelper.get_style_constant("sidebar_border_width", 1)
-    border_color = ConfigHelper.get_style_constant("sidebar_border_color", "FFFFFF")
-
-    for border in ["top", "left", "bottom", "right"]:
-        border_elem = OxmlElement(f"w:{border}")
-        border_elem.set(qn("w:val"), "single")  # 'single' for solid line
-        border_elem.set(qn("w:sz"), str(border_width * 8))  # Size in eighths of a point
-        border_elem.set(qn("w:color"), border_color)  # White border
-        tcBorders.append(border_elem)
-
-    sidebar_tcPr.append(tcBorders)
+    sidebar_styles = ConfigHelper.get_style_constant("sidebar", {})
+    _apply_table_cell_fill_and_border_styles(sidebar_styles, sidebar_tc)
 
     return about_content_cell, contact_info_cell, sidebar_cell, main_cell
 
