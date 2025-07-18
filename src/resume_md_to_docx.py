@@ -9,14 +9,19 @@ import docx.oxml.shared
 import markdown
 from bs4 import BeautifulSoup
 from bs4.element import PageElement as BS4_Element
-from docx import Document
+from docx import Document as DOCX_Document
 from docx.enum.style import WD_STYLE_TYPE as DOCX_STYLE_TYPE
 from docx.enum.table import WD_ALIGN_VERTICAL as DOCX_CELL_ALIGN_VERTICAL
-from docx.enum.text import WD_BREAK_TYPE as DOCX_BREAK_TYPE
-from docx.enum.text import WD_PARAGRAPH_ALIGNMENT as DOCX_PARAGRAPH_ALIGN
+from docx.enum.text import WD_ALIGN_PARAGRAPH as DOCX_PARAGRAPH_ALIGN
+from docx.enum.text import WD_BREAK as DOCX_BREAK_TYPE
 from docx.opc.constants import RELATIONSHIP_TYPE as DOCX_REL
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
+from docx.table import _Cell as DOCX_Cell
+from docx.text.font import Font as DOCX_FONT
 from docx.text.paragraph import Paragraph as DOCX_Paragraph
+from docx.text.parfmt import ParagraphFormat as DOCX_ParagraphFormat
 
 SCRIPT_DIR = Path(__file__).parent
 
@@ -774,7 +779,7 @@ def create_ats_resume(
     soup = BeautifulSoup(html, "html.parser")
 
     # Create document with standard margins
-    document = Document()
+    document = DOCX_Document()
 
     # Apply styles from configuration
     _apply_document_styles(document, document_styles, style_constants)
@@ -992,7 +997,7 @@ def convert_to_pdf(docx_file: Path) -> Path | None:
 # Section Processors
 ##############################
 def process_header_section(
-    document: Document,
+    document: DOCX_Document,
     soup: BeautifulSoup,
 ) -> None:
     """Process the header (name and tagline) section
@@ -1022,8 +1027,6 @@ def process_header_section(
 
     # Create a table for the image and tagline only if image is enabled
     if header_image_enabled:
-        from docx.oxml import OxmlElement
-        from docx.oxml.ns import qn
 
         # Create a 1x2 table for the header (image on left, tagline on right)
         header_table = document.add_table(rows=1, cols=2)
@@ -1246,7 +1249,9 @@ def process_header_section(
         _add_horizontal_line_simple(document)
 
 
-def _process_tagline_and_specialty(container, first_p, alignment_str):
+def _process_tagline_and_specialty(
+    container: DOCX_Document, first_p: BS4_Element, alignment_str: str = "center"
+) -> None:
     """Process tagline and specialty paragraphs
 
     Args:
@@ -1271,15 +1276,15 @@ def _process_tagline_and_specialty(container, first_p, alignment_str):
         # Process paragraph with emphasis
         if use_paragraph_style:
             tagline_para = container.add_paragraph()
-            tagline_para.alignment = alignment
             tagline_run = tagline_para.add_run(em_tag.text)
             tagline_run.italic = True
             tagline_run.font.size = Pt(HeadingsHelper.get_font_size_for_tag("h4"))
         else:
             tagline_para = container.add_paragraph(em_tag.text, style="Subtitle")
-            tagline_para.alignment = alignment
             for run in tagline_para.runs:
                 run.italic = True
+
+        _paragraph_alignment(tagline_para, alignment_str)
 
         # Add the rest of the paragraph if any
         rest_of_p = first_p.text.replace(em_tag.text, "").strip()
@@ -1317,7 +1322,7 @@ def _process_tagline_and_specialty(container, first_p, alignment_str):
 
 
 def process_about_section(
-    document: Document,
+    document: DOCX_Document,
     soup: BeautifulSoup,
 ) -> None:
     """Process the About section
@@ -1425,7 +1430,7 @@ def process_about_section(
 
 
 def process_skills_section(
-    document: Document,
+    document: DOCX_Document,
     soup: BeautifulSoup,
 ) -> None:
     """Process the Skills section
@@ -1452,7 +1457,7 @@ def process_skills_section(
 
 
 def process_experience_section(
-    document: Document,
+    document: DOCX_Document,
     soup: BeautifulSoup,
 ) -> None:
     """Process the Experience section
@@ -1693,7 +1698,7 @@ def process_experience_section(
 
 
 def process_education_section(
-    document: Document,
+    document: DOCX_Document,
     soup: BeautifulSoup,
 ) -> None:
     """Process the Education section
@@ -1723,7 +1728,7 @@ def process_education_section(
 
 
 def process_certifications_section(
-    document: Document,
+    document: DOCX_Document,
     soup: BeautifulSoup,
 ) -> None:
     """Process the Certifications section
@@ -1768,7 +1773,7 @@ def process_certifications_section(
 
 
 def process_projects_section(
-    document: Document,
+    document: DOCX_Document,
     soup: BeautifulSoup,
 ) -> None:
     """Process the Special Projects section
@@ -1805,7 +1810,7 @@ def process_projects_section(
 
 
 def process_contact_section(
-    document: Document,
+    document: DOCX_Document,
     soup: BeautifulSoup,
 ) -> None:
     """Process the Contact section
@@ -1835,9 +1840,9 @@ def process_contact_section(
 
 
 ##############################
-# Primary Helpers
+# Two Column Helpers
 ##############################
-def _process_contact_info_horizontal(cell, soup):
+def _process_contact_info_horizontal(cell: DOCX_Cell, soup: BeautifulSoup) -> None:
     """Process contact info in a horizontal ribbon format with gray background
 
     Args:
@@ -1848,8 +1853,7 @@ def _process_contact_info_horizontal(cell, soup):
     contact_ribbon_styles = ConfigHelper.get_style_constant("contact_ribbon", {})
 
     # Set gray background for the cell
-    tc = cell._tc
-    _apply_table_cell_fill_and_border_styles(contact_ribbon_styles, tc)
+    _apply_table_cell_fill_and_border_styles(cell, contact_ribbon_styles)
 
     # Find the contact section
     contact_section = soup.find("h2", string=lambda text: text.lower() == "contact")
@@ -1892,7 +1896,7 @@ def _process_contact_info_horizontal(cell, soup):
             _process_text_for_hyperlinks(para, item.text.strip())
 
 
-def _apply_styles_to_cell_content(cell, document_styles, debug=False):
+def _apply_styles_to_cell_content(cell: DOCX_Cell, document_styles, debug=False):
     """Apply document styles directly to table cell content following Stack Overflow approach
 
     Args:
@@ -2047,46 +2051,26 @@ def _apply_styles_to_cell_content(cell, document_styles, debug=False):
                         run.underline = hyperlink_style["underline"]
 
 
-def _create_table_cell_subdocument(cell, v_align="top", cell_type=None):
-    """Create a subdocument for a table cell
+def _cell_margins(
+    cell: DOCX_Cell,
+    margin_top: int = 60,
+    margin_bottom: int = 60,
+    margin_left: int = 60,
+    margin_right: int = 60,
+) -> None:
+    """Set margins for a table cell
 
     Args:
-        cell: The table cell to use as a subdocument
-        v_align: Vertical alignment ('top', 'center', 'bottom')
-        cell_type: Type of cell ('about', 'contact', 'sidebar', 'main') for custom margins
+        cell: The table cell to set margins for
+        margin_top: Top margin in twips (default 60)
+        margin_bottom: Bottom margin in twips (default 60)
+        margin_left: Left margin in twips (default 60)
+        margin_right: Right margin in twips (default 60)
 
     Returns:
-        The prepared cell object
+        The modified cell with margins set
     """
-    # Clear any default paragraph if present
-    if len(cell.paragraphs) > 0:
-        p = cell.paragraphs[0]
-        if not p.text.strip():  # Only remove if empty
-            p._p.getparent().remove(p._p)
-
-    # Set up cell properties for proper spacing
-    from docx.oxml import OxmlElement
-    from docx.oxml.ns import qn
-
-    # Get margin values from config based on cell type
-    margin_top = ConfigHelper.get_style_constant(
-        f"{cell_type}_cell_margin_top",
-        ConfigHelper.get_style_constant("cell_margin_top", 60),
-    )
-    margin_bottom = ConfigHelper.get_style_constant(
-        f"{cell_type}_cell_margin_bottom",
-        ConfigHelper.get_style_constant("cell_margin_bottom", 60),
-    )
-    margin_left = ConfigHelper.get_style_constant(
-        f"{cell_type}_cell_margin_left",
-        ConfigHelper.get_style_constant("cell_margin_left", 60),
-    )
-    margin_right = ConfigHelper.get_style_constant(
-        f"{cell_type}_cell_margin_right",
-        ConfigHelper.get_style_constant("cell_margin_right", 60),
-    )
-
-    # Set cell margins
+    # Get the cell's XML element
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
     tcMar = OxmlElement("w:tcMar")
@@ -2107,19 +2091,93 @@ def _create_table_cell_subdocument(cell, v_align="top", cell_type=None):
 
     tcPr.append(tcMar)
 
-    # Add vertical alignment
-    tcVAlign = OxmlElement("w:vAlign")
-    tcVAlign.set(qn("w:val"), v_align)
-    tcPr.append(tcVAlign)
+
+def _cell_vertical_alignment(
+    cell: DOCX_Cell, v_align: str = "top", use_xml: bool = True
+) -> None:
+    """Set vertical alignment for a table cell
+
+    Args:
+        cell: The table cell to set alignment for
+        v_align: Vertical alignment ('top', 'center', 'bottom')
+
+    Returns:
+        The modified cell with vertical alignment set
+    """
+
+    # Set vertical alignment
+    if use_xml:
+        # Get the cell's XML element
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+
+        tcVAlign = OxmlElement("w:vAlign")
+        tcVAlign.set(qn("w:val"), v_align)
+        tcPr.append(tcVAlign)
+    else:
+        # Set vertical alignment
+        if v_align == "top":
+            cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL.TOP
+        elif v_align == "center":
+            cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL.CENTER
+        elif v_align == "bottom":
+            cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL.BOTTOM
+        else:
+            raise ValueError(f"Invalid vertical alignment: {v_align}")
+
+
+def _create_table_cell_subdocument(cell: DOCX_Cell, v_align="top", cell_type=None):
+    """Create a subdocument for a table cell
+
+    Args:
+        cell: The table cell to use as a subdocument
+        v_align: Vertical alignment ('top', 'center', 'bottom')
+        cell_type: Type of cell ('about', 'contact', 'sidebar', 'main') for custom margins
+
+    Returns:
+        The prepared cell object
+    """
+    # Clear any default paragraph if present
+    if len(cell.paragraphs) > 0:
+        p = cell.paragraphs[0]
+        if not p.text.strip():  # Only remove if empty
+            p._p.getparent().remove(p._p)
+
+    # Get margin values from config based on cell type
+    margin_top = ConfigHelper.get_style_constant(
+        f"{cell_type}_cell_margin_top",
+        ConfigHelper.get_style_constant("cell_margin_top", 60),
+    )
+    margin_bottom = ConfigHelper.get_style_constant(
+        f"{cell_type}_cell_margin_bottom",
+        ConfigHelper.get_style_constant("cell_margin_bottom", 60),
+    )
+    margin_left = ConfigHelper.get_style_constant(
+        f"{cell_type}_cell_margin_left",
+        ConfigHelper.get_style_constant("cell_margin_left", 60),
+    )
+    margin_right = ConfigHelper.get_style_constant(
+        f"{cell_type}_cell_margin_right",
+        ConfigHelper.get_style_constant("cell_margin_right", 60),
+    )
+
+    _cell_margins(cell, margin_top, margin_bottom, margin_left, margin_right)
+
+    _cell_vertical_alignment(cell, v_align)
 
     return cell
 
 
-def _apply_table_cell_fill_and_border_styles(styles: dict, table_cell) -> None:
-    from docx.oxml import OxmlElement
-    from docx.oxml.ns import qn
+def _apply_table_cell_fill_and_border_styles(cell: DOCX_Cell, styles: dict) -> None:
+    """Apply fill and border styles to a table cell
 
-    tcPr = table_cell.get_or_add_tcPr()
+    Args:
+        styles: Dictionary of styles to apply
+        cell: The cell object
+    """
+
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
 
     fill_enabled = styles.get("fill_enabled", True)
 
@@ -2178,7 +2236,9 @@ def _apply_table_cell_fill_and_border_styles(styles: dict, table_cell) -> None:
         tcPr.append(tcBorders)
 
 
-def _create_two_column_layout(document, config_loader):
+def _create_two_column_layout(
+    document: DOCX_Document, config_loader: ConfigLoader
+) -> tuple:
     """Create the two-column layout structure with contact ribbon AFTER about section
 
     Args:
@@ -2188,10 +2248,6 @@ def _create_two_column_layout(document, config_loader):
     Returns:
         tuple: (about_content_cell, contact_info_cell, sidebar_cell, main_cell)
     """
-    from docx.oxml import OxmlElement
-    from docx.oxml.ns import qn
-    from docx.shared import Inches
-
     # Get page width excluding margins
     page_width = config_loader.document_defaults.get("page_width", 8.5)
     margin_left = config_loader.document_defaults.get("margin_left", 0.2)
@@ -2229,9 +2285,7 @@ def _create_two_column_layout(document, config_loader):
         about_table.cell(0, 0), cell_type="about"
     )
 
-    about_tc = about_table.cell(0, 0)._tc
-
-    _apply_table_cell_fill_and_border_styles(about_styles, about_tc)
+    _apply_table_cell_fill_and_border_styles(about_table.cell(0, 0), about_styles)
 
     # THEN create contact ribbon table (1 row, 1 column) AFTER about section
     contact_table = document.add_table(rows=1, cols=1)
@@ -2293,8 +2347,8 @@ def _create_two_column_layout(document, config_loader):
         )
 
         # Apply background color to the right cell
-        sidebar_tc = content_table.cell(0, 1)._tc
-        main_tc = content_table.cell(0, 0)._tc
+        cell_sidebar = content_table.cell(0, 1)
+        cell_main = content_table.cell(0, 0)
     else:
         # Sidebar on left (default), main content on right
         sidebar_cell = _create_table_cell_subdocument(
@@ -2305,43 +2359,78 @@ def _create_two_column_layout(document, config_loader):
         )
 
         # Apply background color to the left cell
-        sidebar_tc = content_table.cell(0, 0)._tc
-        main_tc = content_table.cell(0, 1)._tc
+        cell_sidebar = content_table.cell(0, 0)
+        cell_main = content_table.cell(0, 1)
 
     main_content_styles = ConfigHelper.get_style_constant("main_content", {})
-    _apply_table_cell_fill_and_border_styles(main_content_styles, main_tc)
+    _apply_table_cell_fill_and_border_styles(cell_main, main_content_styles)
 
     sidebar_styles = ConfigHelper.get_style_constant("sidebar", {})
-    _apply_table_cell_fill_and_border_styles(sidebar_styles, sidebar_tc)
+    _apply_table_cell_fill_and_border_styles(cell_sidebar, sidebar_styles)
 
     return about_content_cell, contact_info_cell, sidebar_cell, main_cell
 
 
-def _convert_hex_to_rgb_color(color_value: str | RGBColor) -> RGBColor | None:
-    """Convert hex color string to RGBColor object
+def _add_horizontal_line_to_cell(cell: DOCX_Cell, is_sidebar: bool = False):
+    """Add a simple horizontal line to a table cell
 
     Args:
-        color_value: Either a hex string or already an RGBColor object
-
-    Returns:
-        RGBColor object or None if conversion fails
+        cell: The cell to add the line to
+        is_sidebar: Whether this is in the sidebar (affects line length)
     """
-    if isinstance(color_value, str):
-        hex_color = color_value.lstrip("#")
-        if len(hex_color) == 6:
-            try:
-                r = int(hex_color[0:2], 16)
-                g = int(hex_color[2:4], 16)
-                b = int(hex_color[4:6], 16)
-                return RGBColor(r, g, b)
-            except ValueError:
-                return None
-    elif hasattr(color_value, "rgb"):  # Already an RGBColor
-        return color_value
-    return None
+    # Get values from config with fallbacks
+    line_char = ConfigHelper.get_style_constant("horizontal_line_char", "_")
+    line_rgb_color = None
+    line_spacing = ConfigHelper.get_style_constant("horizontal_line_spacing", 1.6)
+
+    if is_sidebar:
+        line_length = ConfigHelper.get_style_constant(
+            "sidebar_horizontal_line_length", 30
+        )
+        line_color = ConfigHelper.get_style_constant(
+            "sidebar_horizontal_line_color", "000000"
+        )
+        line_font_size = ConfigHelper.get_style_constant(
+            "sidebar_horizontal_line_font_size", 16
+        )
+    else:
+        line_length = ConfigHelper.get_style_constant("horizontal_line_length", 50)
+        line_color = ConfigHelper.get_style_constant("horizontal_line_color", "000000")
+        line_rgb_color = _convert_hex_to_rgb_color(line_color)
+        line_font_size = ConfigHelper.get_style_constant(
+            "horizontal_line_font_size", 16
+        )
+
+    p = cell.add_paragraph()
+    p.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
+    p.add_run(line_char * line_length)
+
+    for run in p.runs:
+        run.bold = True
+        # Set font size for the horizontal line
+        # FIXME: For some reason, correct line spacing is only applied when font is set to a value greater than 14 (H1)
+        run.font.size = Pt(line_font_size)
+
+        if line_rgb_color:
+            run.font.color.rgb = line_rgb_color
+
+    # Get specific header-to-about spacing if it exists
+    if line_spacing:
+        header_to_about = ConfigHelper.get_style_constant(
+            "header_to_about_spacing", None
+        )
+        if header_to_about is not None:
+            # Use specific header-to-about spacing
+            p.paragraph_format.line_spacing = header_to_about
+        else:
+            # Use general line spacing
+            p.paragraph_format.line_spacing = line_spacing
 
 
-def _apply_font_properties(font_obj, properties: dict) -> None:
+##############################
+# Primary Helpers
+##############################
+def _apply_font_properties(font_obj: DOCX_FONT, properties: dict) -> None:
     """Apply font properties to a font object
 
     Args:
@@ -2364,7 +2453,9 @@ def _apply_font_properties(font_obj, properties: dict) -> None:
             font_obj.color.rgb = rgb_color
 
 
-def _apply_paragraph_format_properties(paragraph_format, properties: dict) -> None:
+def _apply_paragraph_format_properties(
+    paragraph_format: DOCX_ParagraphFormat, properties: dict
+) -> None:
     """Apply paragraph format properties to a paragraph format object
 
     Args:
@@ -2385,7 +2476,7 @@ def _apply_paragraph_format_properties(paragraph_format, properties: dict) -> No
         paragraph_format.alignment = properties["alignment"]
 
 
-def _create_hyperlink_style(document: Document, hyperlink_props: dict) -> bool:
+def _create_hyperlink_style(document: DOCX_Document, hyperlink_props: dict) -> bool:
     """Create a Hyperlink character style if it doesn't exist
 
     Args:
@@ -2465,7 +2556,7 @@ def _validate_style_properties(properties: dict) -> dict:
 
 
 def _apply_document_styles(
-    document: Document, styles: dict = None, style_constants: dict = None
+    document: DOCX_Document, styles: dict = None, style_constants: dict = None
 ) -> None:
     """Apply style settings to document using values from config
 
@@ -2509,7 +2600,7 @@ def _apply_document_styles(
 
 
 def _prepare_section(
-    document: Document,
+    document: DOCX_Document,
     soup: BeautifulSoup,
     section_type: ResumeSection,
     space_before: int | None = None,
@@ -2577,8 +2668,77 @@ def _prepare_section(
     return section_h2
 
 
+def _process_horizontal_skills_list(
+    document: DOCX_Document,
+    text: str,
+    is_top_skills: bool = False,
+    custom_input_separator: str = None,
+    custom_output_separator: str = None,
+) -> DOCX_Paragraph:
+    """Process skills text into a horizontal list with consistent formatting
+
+    Args:
+        document: The Word document object
+        text: Text containing skills separated by a delimiter
+        is_top_skills: Whether this is the top skills section (affects styling)
+        custom_input_separator: Custom input separator override
+        custom_output_separator: Custom output separator override
+
+    Returns:
+        DOCX_Paragraph: The created paragraph
+    """
+    # Get configuration based on skills type
+    if is_top_skills:
+        config_prefix = "top_skills"
+        default_input_sep = " • "
+        default_output_sep = " | "
+        use_formatted_paragraph = True
+    else:
+        config_prefix = "key_skills"
+        default_input_sep = " · "
+        default_output_sep = ", "
+        use_formatted_paragraph = False
+
+    # Get separators and formatting options
+    input_separator = custom_input_separator or ConfigHelper.get_style_constant(
+        f"{config_prefix}_separator_markdown", default_input_sep
+    )
+    output_separator = custom_output_separator or ConfigHelper.get_style_constant(
+        f"{config_prefix}_separator", default_output_sep
+    )
+    apply_bold = ConfigHelper.get_style_constant(f"{config_prefix}_bold", False)
+
+    # Get font size and line spacing (key skills specific)
+    font_size = ConfigHelper.get_style_constant(f"{config_prefix}_font_size", None)
+    line_spacing = ConfigHelper.get_style_constant(
+        f"{config_prefix}_line_spacing", None
+    )
+
+    # Parse skills from text
+    skills = [s.strip() for s in text.split(input_separator.strip())]
+    skills = [s for s in skills if s]
+
+    # Format and add to document
+    paragraph = _format_skills_list(
+        document, skills, output_separator, apply_bold, use_formatted_paragraph
+    )
+
+    # Apply additional formatting if specified and not using formatted paragraph
+    if not use_formatted_paragraph:
+        # Apply font size to all runs in the paragraph
+        if font_size:
+            for run in paragraph.runs:
+                run.font.size = Pt(font_size)
+
+        # Apply line spacing to the paragraph
+        if line_spacing:
+            paragraph.paragraph_format.line_spacing = line_spacing
+
+    return paragraph
+
+
 def _process_simple_section(
-    document: Document,
+    document: DOCX_Document,
     section_h2: BS4_Element,
     add_space: bool = False,
 ) -> None:
@@ -2619,7 +2779,7 @@ def _process_simple_section(
 
 
 def _process_project_section(
-    document: Document,
+    document: DOCX_Document,
     project_element: BS4_Element,
     processed_elements: set[BS4_Element],
 ) -> set[BS4_Element]:
@@ -2757,7 +2917,7 @@ def _process_project_section(
 
 
 def _process_job_entry(
-    document: Document,
+    document: DOCX_Document,
     job_element: BS4_Element,
     processed_elements: set[BS4_Element],
     space_before: int | None = None,
@@ -2852,7 +3012,7 @@ def _process_job_entry(
 
 
 def _process_subsection(
-    document: Document,
+    document: DOCX_Document,
     current_element: BS4_Element,
     subsection: JobSubsection,
     heading_level: int,
@@ -2906,7 +3066,7 @@ def _process_subsection(
 
 
 def _process_position(
-    document: Document,
+    document: DOCX_Document,
     element: BS4_Element,
     processed_elements: set[BS4_Element],
     space_before: int | None = None,
@@ -3016,7 +3176,7 @@ def _process_position(
 
 
 def _add_heading_or_paragraph(
-    document: Document,
+    document: DOCX_Document,
     text: str,
     heading_level: int,
     use_paragraph_style: bool = False,
@@ -3068,8 +3228,71 @@ def _add_heading_or_paragraph(
     return para
 
 
+def _add_bullet_list(
+    document: DOCX_Document, ul_element: BS4_Element, indentation: float = None
+) -> DOCX_Paragraph:
+    """Add bullet points from an unordered list element
+
+    Args:
+        document: The Word document object
+        ul_element: BeautifulSoup element containing the unordered list
+        indentation (float, optional): Left indentation in inches
+
+    Returns:
+        paragraph: The last bullet paragraph added
+    """
+    use_paragraph_style = ConfigHelper.get_style_constant("paragraph_lists", False)
+
+    if use_paragraph_style:
+        # Get the bullet character from config
+        bullet_char = ConfigHelper.get_paragraph_list_option("ul", "bullet_character")
+
+        para = document.add_paragraph()
+
+        items = ul_element.find_all("li")
+        for i, li in enumerate(items):
+            if i > 0:
+                para.add_run("\n")
+
+            # Add the bullet character first
+            para.add_run(f"{bullet_char} ")
+
+            # Process formatting using the helper function
+            # Always ensure sentence ending for each line in paragraph lists
+            _process_list_item_formatting(para, li, ensure_ending=True)
+
+        if indentation:
+            _left_indent_paragraph(para, indentation)
+
+        return para
+    else:
+        # Standard bullet list processing - unchanged
+        bullet_para = None
+        for li in ul_element.find_all("li"):
+            bullet_para = document.add_paragraph(style="List Bullet")
+
+            # Process formatting using the helper function
+            _process_list_item_formatting(bullet_para, li)
+
+            # Ensure sentence ending for each bullet
+            last_run = bullet_para.runs[-1] if bullet_para.runs else None
+            if last_run and not last_run.text.rstrip()[-1:] in [
+                ".",
+                "!",
+                "?",
+                ":",
+                ";",
+            ]:
+                last_run.text = last_run.text.rstrip() + "."
+
+            if indentation:
+                _left_indent_paragraph(bullet_para, indentation)
+
+        return bullet_para
+
+
 def _process_projects_or_certifications(
-    document: Document,
+    document: DOCX_Document,
     section_h2: BeautifulSoup,
     space_before_h3: int | None = None,
     space_after_h3: int | None = None,
@@ -3174,7 +3397,7 @@ def _process_projects_or_certifications(
 
 
 def _process_project_or_certification_blockquote(
-    document: Document,
+    document: DOCX_Document,
     blockquote: BS4_Element,
     space_before_h4: int | None = None,
     space_after_h4: int | None = None,
@@ -3260,7 +3483,7 @@ def _process_element_children_with_formatting(
 
 
 def _create_heading_with_formatting_preservation(
-    document: Document,
+    document: DOCX_Document,
     element: BS4_Element,
     heading_level: int | None = None,
     use_paragraph_style: bool = None,
@@ -3338,7 +3561,9 @@ def _find_organization_element(
     return None, False
 
 
-def _process_date_paragraph(document: Document, paragraph_element: BS4_Element) -> bool:
+def _process_date_paragraph(
+    document: DOCX_Document, paragraph_element: BS4_Element
+) -> bool:
     """Process a paragraph that contains date information (em tags)
 
     Args:
@@ -3367,7 +3592,7 @@ def _process_date_paragraph(document: Document, paragraph_element: BS4_Element) 
 
 
 def _add_configured_page_numbers(
-    document: Document, config_loader: ConfigLoader
+    document: DOCX_Document, config_loader: ConfigLoader
 ) -> None:
     """Add page numbers based on configuration settings
 
@@ -3377,9 +3602,6 @@ def _add_configured_page_numbers(
     """
     if not config_loader.page_numbers_enabled:
         return
-
-    from docx.oxml import OxmlElement
-    from docx.oxml.ns import qn
 
     section = document.sections[0]
     footer = section.footer
@@ -3661,6 +3883,47 @@ def _convert_with_win32com(docx_file: str, pdf_file: str) -> bool:
 ##############################
 # Utilities
 ##############################
+def _convert_hex_to_rgb_color(color_value: str | RGBColor) -> RGBColor | None:
+    """Convert hex color string to RGBColor object
+
+    Args:
+        color_value: Either a hex string or already an RGBColor object
+
+    Returns:
+        RGBColor object or None if conversion fails
+    """
+    if isinstance(color_value, str):
+        hex_color = color_value.lstrip("#")
+        if len(hex_color) == 6:
+            try:
+                r = int(hex_color[0:2], 16)
+                g = int(hex_color[2:4], 16)
+                b = int(hex_color[4:6], 16)
+                return RGBColor(r, g, b)
+            except ValueError:
+                return None
+    elif hasattr(color_value, "rgb"):  # Already an RGBColor
+        return color_value
+    return None
+
+
+def _paragraph_alignment(
+    paragraph: DOCX_Paragraph, alignment_str: str = "center"
+) -> None:
+    """Set paragraph alignment based on string
+
+    Args:
+        paragraph: The paragraph to set alignment for
+        alignment_str: Alignment as string (left, right, center)
+    """
+    if alignment_str == "right":
+        paragraph.alignment = DOCX_PARAGRAPH_ALIGN.RIGHT
+    elif alignment_str == "left":
+        paragraph.alignment = DOCX_PARAGRAPH_ALIGN.LEFT
+    else:
+        paragraph.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
+
+
 def _left_indent_paragraph(
     paragraph: DOCX_Paragraph, inches: float = 0.25
 ) -> DOCX_Paragraph:
@@ -3676,69 +3939,6 @@ def _left_indent_paragraph(
     # paragraph.paragraph_format._left_indent_paragraph = Inches(inches)
     paragraph.paragraph_format.left_indent = Inches(inches)
     return paragraph
-
-
-def _add_bullet_list(
-    document: Document, ul_element: BS4_Element, indentation: float = None
-) -> DOCX_Paragraph:
-    """Add bullet points from an unordered list element
-
-    Args:
-        document: The Word document object
-        ul_element: BeautifulSoup element containing the unordered list
-        indentation (float, optional): Left indentation in inches
-
-    Returns:
-        paragraph: The last bullet paragraph added
-    """
-    use_paragraph_style = ConfigHelper.get_style_constant("paragraph_lists", False)
-
-    if use_paragraph_style:
-        # Get the bullet character from config
-        bullet_char = ConfigHelper.get_paragraph_list_option("ul", "bullet_character")
-
-        para = document.add_paragraph()
-
-        items = ul_element.find_all("li")
-        for i, li in enumerate(items):
-            if i > 0:
-                para.add_run("\n")
-
-            # Add the bullet character first
-            para.add_run(f"{bullet_char} ")
-
-            # Process formatting using the helper function
-            # Always ensure sentence ending for each line in paragraph lists
-            _process_list_item_formatting(para, li, ensure_ending=True)
-
-        if indentation:
-            _left_indent_paragraph(para, indentation)
-
-        return para
-    else:
-        # Standard bullet list processing - unchanged
-        bullet_para = None
-        for li in ul_element.find_all("li"):
-            bullet_para = document.add_paragraph(style="List Bullet")
-
-            # Process formatting using the helper function
-            _process_list_item_formatting(bullet_para, li)
-
-            # Ensure sentence ending for each bullet
-            last_run = bullet_para.runs[-1] if bullet_para.runs else None
-            if last_run and not last_run.text.rstrip()[-1:] in [
-                ".",
-                "!",
-                "?",
-                ":",
-                ";",
-            ]:
-                last_run.text = last_run.text.rstrip() + "."
-
-            if indentation:
-                _left_indent_paragraph(bullet_para, indentation)
-
-        return bullet_para
 
 
 def _process_list_item_formatting(
@@ -3773,7 +3973,7 @@ def _process_list_item_formatting(
 
 
 def _format_skills_list(
-    document: Document,
+    document: DOCX_Document,
     skills: list[str],
     separator: str,
     apply_bold: bool = False,
@@ -3815,77 +4015,8 @@ def _format_skills_list(
             return skills_para
 
 
-def _process_horizontal_skills_list(
-    document: Document,
-    text: str,
-    is_top_skills: bool = False,
-    custom_input_separator: str = None,
-    custom_output_separator: str = None,
-) -> DOCX_Paragraph:
-    """Process skills text into a horizontal list with consistent formatting
-
-    Args:
-        document: The Word document object
-        text: Text containing skills separated by a delimiter
-        is_top_skills: Whether this is the top skills section (affects styling)
-        custom_input_separator: Custom input separator override
-        custom_output_separator: Custom output separator override
-
-    Returns:
-        DOCX_Paragraph: The created paragraph
-    """
-    # Get configuration based on skills type
-    if is_top_skills:
-        config_prefix = "top_skills"
-        default_input_sep = " • "
-        default_output_sep = " | "
-        use_formatted_paragraph = True
-    else:
-        config_prefix = "key_skills"
-        default_input_sep = " · "
-        default_output_sep = ", "
-        use_formatted_paragraph = False
-
-    # Get separators and formatting options
-    input_separator = custom_input_separator or ConfigHelper.get_style_constant(
-        f"{config_prefix}_separator_markdown", default_input_sep
-    )
-    output_separator = custom_output_separator or ConfigHelper.get_style_constant(
-        f"{config_prefix}_separator", default_output_sep
-    )
-    apply_bold = ConfigHelper.get_style_constant(f"{config_prefix}_bold", False)
-
-    # Get font size and line spacing (key skills specific)
-    font_size = ConfigHelper.get_style_constant(f"{config_prefix}_font_size", None)
-    line_spacing = ConfigHelper.get_style_constant(
-        f"{config_prefix}_line_spacing", None
-    )
-
-    # Parse skills from text
-    skills = [s.strip() for s in text.split(input_separator.strip())]
-    skills = [s for s in skills if s]
-
-    # Format and add to document
-    paragraph = _format_skills_list(
-        document, skills, output_separator, apply_bold, use_formatted_paragraph
-    )
-
-    # Apply additional formatting if specified and not using formatted paragraph
-    if not use_formatted_paragraph:
-        # Apply font size to all runs in the paragraph
-        if font_size:
-            for run in paragraph.runs:
-                run.font.size = Pt(font_size)
-
-        # Apply line spacing to the paragraph
-        if line_spacing:
-            paragraph.paragraph_format.line_spacing = line_spacing
-
-    return paragraph
-
-
 def _add_formatted_paragraph(
-    document: Document,
+    document: DOCX_Document,
     text: str,
     bold: bool = False,
     italic: bool = False,
@@ -4114,7 +4245,7 @@ def _add_hyperlink(
     return hyperlink
 
 
-def _add_horizontal_line_simple(document: Document) -> None:
+def _add_horizontal_line_simple(document: DOCX_Document) -> None:
     """Add a simple horizontal line to the document using underscores
 
     Args:
@@ -4144,64 +4275,10 @@ def _add_horizontal_line_simple(document: Document) -> None:
             run.font.color.rgb = rgb_color
 
 
-def _add_horizontal_line_to_cell(cell, is_sidebar=False):
-    """Add a simple horizontal line to a table cell
-
-    Args:
-        cell: The cell to add the line to
-        is_sidebar: Whether this is in the sidebar (affects line length)
-    """
-    # Get values from config with fallbacks
-    line_char = ConfigHelper.get_style_constant("horizontal_line_char", "_")
-    line_rgb_color = None
-    line_spacing = ConfigHelper.get_style_constant("horizontal_line_spacing", 1.6)
-
-    if is_sidebar:
-        line_length = ConfigHelper.get_style_constant(
-            "sidebar_horizontal_line_length", 30
-        )
-        line_color = ConfigHelper.get_style_constant(
-            "sidebar_horizontal_line_color", "000000"
-        )
-        line_font_size = ConfigHelper.get_style_constant(
-            "sidebar_horizontal_line_font_size", 16
-        )
-    else:
-        line_length = ConfigHelper.get_style_constant("horizontal_line_length", 50)
-        line_color = ConfigHelper.get_style_constant("horizontal_line_color", "000000")
-        line_rgb_color = _convert_hex_to_rgb_color(line_color)
-        line_font_size = ConfigHelper.get_style_constant(
-            "horizontal_line_font_size", 16
-        )
-
-    p = cell.add_paragraph()
-    p.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
-    p.add_run(line_char * line_length)
-
-    for run in p.runs:
-        run.bold = True
-        # Set font size for the horizontal line
-        # FIXME: For some reason, correct line spacing is only applied when font is set to a value greater than 14 (H1)
-        run.font.size = Pt(line_font_size)
-
-        if line_rgb_color:
-            run.font.color.rgb = line_rgb_color
-
-    # Get specific header-to-about spacing if it exists
-    if line_spacing:
-        header_to_about = ConfigHelper.get_style_constant(
-            "header_to_about_spacing", None
-        )
-        if header_to_about is not None:
-            # Use specific header-to-about spacing
-            p.paragraph_format.line_spacing = header_to_about
-        else:
-            # Use general line spacing
-            p.paragraph_format.line_spacing = line_spacing
-
-
 def _add_space_paragraph(
-    document: Document, font_size: int | None = None, space_before: int | None = None
+    document: DOCX_Document,
+    font_size: int | None = None,
+    space_before: int | None = None,
 ) -> None:
     """Add a paragraph with extra space after it
 
