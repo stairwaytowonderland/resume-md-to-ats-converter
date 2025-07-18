@@ -18,6 +18,7 @@ from docx.opc.constants import RELATIONSHIP_TYPE as DOCX_REL
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
+from docx.table import Table as DOCX_Table
 from docx.table import _Cell as DOCX_Cell
 from docx.text.font import Font as DOCX_FONT
 from docx.text.paragraph import Paragraph as DOCX_Paragraph
@@ -1029,9 +1030,7 @@ def process_header_section(
     if header_image_enabled:
 
         # Create a 1x2 table for the header (image on left, tagline on right)
-        header_table = document.add_table(rows=1, cols=2)
-        header_table.allow_autofit = False
-        header_table.autofit = False
+        header_table = _create_table(document, 1, 2)
 
         # Get image settings
         img_url = header_defaults["header_image"].get("url", "")
@@ -1054,29 +1053,12 @@ def process_header_section(
         header_table.columns[0].width = first_col_width
         header_table.columns[1].width = second_col_width
 
-        # Make table borderless
-        header_table.style = "Table Grid"
-
         # Add image to first cell
         img_cell = header_table.cell(0, 0)
         img_align_vertical = (
             header_defaults["header_image"].get("vertical_alignment", "center").upper()
         )
         img_cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL[img_align_vertical]
-
-        for cell in header_table._cells:
-            cell_xml = cell._tc
-            tcPr = cell_xml.get_or_add_tcPr()
-            tcBorders = OxmlElement("w:tcBorders")
-            for border in ["top", "left", "bottom", "right"]:
-                border_elem = OxmlElement(f"w:{border}")
-                border_elem.set(
-                    qn("w:sz"), str(img_border_width * 8)
-                )  # Width in eighths of a point
-                border_elem.set(qn("w:color"), img_border_color)
-                border_elem.set(qn("w:val"), "nil")
-                tcBorders.append(border_elem)
-            tcPr.append(tcBorders)
 
         # Clear any existing paragraph
         if img_cell.paragraphs:
@@ -1247,78 +1229,6 @@ def process_header_section(
 
         # Add horizontal line to the full document when no image
         _add_horizontal_line_simple(document)
-
-
-def _process_tagline_and_specialty(
-    container: DOCX_Document, first_p: BS4_Element, alignment_str: str = "center"
-) -> None:
-    """Process tagline and specialty paragraphs
-
-    Args:
-        container: Document or cell to add content to
-        first_p: First paragraph element (tagline)
-        alignment_str: Alignment as string (left, right, center)
-    """
-    # Convert alignment string to docx constant
-    if alignment_str == "right":
-        alignment = DOCX_PARAGRAPH_ALIGN.RIGHT
-    elif alignment_str == "left":
-        alignment = DOCX_PARAGRAPH_ALIGN.LEFT
-    else:
-        alignment = DOCX_PARAGRAPH_ALIGN.CENTER
-
-    # Check if ANY paragraph headings are specified
-    use_paragraph_style = HeadingsHelper.any_heading_uses_paragraph_style()
-
-    # Check if the paragraph contains emphasis (italics)
-    em_tag = first_p.find("em")
-    if em_tag:
-        # Process paragraph with emphasis
-        if use_paragraph_style:
-            tagline_para = container.add_paragraph()
-            tagline_run = tagline_para.add_run(em_tag.text)
-            tagline_run.italic = True
-            tagline_run.font.size = Pt(HeadingsHelper.get_font_size_for_tag("h4"))
-        else:
-            tagline_para = container.add_paragraph(em_tag.text, style="Subtitle")
-            for run in tagline_para.runs:
-                run.italic = True
-
-        _paragraph_alignment(tagline_para, alignment_str)
-
-        # Add the rest of the paragraph if any
-        rest_of_p = first_p.text.replace(em_tag.text, "").strip()
-        if rest_of_p:
-            rest_para = container.add_paragraph()
-            rest_para.alignment = alignment
-            rest_para.add_run(rest_of_p)
-    else:
-        # Process regular paragraph
-        if use_paragraph_style:
-            tagline_para = container.add_paragraph()
-            tagline_para.alignment = alignment
-            tagline_para.add_run(first_p.text)
-        else:
-            tagline_para = container.add_paragraph(first_p.text, style="Subtitle")
-            tagline_para.alignment = alignment
-
-    # Process additional specialty paragraphs
-    current_p = first_p.find_next_sibling()
-    while current_p and current_p.name == "p":
-        specialty_para = container.add_paragraph()
-        specialty_para.alignment = alignment
-        specialty_para.add_run(current_p.text)
-
-        # Apply spacing
-        header_specialty_space_after = ConfigHelper.get_style_constant(
-            "header_specialty_space_after", None
-        )
-        if header_specialty_space_after:
-            specialty_para.paragraph_format.space_after = Pt(
-                header_specialty_space_after
-            )
-
-        current_p = current_p.find_next_sibling()
 
 
 def process_about_section(
@@ -1842,6 +1752,41 @@ def process_contact_section(
 ##############################
 # Two Column Helpers
 ##############################
+def _create_table(
+    document: DOCX_Document,
+    rows: int = 1,
+    cols: int = 1,
+    style: str = "Table Grid",
+) -> DOCX_Table:
+    """Create a table in the document with specified rows, columns, and style
+
+    Args:
+        document: The Word document object
+        rows: Number of rows in the table
+        cols: Number of columns in the table
+        style: Style name for the table
+
+    Returns:
+        docx.table.Table: The created table object
+    """
+    table = document.add_table(rows=rows, cols=cols)
+    table.allow_autofit = False
+    table.autofit = False
+
+    table.style = style
+    for cell in table._cells:
+        cell_xml = cell._tc
+        tcPr = cell_xml.get_or_add_tcPr()
+        tcBorders = OxmlElement("w:tcBorders")
+        for border in ["top", "left", "bottom", "right"]:
+            border_elem = OxmlElement(f"w:{border}")
+            border_elem.set(qn("w:val"), "nil")
+            tcBorders.append(border_elem)
+        tcPr.append(tcBorders)
+
+    return table
+
+
 def _process_contact_info_horizontal(cell: DOCX_Cell, soup: BeautifulSoup) -> None:
     """Process contact info in a horizontal ribbon format with gray background
 
@@ -2265,21 +2210,7 @@ def _create_two_column_layout(
     about_styles = ConfigHelper.get_style_constant("about", {})
 
     # Create about section table FIRST (1 row, 1 column) for professional summary
-    about_table = document.add_table(rows=1, cols=1)
-    about_table.allow_autofit = False
-    about_table.autofit = False
-
-    # Set up about table appearance (no borders)
-    about_table.style = "Table Grid"
-    for cell in about_table._cells:
-        cell_xml = cell._tc
-        tcPr = cell_xml.get_or_add_tcPr()
-        tcBorders = OxmlElement("w:tcBorders")
-        for border in ["top", "left", "bottom", "right"]:
-            border_elem = OxmlElement(f"w:{border}")
-            border_elem.set(qn("w:val"), "nil")
-            tcBorders.append(border_elem)
-        tcPr.append(tcBorders)
+    about_table = _create_table(document, 1, 1)
 
     about_content_cell = _create_table_cell_subdocument(
         about_table.cell(0, 0), cell_type="about"
@@ -2288,57 +2219,20 @@ def _create_two_column_layout(
     _apply_table_cell_fill_and_border_styles(about_table.cell(0, 0), about_styles)
 
     # THEN create contact ribbon table (1 row, 1 column) AFTER about section
-    contact_table = document.add_table(rows=1, cols=1)
-    contact_table.allow_autofit = False
-    contact_table.autofit = False
-
-    # Set up contact table appearance (no borders)
-    contact_table.style = "Table Grid"
-    for cell in contact_table._cells:
-        cell_xml = cell._tc
-        tcPr = cell_xml.get_or_add_tcPr()
-        tcBorders = OxmlElement("w:tcBorders")
-        for border in ["top", "left", "bottom", "right"]:
-            border_elem = OxmlElement(f"w:{border}")
-            border_elem.set(qn("w:val"), "nil")
-            tcBorders.append(border_elem)
-        tcPr.append(tcBorders)
+    contact_table = _create_table(document, 1, 1)
 
     contact_info_cell = _create_table_cell_subdocument(
         contact_table.cell(0, 0), v_align="center", cell_type="contact"
     )
 
     # Create the main content table (1 row, 2 columns)
-    content_table = document.add_table(rows=1, cols=2)
-    content_table.allow_autofit = False
-    content_table.autofit = False
-
-    # Set column widths based on sidebar position
-    if sidebar_on_right:
-        # Main content on left, sidebar on right
-        content_table.columns[0].width = Inches(main_width)
-        content_table.columns[1].width = Inches(sidebar_width)
-    else:
-        # Sidebar on left (default), main content on right
-        content_table.columns[0].width = Inches(sidebar_width)
-        content_table.columns[1].width = Inches(main_width)
-
-    # Set up content table appearance
-    content_table.style = "Table Grid"
-    for cell in content_table._cells:
-        # Remove borders
-        cell_xml = cell._tc
-        tcPr = cell_xml.get_or_add_tcPr()
-        tcBorders = OxmlElement("w:tcBorders")
-        for border in ["top", "left", "bottom", "right"]:
-            border_elem = OxmlElement(f"w:{border}")
-            border_elem.set(qn("w:val"), "nil")
-            tcBorders.append(border_elem)
-        tcPr.append(tcBorders)
+    content_table = _create_table(document, 1, 2)
 
     # Get and prepare the cells with correct vertical alignment
     if sidebar_on_right:
         # Main content on left, sidebar on right
+        content_table.columns[0].width = Inches(main_width)
+        content_table.columns[1].width = Inches(sidebar_width)
         main_cell = _create_table_cell_subdocument(
             content_table.cell(0, 0), cell_type="main"
         )
@@ -2351,6 +2245,8 @@ def _create_two_column_layout(
         cell_main = content_table.cell(0, 0)
     else:
         # Sidebar on left (default), main content on right
+        content_table.columns[0].width = Inches(sidebar_width)
+        content_table.columns[1].width = Inches(main_width)
         sidebar_cell = _create_table_cell_subdocument(
             content_table.cell(0, 0), v_align="top", cell_type="sidebar"
         )
@@ -2474,129 +2370,6 @@ def _apply_paragraph_format_properties(
         paragraph_format.right_indent = Inches(properties["indent_right"])
     if "alignment" in properties:
         paragraph_format.alignment = properties["alignment"]
-
-
-def _create_hyperlink_style(document: DOCX_Document, hyperlink_props: dict) -> bool:
-    """Create a Hyperlink character style if it doesn't exist
-
-    Args:
-        document: The Word document object
-        hyperlink_props: Dictionary containing hyperlink style properties
-
-    Returns:
-        bool: True if style was created successfully, False otherwise
-    """
-    if "Hyperlink" in document.styles:
-        return True  # Already exists
-
-    try:
-        hyperlink_style = document.styles.add_style(
-            "Hyperlink", DOCX_STYLE_TYPE.CHARACTER
-        )
-        validated_props = _validate_style_properties(hyperlink_props)
-        _apply_font_properties(hyperlink_style.font, validated_props)
-        return True
-    except Exception as e:
-        print(f"Warning: Could not create Hyperlink style: {str(e)}")
-        return False
-
-
-def _validate_style_properties(properties: dict) -> dict:
-    """Validate and clean style properties with type checking
-
-    Args:
-        properties: Raw properties dictionary
-
-    Returns:
-        dict: Validated and cleaned properties
-    """
-    valid_props = {}
-
-    # Font properties with type validation
-    font_prop_types = {
-        "font_name": str,
-        "font_size": (int, float),
-        "bold": bool,
-        "italic": bool,
-        "underline": bool,
-        "color": str,
-    }
-
-    for prop, expected_type in font_prop_types.items():
-        if prop in properties:
-            value = properties[prop]
-            if isinstance(value, expected_type):
-                valid_props[prop] = value
-            else:
-                print(
-                    f"Warning: Invalid type for {prop}, expected {expected_type.__name__}, got {type(value).__name__}"
-                )
-
-    # Paragraph format properties with type validation
-    para_prop_types = {
-        "line_spacing": (int, float),
-        "space_after": (int, float),
-        "space_before": (int, float),
-        "indent_left": (int, float),
-        "indent_right": (int, float),
-        "alignment": int,  # DOCX alignment constants
-    }
-
-    for prop, expected_type in para_prop_types.items():
-        if prop in properties:
-            value = properties[prop]
-            if isinstance(value, expected_type):
-                valid_props[prop] = value
-            else:
-                print(
-                    f"Warning: Invalid type for {prop}, expected {expected_type.__name__}, got {type(value).__name__}"
-                )
-
-    return valid_props
-
-
-def _apply_document_styles(
-    document: DOCX_Document, styles: dict = None, style_constants: dict = None
-) -> None:
-    """Apply style settings to document using values from config
-
-    Args:
-        document: The Word document object
-        styles: Dictionary of style settings from config
-        style_constants: Dictionary of style constants from config
-    """
-    if styles is None or style_constants is None:
-        print("Warning: No styles or style constants provided, using defaults")
-        return
-
-    # Handle Hyperlink style creation if needed
-    if "Hyperlink" in styles:
-        _create_hyperlink_style(document, styles["Hyperlink"])
-
-    # Apply properties to existing styles
-    for style_name, properties in styles.items():
-        if style_name == "Hyperlink" and style_name not in document.styles:
-            continue  # Already handled above or creation failed
-
-        try:
-            style = document.styles[style_name]
-
-            # Validate properties before applying them
-            validated_props = _validate_style_properties(properties)
-
-            # Apply font properties using helper function
-            _apply_font_properties(style.font, validated_props)
-
-            # Apply paragraph format properties if the style supports them
-            if hasattr(style, "paragraph_format"):
-                _apply_paragraph_format_properties(
-                    style.paragraph_format, validated_props
-                )
-
-        except (KeyError, AttributeError, ValueError) as e:
-            print(
-                f"Warning: Could not apply all properties to '{style_name}': {str(e)}"
-            )
 
 
 def _prepare_section(
@@ -2735,6 +2508,78 @@ def _process_horizontal_skills_list(
             paragraph.paragraph_format.line_spacing = line_spacing
 
     return paragraph
+
+
+def _process_tagline_and_specialty(
+    container: DOCX_Document, first_p: BS4_Element, alignment_str: str = "center"
+) -> None:
+    """Process tagline and specialty paragraphs
+
+    Args:
+        container: Document or cell to add content to
+        first_p: First paragraph element (tagline)
+        alignment_str: Alignment as string (left, right, center)
+    """
+    # Convert alignment string to docx constant
+    if alignment_str == "right":
+        alignment = DOCX_PARAGRAPH_ALIGN.RIGHT
+    elif alignment_str == "left":
+        alignment = DOCX_PARAGRAPH_ALIGN.LEFT
+    else:
+        alignment = DOCX_PARAGRAPH_ALIGN.CENTER
+
+    # Check if ANY paragraph headings are specified
+    use_paragraph_style = HeadingsHelper.any_heading_uses_paragraph_style()
+
+    # Check if the paragraph contains emphasis (italics)
+    em_tag = first_p.find("em")
+    if em_tag:
+        # Process paragraph with emphasis
+        if use_paragraph_style:
+            tagline_para = container.add_paragraph()
+            tagline_run = tagline_para.add_run(em_tag.text)
+            tagline_run.italic = True
+            tagline_run.font.size = Pt(HeadingsHelper.get_font_size_for_tag("h4"))
+        else:
+            tagline_para = container.add_paragraph(em_tag.text, style="Subtitle")
+            for run in tagline_para.runs:
+                run.italic = True
+
+        _paragraph_alignment(tagline_para, alignment_str)
+
+        # Add the rest of the paragraph if any
+        rest_of_p = first_p.text.replace(em_tag.text, "").strip()
+        if rest_of_p:
+            rest_para = container.add_paragraph()
+            rest_para.alignment = alignment
+            rest_para.add_run(rest_of_p)
+    else:
+        # Process regular paragraph
+        if use_paragraph_style:
+            tagline_para = container.add_paragraph()
+            tagline_para.alignment = alignment
+            tagline_para.add_run(first_p.text)
+        else:
+            tagline_para = container.add_paragraph(first_p.text, style="Subtitle")
+            tagline_para.alignment = alignment
+
+    # Process additional specialty paragraphs
+    current_p = first_p.find_next_sibling()
+    while current_p and current_p.name == "p":
+        specialty_para = container.add_paragraph()
+        specialty_para.alignment = alignment
+        specialty_para.add_run(current_p.text)
+
+        # Apply spacing
+        header_specialty_space_after = ConfigHelper.get_style_constant(
+            "header_specialty_space_after", None
+        )
+        if header_specialty_space_after:
+            specialty_para.paragraph_format.space_after = Pt(
+                header_specialty_space_after
+            )
+
+        current_p = current_p.find_next_sibling()
 
 
 def _process_simple_section(
@@ -3536,31 +3381,6 @@ def _create_heading_with_formatting_preservation(
     )
 
 
-def _find_organization_element(
-    blockquote: BS4_Element,
-) -> tuple[BS4_Element | None, bool]:
-    """Find and return the organization element from a blockquote
-
-    Args:
-        blockquote: BeautifulSoup blockquote element
-
-    Returns:
-        tuple: (organization_element, was_processed)
-    """
-    for item in blockquote.contents:
-        if isinstance(item, str) and not item.strip():
-            continue
-
-        if hasattr(item, "name") and item.name in ["h4", "h5", "h6"]:
-            return item, False
-        elif hasattr(item, "name") and item.name == "p":
-            strong_tag = item.find("strong")
-            if strong_tag:
-                return item, False
-
-    return None, False
-
-
 def _process_date_paragraph(
     document: DOCX_Document, paragraph_element: BS4_Element
 ) -> bool:
@@ -3881,7 +3701,7 @@ def _convert_with_win32com(docx_file: str, pdf_file: str) -> bool:
 
 
 ##############################
-# Utilities
+# Utility Helpers
 ##############################
 def _convert_hex_to_rgb_color(color_value: str | RGBColor) -> RGBColor | None:
     """Convert hex color string to RGBColor object
@@ -4340,6 +4160,154 @@ def _ensure_sentence_ending(text: str) -> str:
 
     # Add a period
     return text + "."
+
+
+def _find_organization_element(
+    blockquote: BS4_Element,
+) -> tuple[BS4_Element | None, bool]:
+    """Find and return the organization element from a blockquote
+
+    Args:
+        blockquote: BeautifulSoup blockquote element
+
+    Returns:
+        tuple: (organization_element, was_processed)
+    """
+    for item in blockquote.contents:
+        if isinstance(item, str) and not item.strip():
+            continue
+
+        if hasattr(item, "name") and item.name in ["h4", "h5", "h6"]:
+            return item, False
+        elif hasattr(item, "name") and item.name == "p":
+            strong_tag = item.find("strong")
+            if strong_tag:
+                return item, False
+
+    return None, False
+
+
+def _create_hyperlink_style(document: DOCX_Document, hyperlink_props: dict) -> bool:
+    """Create a Hyperlink character style if it doesn't exist
+
+    Args:
+        document: The Word document object
+        hyperlink_props: Dictionary containing hyperlink style properties
+
+    Returns:
+        bool: True if style was created successfully, False otherwise
+    """
+    if "Hyperlink" in document.styles:
+        return True  # Already exists
+
+    try:
+        hyperlink_style = document.styles.add_style(
+            "Hyperlink", DOCX_STYLE_TYPE.CHARACTER
+        )
+        validated_props = _validate_style_properties(hyperlink_props)
+        _apply_font_properties(hyperlink_style.font, validated_props)
+        return True
+    except Exception as e:
+        print(f"Warning: Could not create Hyperlink style: {str(e)}")
+        return False
+
+
+def _validate_style_properties(properties: dict) -> dict:
+    """Validate and clean style properties with type checking
+
+    Args:
+        properties: Raw properties dictionary
+
+    Returns:
+        dict: Validated and cleaned properties
+    """
+    valid_props = {}
+
+    # Font properties with type validation
+    font_prop_types = {
+        "font_name": str,
+        "font_size": (int, float),
+        "bold": bool,
+        "italic": bool,
+        "underline": bool,
+        "color": str,
+    }
+
+    for prop, expected_type in font_prop_types.items():
+        if prop in properties:
+            value = properties[prop]
+            if isinstance(value, expected_type):
+                valid_props[prop] = value
+            else:
+                print(
+                    f"Warning: Invalid type for {prop}, expected {expected_type.__name__}, got {type(value).__name__}"
+                )
+
+    # Paragraph format properties with type validation
+    para_prop_types = {
+        "line_spacing": (int, float),
+        "space_after": (int, float),
+        "space_before": (int, float),
+        "indent_left": (int, float),
+        "indent_right": (int, float),
+        "alignment": int,  # DOCX alignment constants
+    }
+
+    for prop, expected_type in para_prop_types.items():
+        if prop in properties:
+            value = properties[prop]
+            if isinstance(value, expected_type):
+                valid_props[prop] = value
+            else:
+                print(
+                    f"Warning: Invalid type for {prop}, expected {expected_type.__name__}, got {type(value).__name__}"
+                )
+
+    return valid_props
+
+
+def _apply_document_styles(
+    document: DOCX_Document, styles: dict = None, style_constants: dict = None
+) -> None:
+    """Apply style settings to document using values from config
+
+    Args:
+        document: The Word document object
+        styles: Dictionary of style settings from config
+        style_constants: Dictionary of style constants from config
+    """
+    if styles is None or style_constants is None:
+        print("Warning: No styles or style constants provided, using defaults")
+        return
+
+    # Handle Hyperlink style creation if needed
+    if "Hyperlink" in styles:
+        _create_hyperlink_style(document, styles["Hyperlink"])
+
+    # Apply properties to existing styles
+    for style_name, properties in styles.items():
+        if style_name == "Hyperlink" and style_name not in document.styles:
+            continue  # Already handled above or creation failed
+
+        try:
+            style = document.styles[style_name]
+
+            # Validate properties before applying them
+            validated_props = _validate_style_properties(properties)
+
+            # Apply font properties using helper function
+            _apply_font_properties(style.font, validated_props)
+
+            # Apply paragraph format properties if the style supports them
+            if hasattr(style, "paragraph_format"):
+                _apply_paragraph_format_properties(
+                    style.paragraph_format, validated_props
+                )
+
+        except (KeyError, AttributeError, ValueError) as e:
+            print(
+                f"Warning: Could not apply all properties to '{style_name}': {str(e)}"
+            )
 
 
 __all__ = [
