@@ -337,108 +337,12 @@ class ConfigLoader:
 
         # Default empty configuration structure
         self._config = {
-            "document_defaults": {
-                "margin_top": 0.7,
-                "margin_bottom": 0.7,
-                "margin_left": 0.2,
-                "margin_right": 0.2,
-                "page_width": 8.5,
-                "page_height": 11.0,
-            },
-            "style_constants": {
-                "font_size_pts": 11,
-                "indent_inches": 0.25,
-                "bullet_indent_inches": 0.5,
-                "horizontal_line_char": "_",
-                "horizontal_line_length": 50,
-                "date_location_line_spacing": 1.3,
-                "date_location_font_size": 10,
-                "key_skills_line_spacing": 1.3,
-                "key_skills_font_size": 10,
-                "position_title_line_spacing": 1.2,
-            },
+            "document_defaults": {},
+            "style_constants": {},
             "document_styles": {},
-            "paragraph_lists": {
-                "ul": {
-                    "bullet_character": "•",
-                    "paragraph_delimiter": "\n",
-                },
-            },
-            "paragraph_headings": {
-                "h1": {"level": 0, "paragraph_heading_size": 24},
-                "h2": {"level": 1, "paragraph_heading_size": 16},
-                "h3": {"level": 2, "paragraph_heading_size": 14},
-                "h4": {"level": 3, "paragraph_heading_size": 12},
-                "h5": {"level": 4, "paragraph_heading_size": 11},
-                "h6": {"level": 5, "paragraph_heading_size": 10},
-            },
-            "resume_sections": OrderedDict(
-                [
-                    (
-                        "about",
-                        {
-                            "markdown_heading": "About",
-                            "docx_heading": "PROFESSIONAL SUMMARY",
-                            "add_space_before_h3": False,
-                            "add_space_before_h2": False,
-                        },
-                    ),
-                    (
-                        "skills",
-                        {
-                            "markdown_heading": "Top Skills",
-                            "docx_heading": "TOP SKILLS",
-                            "add_space_before_h3": False,
-                            "add_space_before_h2": False,
-                        },
-                    ),
-                    (
-                        "experience",
-                        {
-                            "markdown_heading": "Experience",
-                            "docx_heading": "WORK EXPERIENCE",
-                            "add_space_before_h3": True,
-                            "add_space_before_h2": False,
-                        },
-                    ),
-                    (
-                        "projects",
-                        {
-                            "markdown_heading": "Projects",
-                            "docx_heading": "PROJECTS",
-                            "add_space_before_h3": True,
-                            "add_space_before_h2": True,
-                        },
-                    ),
-                    (
-                        "certifications",
-                        {
-                            "markdown_heading": "Licenses & certifications",
-                            "docx_heading": "CERTIFICATIONS",
-                            "add_space_before_h3": True,
-                            "add_space_before_h2": False,
-                        },
-                    ),
-                    (
-                        "education",
-                        {
-                            "markdown_heading": "Education",
-                            "docx_heading": "EDUCATION",
-                            "add_space_before_h3": False,
-                            "add_space_before_h2": False,
-                        },
-                    ),
-                    (
-                        "contact",
-                        {
-                            "markdown_heading": "Contact",
-                            "docx_heading": "CONTACT INFORMATION",
-                            "add_space_before_h3": False,
-                            "add_space_before_h2": False,
-                        },
-                    ),
-                ]
-            ),
+            "paragraph_lists": {},
+            "paragraph_headings": {},
+            "resume_sections": OrderedDict(),
         }
 
         # Try to load the YAML config file
