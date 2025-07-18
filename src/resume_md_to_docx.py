@@ -3291,8 +3291,23 @@ def _process_project_or_certification_blockquote(
             if not _process_date_paragraph(document, item):
                 # Regular paragraph
                 para = document.add_paragraph()
+
+                # Check if this paragraph contains a Key Skills heading
+                # Look for h5 elements with "key skills" text (case insensitive)
+                has_key_skills_heading = True
+                for child in item.children:
+                    if (
+                        getattr(child, "name", None) == "h5"
+                        and child.text.strip().lower() == "key skills"
+                    ):
+                        has_key_skills_heading = False
+                        break
+
+                # Set add_colon_to_strong based on whether this is a Key Skills section
+                add_colon = not has_key_skills_heading
+
                 _process_element_children_with_formatting(
-                    para, item, add_colon_to_strong=True
+                    para, item, add_colon_to_strong=add_colon
                 )
 
         elif hasattr(item, "name") and item.name == "ul":
