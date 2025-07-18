@@ -20,7 +20,7 @@ This can all be multiple paragraphs, and contain [markdown links](https://exampl
 
 **Optional personal heading**
 
-Perhaps something more personal about yourself here, such as interests and hobbies.
+*Perhaps something more personal about yourself here, such as interests and hobbies.*
 
 ## Top Skills
 
@@ -28,7 +28,7 @@ My Top • Technical • Skills • And Buzzwords • I Want To Highlight
 
 
 
----
+
 ## Experience
 
 
@@ -184,7 +184,7 @@ This area is optional.
 
 
 
----
+
 ## Education
 
 **School or Institution Name**
@@ -232,7 +232,7 @@ Another Degree
 
 ## Contact
 
-**LinkedIn**
+**IN**
 https://www.linkedin.com/in/full-name/
 
 **Email**
