@@ -28,7 +28,7 @@ This project allows you to maintain your resume in an easily editable Markdown f
 
 ```
 <project>/
-├── data/                        # Default output directory
+├── output/                      # Default output directory
 ├── sample/
 │   ├── example/
 │   │   ├── example.md           # Real world example resume with mock data
@@ -332,7 +332,7 @@ make && make install
 
 ### Basic usage 🍰
 
-By default, the name of the output file will match that of the input file, but with the appropriate extension. The **output files** will be in the project's [`data/`](./data/) directory unless other specified (with the `-o` or `--output` option).
+By default, the name of the output file will match that of the input file, but with the appropriate extension. The **output files** will be in the project's [`output/`](./output/) directory unless other specified (with the `-o` or `--output` option).
 
 #### ✨ Interactive mode 📱
 
@@ -365,7 +365,7 @@ python src/resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/exampl
 
 ### ✨ Produce a PDF 📕
 
-Adding `--pdf` to any of the above commands will also produce a `.pdf` file in the same directory as the `.docx` file (this will be the project's [`data/`](./data/) directory if the *output* option isn't set):
+Adding `--pdf` to any of the above commands will also produce a `.pdf` file in the same directory as the `.docx` file (this will be the project's [`output/`](./output/) directory if the *output* option isn't set):
 
 ```bash
 # This will create 2 files: "sample/example/output/example.docx" and "sample/example/output/example.pdf"
