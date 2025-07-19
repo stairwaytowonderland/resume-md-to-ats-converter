@@ -29,12 +29,8 @@ document_defaults:
     # Use if no double_border
     width_inches: 0.85  # Width of the image in inches
     height_inches: 0.85  # Height of the image in inches (make equal to width for square)
-    double_border: false  # Enable double border effect using nested table
     border_color: "BCDCFF"  # Dark blue border color
     border_width: 2  # Border width in points
-    inner_border_color: "4F81BD"  # Color of the inner border
-    inner_border_width: 1  # Width of the inner border in points
-    border_spacing: 2  # Default space between borders in points
     margin_right: 0.25  # Margin between image and text in inches
     padding_top: 7      # Padding above the image in points
     padding_right: 18    # Padding to the right of the image in points
@@ -116,6 +112,8 @@ style_constants:
     border_right_color: "BCDCFF"
     fill_enabled: true
     fill_color: "BCDCFF"  # Light blue fill color for contact ribbon
+    item_separator: "  |  "  # Separator between contact items
+    item_separator_font_style: "normal"  # Style for item separator (e.g., normal, bold, italic)
 
   sidebar:
     border_enabled: true  # Enable border for sidebar

@@ -23,6 +23,7 @@ from docx.table import _Cell as DOCX_Cell
 from docx.text.font import Font as DOCX_FONT
 from docx.text.paragraph import Paragraph as DOCX_Paragraph
 from docx.text.parfmt import ParagraphFormat as DOCX_ParagraphFormat
+from docx.text.run import Run as DOCX_Run
 
 SCRIPT_DIR = Path(__file__).parent
 
@@ -408,36 +409,11 @@ class ConfigLoader:
                 )
 
     @property
-    def sidebar_position(self) -> str:
-        """Get sidebar position (left or right)"""
-        position = self._config.get("document_defaults", {}).get(
-            "sidebar_position", "left"
-        )
-        return position.lower()
-
-    @property
-    def is_sidebar_on_right(self) -> bool:
-        """Check if sidebar should be on the right"""
-        return self.sidebar_position == "right"
-
-    @property
     def two_column_enabled(self) -> bool:
         """Check if two column layout is enabled"""
         return self._config.get("document_defaults", {}).get(
             "two_column_enabled", False
         )
-
-    @property
-    def sidebar_width_ratio(self) -> float:
-        """Get sidebar width ratio"""
-        return self._config.get("document_defaults", {}).get(
-            "sidebar_width_ratio", 0.33
-        )
-
-    @property
-    def main_width_ratio(self) -> float:
-        """Get main column width ratio"""
-        return self._config.get("document_defaults", {}).get("main_width_ratio", 0.67)
 
     @property
     def config(self) -> dict:
@@ -492,34 +468,6 @@ class ConfigLoader:
             dict: Resume sections configuration in YAML order
         """
         return self._config.get("resume_sections", {})
-
-    @property
-    def page_numbers_enabled(self) -> bool:
-        """Get whether page numbers are enabled"""
-        return self._config.get("document_defaults", {}).get(
-            "page_numbers_enabled", False
-        )
-
-    @property
-    def page_numbers_alignment(self) -> str:
-        """Get page numbers alignment"""
-        return self._config.get("document_defaults", {}).get(
-            "page_numbers_alignment", "center"
-        )
-
-    @property
-    def page_numbers_format(self) -> str:
-        """Get page numbers format"""
-        return self._config.get("document_defaults", {}).get(
-            "page_numbers_format", "simple"
-        )
-
-    @property
-    def page_numbers_text(self) -> str:
-        """Get page numbers text format"""
-        return self._config.get("document_defaults", {}).get(
-            "page_numbers_text", "Page {page} of {total}"
-        )
 
     def get_style_constant(self, key: str, default=None):
         """Get a specific style constant value
@@ -808,7 +756,7 @@ def create_ats_resume(
 
         # Create the two-column layout structure
         about_content_cell, contact_info_cell, sidebar_cell, main_cell = (
-            _create_two_column_layout(document, config_loader)
+            _create_two_column_layout(document)
         )
 
         # Process contact info in the contact cell (right after header, before about section)
@@ -954,7 +902,7 @@ def create_ats_resume(
                     )
 
     # Add page numbers if enabled
-    _add_configured_page_numbers(document, config_loader)
+    _add_configured_page_numbers(document)
 
     # Save the document
     document.save(output_file)
@@ -1019,7 +967,7 @@ def process_header_section(
     name = soup.find("h1").text
     title_para = document.add_paragraph(style="Title")
     # Always center the title regardless of header_alignment setting
-    title_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
+    _paragraph_alignment(title_para, "center")
     title_para.add_run(name)
 
     # Extract the tagline (first paragraph after h1)
@@ -1033,12 +981,14 @@ def process_header_section(
         header_table = _create_table(document, 1, 2)
 
         # Get image settings
-        img_url = header_defaults["header_image"].get("url", "")
-        img_width = Inches(header_defaults["header_image"].get("width_inches", 1.0))
-        img_height = Inches(header_defaults["header_image"].get("height_inches", 1.0))
-        img_border_color = header_defaults["header_image"].get("border_color", "000000")
-        img_border_width = header_defaults["header_image"].get("border_width", 1)
-        margin_right = Inches(header_defaults["header_image"].get("margin_right", 0.5))
+        header_image = header_defaults.get("header_image", {})
+
+        img_url = header_image.get("url", "")
+        img_width = Inches(header_image.get("width_inches", 1.0))
+        img_height = Inches(header_image.get("height_inches", 1.0))
+        img_border_color = header_image.get("border_color", "000000")
+        img_border_width = header_image.get("border_width", 1)
+        margin_right = Inches(header_image.get("margin_right", 0.5))
 
         # Calculate available width and set column widths
         page_width = header_defaults.get("page_width", 8.5)
@@ -1055,10 +1005,8 @@ def process_header_section(
 
         # Add image to first cell
         img_cell = header_table.cell(0, 0)
-        img_align_vertical = (
-            header_defaults["header_image"].get("vertical_alignment", "center").upper()
-        )
-        img_cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL[img_align_vertical]
+        img_align_vertical = header_image.get("vertical_alignment", "center")
+        _cell_vertical_alignment(img_cell, img_align_vertical)
 
         # Clear any existing paragraph
         if img_cell.paragraphs:
@@ -1067,147 +1015,22 @@ def process_header_section(
             p._p = None
             p._element = None
 
-        # Check if double border is enabled
-        double_border = header_defaults["header_image"].get("double_border", False)
+        img_para = img_cell.add_paragraph()
 
-        if double_border:
-            # Create a nested table for the double border effect
-            inner_table = img_cell.add_table(rows=1, cols=1)
-            inner_table.allow_autofit = False
-            inner_table.autofit = False
-
-            # Get padding settings with default fallback to border_spacing
-            border_spacing = header_defaults["header_image"].get("border_spacing", 4)
-            padding_top = header_defaults["header_image"].get(
-                "padding_top", border_spacing
-            )
-            padding_right = header_defaults["header_image"].get(
-                "padding_right", border_spacing
-            )
-            padding_bottom = header_defaults["header_image"].get(
-                "padding_bottom", border_spacing
-            )
-            padding_left = header_defaults["header_image"].get(
-                "padding_left", border_spacing
-            )
-
-            # Set inner table width to match image dimensions plus padding
-            total_width = img_width + Pt(padding_left + padding_right)
-            inner_table.columns[0].width = total_width
-
-            # Get border properties
-            inner_border_color = header_defaults["header_image"].get(
-                "inner_border_color", "4F81BD"
-            )
-            inner_border_width = header_defaults["header_image"].get(
-                "inner_border_width", 2
-            )
-
-            # Apply border to inner table cell
-            inner_cell = inner_table.cell(0, 0)
-            inner_cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL.CENTER
-
-            # Apply border to inner cell
-            inner_tc = inner_cell._tc
-            inner_tcPr = inner_tc.get_or_add_tcPr()
-            inner_tcBorders = OxmlElement("w:tcBorders")
-
-            for border in ["top", "left", "bottom", "right"]:
-                border_elem = OxmlElement(f"w:{border}")
-                border_elem.set(qn("w:val"), "single")
-                border_elem.set(qn("w:sz"), str(inner_border_width * 8))
-                border_elem.set(qn("w:color"), inner_border_color)
-                inner_tcBorders.append(border_elem)
-
-            inner_tcPr.append(inner_tcBorders)
-
-            # Apply custom cell margins/padding for each side
-            tcMar = OxmlElement("w:tcMar")
-
-            # Map sides to their config values
-            side_padding = {
-                "top": padding_top * 20,  # Convert points to twips
-                "bottom": padding_bottom * 20,
-                "start": padding_left * 20,
-                "end": padding_right * 20,
-            }
-
-            # Apply each margin side with its specific value
-            for side, width in side_padding.items():
-                node = OxmlElement(f"w:{side}")
-                node.set(qn("w:w"), str(int(width)))  # Cell margins are in twips
-                node.set(qn("w:type"), "dxa")
-                tcMar.append(node)
-
-            inner_tcPr.append(tcMar)
-
-            # Clear any default paragraph
-            if inner_cell.paragraphs:
-                p = inner_cell.paragraphs[0]
-                p._element.getparent().remove(p._element)
-                p._p = None
-                p._element = None
-
-            # Add image to the inner cell with precise positioning
-            img_para = inner_cell.add_paragraph()
-            img_para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
-            img_para.paragraph_format.space_before = Pt(0)
-            img_para.paragraph_format.space_after = Pt(0)
-            run = img_para.add_run()
-        else:
-            # Original approach - add directly to the cell
-            img_para = img_cell.add_paragraph()
-            run = img_para.add_run()
-
-        # Add image with border (same for both approaches)
-        try:
-            from io import BytesIO
-
-            import requests
-
-            response = requests.get(img_url)
-            img_stream = BytesIO(response.content)
-            pic = run.add_picture(img_stream, width=img_width, height=img_height)
-
-            # Get the inline element containing the picture
-            inline = pic._inline
-
-            # Alternative approach for handling shape properties that doesn't use namespaces parameter
-            picPr = None
-            for child in inline.findall(".//{*}pic"):
-                picPr = child
-                break
-
-            if picPr is not None:
-                # Find spPr element
-                spPr = None
-                for child in picPr.findall(".//{*}spPr"):
-                    spPr = child
-                    break
-
-                if spPr is not None:
-                    # Create line properties element
-                    ln = OxmlElement("a:ln")
-                    ln.set("w", str(img_border_width * 12700))  # Width in EMUs
-
-                    # Create solid fill
-                    solidFill = OxmlElement("a:solidFill")
-                    srgbClr = OxmlElement("a:srgbClr")
-                    srgbClr.set("val", img_border_color.lstrip("#"))
-                    solidFill.append(srgbClr)
-                    ln.append(solidFill)
-
-                    # Add line properties to shape properties
-                    spPr.append(ln)
-        except Exception as e:
-            print(f"Failed to add image: {str(e)}")
+        # Add image
+        _url_image(
+            img_para,
+            img_url,
+            img_width,
+            img_height,
+            img_border_color,
+            img_border_width,
+        )
 
         # Use second cell for tagline
         text_cell = header_table.cell(0, 1)
-        header_align_vertical = header_defaults.get(
-            "vertical_alignment", "center"
-        ).upper()
-        text_cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL[header_align_vertical]
+        header_align_vertical = header_defaults.get("vertical_alignment", "center")
+        _cell_vertical_alignment(text_cell, header_align_vertical)
 
         if text_cell.paragraphs:
             p = text_cell.paragraphs[0]
@@ -1757,6 +1580,8 @@ def _create_table(
     rows: int = 1,
     cols: int = 1,
     style: str = "Table Grid",
+    allow_autofit: bool = False,
+    autofit: bool = False,
 ) -> DOCX_Table:
     """Create a table in the document with specified rows, columns, and style
 
@@ -1770,8 +1595,8 @@ def _create_table(
         docx.table.Table: The created table object
     """
     table = document.add_table(rows=rows, cols=cols)
-    table.allow_autofit = False
-    table.autofit = False
+    table.allow_autofit = allow_autofit
+    table.autofit = autofit
 
     table.style = style
     for cell in table._cells:
@@ -1796,6 +1621,13 @@ def _process_contact_info_horizontal(cell: DOCX_Cell, soup: BeautifulSoup) -> No
     """
 
     contact_ribbon_styles = ConfigHelper.get_style_constant("contact_ribbon", {})
+    item_separator = contact_ribbon_styles.get("item_separator", "  |  ")
+    item_separator_color = contact_ribbon_styles.get("item_separator_color", "000000")
+    item_separator_font_style = contact_ribbon_styles.get(
+        "item_separator_font_style", "normal"
+    )
+
+    item_separator_color_rgb = RGBColor.from_string(item_separator_color)
 
     # Set gray background for the cell
     _apply_table_cell_fill_and_border_styles(cell, contact_ribbon_styles)
@@ -1807,7 +1639,7 @@ def _process_contact_info_horizontal(cell: DOCX_Cell, soup: BeautifulSoup) -> No
 
     # Create a paragraph for horizontal layout
     para = cell.add_paragraph()
-    para.alignment = DOCX_PARAGRAPH_ALIGN.CENTER  # Center the content
+    _paragraph_alignment(para, "center")
 
     # Find all contact entries (paragraphs after h2 until next h2)
     current_element = contact_section.find_next_sibling()
@@ -1822,8 +1654,12 @@ def _process_contact_info_horizontal(cell: DOCX_Cell, soup: BeautifulSoup) -> No
     for i, item in enumerate(contact_items):
         # Add separator between items (except first)
         if i > 0:
-            separator = para.add_run("  |  ")
-            separator.bold = True
+            separator = para.add_run(item_separator)
+            if item_separator_font_style == "bold":
+                separator.bold = True
+            if item_separator_font_style == "italic":
+                separator.italic = True
+            separator.font.color.rgb = item_separator_color_rgb
 
         # Check if this item has a strong tag (label)
         strong_tag = item.find("strong")
@@ -1947,14 +1783,7 @@ def _apply_styles_to_cell_content(cell: DOCX_Cell, document_styles, debug=False)
 
             # Font color
             if "color" in style and style["color"]:
-                try:
-                    hex_color = style["color"].lstrip("#")
-                    r = int(hex_color[0:2], 16)
-                    g = int(hex_color[2:4], 16)
-                    b = int(hex_color[4:6], 16)
-                    run.font.color.rgb = RGBColor(r, g, b)
-                except:
-                    pass
+                run.font.color.rgb = RGBColor.from_string(style["color"])
 
             # Bold (preserve for headings)
             if heading_level or "bold" in style:
@@ -1984,33 +1813,29 @@ def _apply_styles_to_cell_content(cell: DOCX_Cell, document_styles, debug=False)
                     "http" in run.text or "www." in run.text or "@" in run.text
                 ):
                     if "color" in hyperlink_style:
-                        try:
-                            hex_color = hyperlink_style["color"].lstrip("#")
-                            r = int(hex_color[0:2], 16)
-                            g = int(hex_color[2:4], 16)
-                            b = int(hex_color[4:6], 16)
-                            run.font.color.rgb = RGBColor(r, g, b)
-                        except:
-                            pass
+                        run.font.color.rgb = RGBColor.from_string(
+                            hyperlink_style["color"]
+                        )
                     if "underline" in hyperlink_style:
                         run.underline = hyperlink_style["underline"]
 
 
 def _cell_margins(
     cell: DOCX_Cell,
-    margin_top: int = 60,
-    margin_bottom: int = 60,
-    margin_left: int = 60,
-    margin_right: int = 60,
+    top: int = 3,
+    bottom: int = 3,
+    left: int = 3,
+    right: int = 3,
+    twips: bool = False,
 ) -> None:
     """Set margins for a table cell
 
     Args:
         cell: The table cell to set margins for
-        margin_top: Top margin in twips (default 60)
-        margin_bottom: Bottom margin in twips (default 60)
-        margin_left: Left margin in twips (default 60)
-        margin_right: Right margin in twips (default 60)
+        top: Top margin in points (default 3)
+        bottom: Bottom margin in points (default 3)
+        left: Left margin in points (default 3)
+        right: Right margin in points (default 3)
 
     Returns:
         The modified cell with margins set
@@ -2021,16 +1846,17 @@ def _cell_margins(
     tcMar = OxmlElement("w:tcMar")
 
     # Add each margin side
+    # Convert points to twips
     side_map = {
-        "top": margin_top,
-        "bottom": margin_bottom,
-        "start": margin_left,
-        "end": margin_right,
+        "top": top * 20 if not twips else top,
+        "bottom": bottom * 20 if not twips else bottom,
+        "start": left * 20 if not twips else left,
+        "end": right * 20 if not twips else right,
     }
 
     for side, width in side_map.items():
         node = OxmlElement(f"w:{side}")
-        node.set(qn("w:w"), str(width))
+        node.set(qn("w:w"), str(width))  # Value is in twips
         node.set(qn("w:type"), "dxa")
         tcMar.append(node)
 
@@ -2038,7 +1864,7 @@ def _cell_margins(
 
 
 def _cell_vertical_alignment(
-    cell: DOCX_Cell, v_align: str = "top", use_xml: bool = True
+    cell: DOCX_Cell, v_align: str = "top", use_xml: bool = False
 ) -> None:
     """Set vertical alignment for a table cell
 
@@ -2049,6 +1875,7 @@ def _cell_vertical_alignment(
     Returns:
         The modified cell with vertical alignment set
     """
+    vertical_alignment = v_align.lower()
 
     # Set vertical alignment
     if use_xml:
@@ -2057,18 +1884,18 @@ def _cell_vertical_alignment(
         tcPr = tc.get_or_add_tcPr()
 
         tcVAlign = OxmlElement("w:vAlign")
-        tcVAlign.set(qn("w:val"), v_align)
+        tcVAlign.set(qn("w:val"), vertical_alignment)
         tcPr.append(tcVAlign)
     else:
         # Set vertical alignment
-        if v_align == "top":
+        if vertical_alignment == "top":
             cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL.TOP
-        elif v_align == "center":
+        elif vertical_alignment == "center":
             cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL.CENTER
-        elif v_align == "bottom":
+        elif vertical_alignment == "bottom":
             cell.vertical_alignment = DOCX_CELL_ALIGN_VERTICAL.BOTTOM
         else:
-            raise ValueError(f"Invalid vertical alignment: {v_align}")
+            raise ValueError(f"Invalid vertical alignment: {vertical_alignment}")
 
 
 def _create_table_cell_subdocument(cell: DOCX_Cell, v_align="top", cell_type=None):
@@ -2091,19 +1918,19 @@ def _create_table_cell_subdocument(cell: DOCX_Cell, v_align="top", cell_type=Non
     # Get margin values from config based on cell type
     margin_top = ConfigHelper.get_style_constant(
         f"{cell_type}_cell_margin_top",
-        ConfigHelper.get_style_constant("cell_margin_top", 60),
+        ConfigHelper.get_style_constant("cell_margin_top", 3),
     )
     margin_bottom = ConfigHelper.get_style_constant(
         f"{cell_type}_cell_margin_bottom",
-        ConfigHelper.get_style_constant("cell_margin_bottom", 60),
+        ConfigHelper.get_style_constant("cell_margin_bottom", 3),
     )
     margin_left = ConfigHelper.get_style_constant(
         f"{cell_type}_cell_margin_left",
-        ConfigHelper.get_style_constant("cell_margin_left", 60),
+        ConfigHelper.get_style_constant("cell_margin_left", 3),
     )
     margin_right = ConfigHelper.get_style_constant(
         f"{cell_type}_cell_margin_right",
-        ConfigHelper.get_style_constant("cell_margin_right", 60),
+        ConfigHelper.get_style_constant("cell_margin_right", 3),
     )
 
     _cell_margins(cell, margin_top, margin_bottom, margin_left, margin_right)
@@ -2181,31 +2008,37 @@ def _apply_table_cell_fill_and_border_styles(cell: DOCX_Cell, styles: dict) -> N
         tcPr.append(tcBorders)
 
 
-def _create_two_column_layout(
-    document: DOCX_Document, config_loader: ConfigLoader
-) -> tuple:
+def _create_two_column_layout(document: DOCX_Document) -> tuple:
     """Create the two-column layout structure with contact ribbon AFTER about section
 
     Args:
         document: The Word document
-        config_loader: Configuration loader with layout settings
 
     Returns:
         tuple: (about_content_cell, contact_info_cell, sidebar_cell, main_cell)
     """
     # Get page width excluding margins
-    page_width = config_loader.document_defaults.get("page_width", 8.5)
-    margin_left = config_loader.document_defaults.get("margin_left", 0.2)
-    margin_right = config_loader.document_defaults.get("margin_right", 0.2)
+    page_width = ConfigHelper.get_document_defaults().get("page_width", 8.5)
+    margin_left = ConfigHelper.get_document_defaults().get("margin_left", 0.2)
+    margin_right = ConfigHelper.get_document_defaults().get("margin_right", 0.2)
     margins = margin_left + margin_right
     content_width = page_width - margins
 
+    sidebar_width_ratio = ConfigHelper.get_document_defaults().get(
+        "sidebar_width_ratio", 0.33
+    )
+    main_width_ratio = ConfigHelper.get_document_defaults().get(
+        "main_width_ratio", 0.67
+    )
+
     # Calculate column widths
-    sidebar_width = content_width * config_loader.sidebar_width_ratio
-    main_width = content_width * config_loader.main_width_ratio
+    sidebar_width = content_width * sidebar_width_ratio
+    main_width = content_width * main_width_ratio
 
     # Determine sidebar position (left or right)
-    sidebar_on_right = config_loader.is_sidebar_on_right
+    sidebar_on_right = (
+        ConfigHelper.get_document_defaults().get("sidebar_position", "left") == "right"
+    )
 
     about_styles = ConfigHelper.get_style_constant("about", {})
 
@@ -2276,39 +2109,30 @@ def _add_horizontal_line_to_cell(cell: DOCX_Cell, is_sidebar: bool = False):
     """
     # Get values from config with fallbacks
     line_char = ConfigHelper.get_style_constant("horizontal_line_char", "_")
-    line_rgb_color = None
     line_spacing = ConfigHelper.get_style_constant("horizontal_line_spacing", 1.6)
+    line_color = ConfigHelper.get_style_constant("horizontal_line_color", "000000")
+    line_font_size = ConfigHelper.get_style_constant("horizontal_line_font_size", 16)
+
+    line_color_rgb = RGBColor.from_string(line_color)
+    line_font_size_pt = Pt(line_font_size)
 
     if is_sidebar:
         line_length = ConfigHelper.get_style_constant(
             "sidebar_horizontal_line_length", 30
         )
-        line_color = ConfigHelper.get_style_constant(
-            "sidebar_horizontal_line_color", "000000"
-        )
-        line_font_size = ConfigHelper.get_style_constant(
-            "sidebar_horizontal_line_font_size", 16
-        )
     else:
         line_length = ConfigHelper.get_style_constant("horizontal_line_length", 50)
-        line_color = ConfigHelper.get_style_constant("horizontal_line_color", "000000")
-        line_rgb_color = _convert_hex_to_rgb_color(line_color)
-        line_font_size = ConfigHelper.get_style_constant(
-            "horizontal_line_font_size", 16
-        )
 
     p = cell.add_paragraph()
-    p.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
+    _paragraph_alignment(p, "center")
     p.add_run(line_char * line_length)
 
     for run in p.runs:
         run.bold = True
         # Set font size for the horizontal line
         # FIXME: For some reason, correct line spacing is only applied when font is set to a value greater than 14 (H1)
-        run.font.size = Pt(line_font_size)
-
-        if line_rgb_color:
-            run.font.color.rgb = line_rgb_color
+        run.font.size = line_font_size_pt
+        run.font.color.rgb = line_color_rgb
 
     # Get specific header-to-about spacing if it exists
     if line_spacing:
@@ -2344,9 +2168,7 @@ def _apply_font_properties(font_obj: DOCX_FONT, properties: dict) -> None:
     if "underline" in properties:
         font_obj.underline = properties["underline"]
     if "color" in properties:
-        rgb_color = _convert_hex_to_rgb_color(properties["color"])
-        if rgb_color:
-            font_obj.color.rgb = rgb_color
+        font_obj.color.rgb = RGBColor.from_string(properties["color"])
 
 
 def _apply_paragraph_format_properties(
@@ -2520,14 +2342,6 @@ def _process_tagline_and_specialty(
         first_p: First paragraph element (tagline)
         alignment_str: Alignment as string (left, right, center)
     """
-    # Convert alignment string to docx constant
-    if alignment_str == "right":
-        alignment = DOCX_PARAGRAPH_ALIGN.RIGHT
-    elif alignment_str == "left":
-        alignment = DOCX_PARAGRAPH_ALIGN.LEFT
-    else:
-        alignment = DOCX_PARAGRAPH_ALIGN.CENTER
-
     # Check if ANY paragraph headings are specified
     use_paragraph_style = HeadingsHelper.any_heading_uses_paragraph_style()
 
@@ -2551,23 +2365,23 @@ def _process_tagline_and_specialty(
         rest_of_p = first_p.text.replace(em_tag.text, "").strip()
         if rest_of_p:
             rest_para = container.add_paragraph()
-            rest_para.alignment = alignment
+            _paragraph_alignment(rest_para, alignment_str)
             rest_para.add_run(rest_of_p)
     else:
         # Process regular paragraph
         if use_paragraph_style:
             tagline_para = container.add_paragraph()
-            tagline_para.alignment = alignment
+            _paragraph_alignment(tagline_para, alignment_str)
             tagline_para.add_run(first_p.text)
         else:
             tagline_para = container.add_paragraph(first_p.text, style="Subtitle")
-            tagline_para.alignment = alignment
+            _paragraph_alignment(tagline_para, alignment_str)
 
     # Process additional specialty paragraphs
     current_p = first_p.find_next_sibling()
     while current_p and current_p.name == "p":
         specialty_para = container.add_paragraph()
-        specialty_para.alignment = alignment
+        _paragraph_alignment(specialty_para, alignment_str)
         specialty_para.add_run(current_p.text)
 
         # Apply spacing
@@ -2798,7 +2612,7 @@ def _process_job_entry(
 
         # Add the horizontal line
         p = document.add_paragraph()
-        p.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
+        _paragraph_alignment(p, "center")
         p.add_run(line_char * line_length)
 
         for run in p.runs:
@@ -3423,31 +3237,27 @@ def _process_date_paragraph(
     return True
 
 
-def _add_configured_page_numbers(
-    document: DOCX_Document, config_loader: ConfigLoader
-) -> None:
+def _add_configured_page_numbers(document: DOCX_Document) -> None:
     """Add page numbers based on configuration settings
 
     Args:
         document: The Word document object
-        config_loader: ConfigLoader instance with page number settings
     """
-    if not config_loader.page_numbers_enabled:
+    page_numbers_enabled = ConfigHelper.get_document_defaults().get(
+        "page_numbers_enabled", False
+    )
+    if not page_numbers_enabled:
         return
+
+    page_numbers_alignment = ConfigHelper.get_document_defaults().get(
+        "page_numbers_alignment", "center"
+    )
 
     section = document.sections[0]
     footer = section.footer
     footer_para = footer.paragraphs[0]
 
-    # Set alignment
-    alignment_map = {
-        "left": DOCX_PARAGRAPH_ALIGN.LEFT,
-        "center": DOCX_PARAGRAPH_ALIGN.CENTER,
-        "right": DOCX_PARAGRAPH_ALIGN.RIGHT,
-    }
-    footer_para.alignment = alignment_map.get(
-        config_loader.page_numbers_alignment.lower(), DOCX_PARAGRAPH_ALIGN.CENTER
-    )
+    _paragraph_alignment(footer_para, page_numbers_alignment)
 
     # Clear existing content
     footer_para.clear()
@@ -3456,7 +3266,15 @@ def _add_configured_page_numbers(
     font_size = ConfigHelper.get_style_constant("page_number_font_size", 10)
     font_name = ConfigHelper.get_style_constant("page_number_font_name", "Calibri")
 
-    if config_loader.page_numbers_format == "simple":
+    page_numbers_format = ConfigHelper.get_document_defaults().get(
+        "page_numbers_format", "simple"
+    )
+
+    page_numbers_text = ConfigHelper.get_document_defaults().get(
+        "page_numbers_text", "{page} of {total}"
+    )
+
+    if page_numbers_format == "simple":
         # Simple page numbers
         run = footer_para.add_run()
         run.font.size = Pt(font_size)
@@ -3473,9 +3291,9 @@ def _add_configured_page_numbers(
         run._r.append(instrText)
         run._r.append(fldChar2)
 
-    elif config_loader.page_numbers_format == "with_total":
+    elif page_numbers_format == "with_total":
         # Page X of Y format
-        format_text = config_loader.page_numbers_text
+        format_text = page_numbers_text
         parts = format_text.split("{page}")
 
         if len(parts) == 2:
@@ -3715,28 +3533,72 @@ def _convert_with_win32com(docx_file: str, pdf_file: str) -> bool:
 ##############################
 # Utility Helpers
 ##############################
-def _convert_hex_to_rgb_color(color_value: str | RGBColor) -> RGBColor | None:
-    """Convert hex color string to RGBColor object
+def _url_image(
+    img_para: DOCX_Paragraph,
+    img_url: str,
+    img_width: Inches,
+    img_height: Inches,
+    img_border_color: str = "000000",
+    img_border_width: int = 1,
+) -> DOCX_Run:
+    """Add an image from a URL to a paragraph with optional border
 
     Args:
-        color_value: Either a hex string or already an RGBColor object
+        img_para (DOCX_Paragraph): The paragraph to add the image to
+        img_url (str): The URL of the image to add
+        img_width (Inches): The width of the image
+        img_height (Inches): The height of the image
+        img_border_color (str): Hex color code for the image border (default: "000000")
+        img_border_width (int): Width of the image border in points (default: 1)
 
     Returns:
-        RGBColor object or None if conversion fails
+        DOCX_Run: The run containing the image
     """
-    if isinstance(color_value, str):
-        hex_color = color_value.lstrip("#")
-        if len(hex_color) == 6:
-            try:
-                r = int(hex_color[0:2], 16)
-                g = int(hex_color[2:4], 16)
-                b = int(hex_color[4:6], 16)
-                return RGBColor(r, g, b)
-            except ValueError:
-                return None
-    elif hasattr(color_value, "rgb"):  # Already an RGBColor
-        return color_value
-    return None
+    run = img_para.add_run()
+
+    try:
+        from io import BytesIO
+
+        import requests
+
+        response = requests.get(img_url)
+        img_stream = BytesIO(response.content)
+        pic = run.add_picture(img_stream, width=img_width, height=img_height)
+
+        # Get the inline element containing the picture
+        inline = pic._inline
+
+        # Alternative approach for handling shape properties that doesn't use namespaces parameter
+        picPr = None
+        for child in inline.findall(".//{*}pic"):
+            picPr = child
+            break
+
+        if picPr is not None:
+            # Find spPr element
+            spPr = None
+            for child in picPr.findall(".//{*}spPr"):
+                spPr = child
+                break
+
+            if spPr is not None:
+                # Create line properties element
+                ln = OxmlElement("a:ln")
+                ln.set("w", str(img_border_width * 12700))  # Width in EMUs
+
+                # Create solid fill
+                solidFill = OxmlElement("a:solidFill")
+                srgbClr = OxmlElement("a:srgbClr")
+                srgbClr.set("val", img_border_color.lstrip("#"))
+                solidFill.append(srgbClr)
+                ln.append(solidFill)
+
+                # Add line properties to shape properties
+                spPr.append(ln)
+    except Exception as e:
+        print(f"Failed to add image: {str(e)}")
+
+    return run
 
 
 def _paragraph_alignment(
@@ -3748,9 +3610,11 @@ def _paragraph_alignment(
         paragraph: The paragraph to set alignment for
         alignment_str: Alignment as string (left, right, center)
     """
-    if alignment_str == "right":
+    alignment = alignment_str.lower()
+
+    if alignment == "right":
         paragraph.alignment = DOCX_PARAGRAPH_ALIGN.RIGHT
-    elif alignment_str == "left":
+    elif alignment == "left":
         paragraph.alignment = DOCX_PARAGRAPH_ALIGN.LEFT
     else:
         paragraph.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
@@ -4094,17 +3958,17 @@ def _add_horizontal_line_simple(document: DOCX_Document) -> None:
     line_char = ConfigHelper.get_style_constant("horizontal_line_char", "_")
     line_length = ConfigHelper.get_style_constant("horizontal_line_length", 50)
     line_color = ConfigHelper.get_style_constant("horizontal_line_color", "000000")
+    line_color_rgb = RGBColor.from_string(line_color)
 
     p = document.add_paragraph()
-    p.alignment = DOCX_PARAGRAPH_ALIGN.CENTER
+    _paragraph_alignment(p, "center")
     p.add_run(line_char * line_length).bold = True
 
     # Set color for the horizontal line
     if p.runs:
-        rgb_color = _convert_hex_to_rgb_color(line_color)
         for run in p.runs:
             run.bold = True
-            run.font.color.rgb = rgb_color
+            run.font.color.rgb = line_color_rgb
 
 
 def _add_space_paragraph(
