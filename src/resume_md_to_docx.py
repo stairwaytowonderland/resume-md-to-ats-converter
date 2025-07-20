@@ -4,6 +4,7 @@ import re
 import sys
 from enum import Enum
 from pathlib import Path
+from typing import Dict
 
 import docx.oxml.shared
 import markdown
@@ -171,7 +172,7 @@ class ResumeSection:
     _section_order = []  # Preserve order from YAML
     _initialized = False
 
-    def __init__(self, key: str, config: dict, order_index: int):
+    def __init__(self, key: str, config: Dict[str, str], order_index: int):
         """Initialize a resume section from configuration
 
         Args:
@@ -206,7 +207,7 @@ class ResumeSection:
         return text.lower() == self.markdown_heading_lower
 
     @classmethod
-    def init_from_config(cls, resume_sections_config: dict):
+    def init_from_config(cls, resume_sections_config: Dict[str, str]):
         """Initialize all resume sections from configuration
 
         Args:
@@ -490,7 +491,7 @@ class ConfigHelper:
     _initialized = False
 
     @classmethod
-    def init(cls, config: dict) -> None:
+    def init(cls, config: Dict[str, dict]) -> None:
         """Initialize configuration store
 
         Args:
@@ -583,7 +584,7 @@ class HeadingsHelper:
 
     @classmethod
     def init(
-        cls, config: dict, paragraph_style_headings: dict[str, bool] = None
+        cls, config: Dict[str, dict], paragraph_style_headings: Dict[str, bool] = None
     ) -> None:
         """Initialize the heading map from configuration
 
@@ -688,7 +689,7 @@ def create_ats_resume(
     md_file: Path,
     output_file: Path,
     config_loader: ConfigLoader,
-    paragraph_style_headings: dict[str, bool] = None,
+    paragraph_style_headings: Dict[str, bool] = None,
 ) -> Path:
     """Convert markdown resume to ATS-friendly Word document
 
@@ -1331,10 +1332,10 @@ def process_experience_section(
                     )
 
                     # Set line spacing for the heading
-                    if key_skills_heading_line_spacing:
-                        skills_heading.paragraph_format.line_spacing = (
-                            key_skills_heading_line_spacing
-                        )
+                    _apply_paragraph_format_properties(
+                        skills_heading.paragraph_format,
+                        {"line_spacing": key_skills_heading_line_spacing},
+                    )
 
                     # Get skills from next element
                     next_element = current_element.find_next_sibling()
@@ -1627,7 +1628,7 @@ def _process_contact_info_horizontal(cell: DOCX_Cell, soup: BeautifulSoup) -> No
         "item_separator_font_style", "normal"
     )
 
-    item_separator_color_rgb = RGBColor.from_string(item_separator_color)
+    RGBColor.from_string(item_separator_color)
 
     # Set gray background for the cell
     _apply_table_cell_fill_and_border_styles(cell, contact_ribbon_styles)
@@ -1655,18 +1656,26 @@ def _process_contact_info_horizontal(cell: DOCX_Cell, soup: BeautifulSoup) -> No
         # Add separator between items (except first)
         if i > 0:
             separator = para.add_run(item_separator)
-            if item_separator_font_style == "bold":
-                separator.bold = True
-            if item_separator_font_style == "italic":
-                separator.italic = True
-            separator.font.color.rgb = item_separator_color_rgb
+            _apply_font_properties(
+                separator.font,
+                {
+                    "bold": item_separator_font_style == "bold",
+                    "italic": item_separator_font_style == "italic",
+                    "color": item_separator_color,
+                },
+            )
 
         # Check if this item has a strong tag (label)
         strong_tag = item.find("strong")
         if strong_tag:
             # Add the label in bold
             label_run = para.add_run(strong_tag.text.strip())
-            label_run.bold = True
+            _apply_font_properties(
+                label_run.font,
+                {
+                    "bold": True,
+                },
+            )
 
             # Add the value (rest of the text)
             value_text = item.text.replace(strong_tag.text, "").strip()
@@ -1677,20 +1686,15 @@ def _process_contact_info_horizontal(cell: DOCX_Cell, soup: BeautifulSoup) -> No
             _process_text_for_hyperlinks(para, item.text.strip())
 
 
-def _apply_styles_to_cell_content(cell: DOCX_Cell, document_styles, debug=False):
+def _apply_styles_to_cell_content(
+    cell: DOCX_Cell, document_styles: Dict[str, dict]
+) -> None:
     """Apply document styles directly to table cell content following Stack Overflow approach
 
     Args:
         cell: The table cell containing content
         document_styles: Dictionary of document styles from config
-        debug: Whether to print debug info
     """
-    import re
-
-    from docx.shared import Pt, RGBColor
-
-    if debug:
-        print(f"Applying styles to cell with {len(cell.paragraphs)} paragraphs")
 
     # StackOverflow approach: Create a direct map of style properties to apply
     style_properties = {
@@ -1733,8 +1737,6 @@ def _apply_styles_to_cell_content(cell: DOCX_Cell, document_styles, debug=False)
         for pattern, level in heading_patterns.items():
             if re.match(pattern, text, re.IGNORECASE):
                 heading_level = 1
-                if debug:
-                    print(f"Heading {level} detected by pattern: '{text}'")
                 break
 
         # Method 3: Check font size of first run if available
@@ -1768,40 +1770,15 @@ def _apply_styles_to_cell_content(cell: DOCX_Cell, document_styles, debug=False)
         style_name = f"Heading {heading_level}" if heading_level else "Normal"
         style = style_properties.get(style_name, normal)
 
-        if debug:
-            print(f"Para {i}: '{text[:20]}...' → {style_name}")
-
         # Apply style to all runs in paragraph (direct approach from Stack Overflow)
         for run in paragraph.runs:
-            # Font name
-            if "font_name" in style:
-                run.font.name = style["font_name"]
-
-            # Font size
-            if "font_size" in style:
-                run.font.size = Pt(style["font_size"])
-
-            # Font color
-            if "color" in style and style["color"]:
-                run.font.color.rgb = RGBColor.from_string(style["color"])
-
             # Bold (preserve for headings)
             if heading_level or "bold" in style:
-                run.bold = style.get("bold", heading_level is not None)
+                style["bold"] = style.get("bold", heading_level is not None)
 
-            # Italic
-            if "italic" in style:
-                run.italic = style["italic"]
+            _apply_font_properties(run.font, style)
 
-        # Apply paragraph formatting
-        if "line_spacing" in style:
-            paragraph.paragraph_format.line_spacing = style["line_spacing"]
-
-        if "space_before" in style:
-            paragraph.paragraph_format.space_before = Pt(style["space_before"])
-
-        if "space_after" in style:
-            paragraph.paragraph_format.space_after = Pt(style["space_after"])
+        _apply_paragraph_format_properties(paragraph.paragraph_format, style)
 
     # Special handling for hyperlinks
     hyperlink_style = style_properties.get("Hyperlink", {})
@@ -1812,12 +1789,7 @@ def _apply_styles_to_cell_content(cell: DOCX_Cell, document_styles, debug=False)
                 if run.underline or (
                     "http" in run.text or "www." in run.text or "@" in run.text
                 ):
-                    if "color" in hyperlink_style:
-                        run.font.color.rgb = RGBColor.from_string(
-                            hyperlink_style["color"]
-                        )
-                    if "underline" in hyperlink_style:
-                        run.underline = hyperlink_style["underline"]
+                    _apply_font_properties(run.font, hyperlink_style)
 
 
 def _cell_margins(
@@ -1898,7 +1870,9 @@ def _cell_vertical_alignment(
             raise ValueError(f"Invalid vertical alignment: {vertical_alignment}")
 
 
-def _create_table_cell_subdocument(cell: DOCX_Cell, v_align="top", cell_type=None):
+def _create_table_cell_subdocument(
+    cell: DOCX_Cell, v_align="top", cell_type=None
+) -> DOCX_Cell:
     """Create a subdocument for a table cell
 
     Args:
@@ -1940,12 +1914,14 @@ def _create_table_cell_subdocument(cell: DOCX_Cell, v_align="top", cell_type=Non
     return cell
 
 
-def _apply_table_cell_fill_and_border_styles(cell: DOCX_Cell, styles: dict) -> None:
+def _apply_table_cell_fill_and_border_styles(
+    cell: DOCX_Cell, styles: Dict[str, str | int | bool]
+) -> None:
     """Apply fill and border styles to a table cell
 
     Args:
-        styles: Dictionary of styles to apply
         cell: The cell object
+        styles: Dictionary of styles to apply
     """
 
     tc = cell._tc
@@ -2113,9 +2089,6 @@ def _add_horizontal_line_to_cell(cell: DOCX_Cell, is_sidebar: bool = False):
     line_color = ConfigHelper.get_style_constant("horizontal_line_color", "000000")
     line_font_size = ConfigHelper.get_style_constant("horizontal_line_font_size", 16)
 
-    line_color_rgb = RGBColor.from_string(line_color)
-    line_font_size_pt = Pt(line_font_size)
-
     if is_sidebar:
         line_length = ConfigHelper.get_style_constant(
             "sidebar_horizontal_line_length", 30
@@ -2128,11 +2101,16 @@ def _add_horizontal_line_to_cell(cell: DOCX_Cell, is_sidebar: bool = False):
     p.add_run(line_char * line_length)
 
     for run in p.runs:
-        run.bold = True
         # Set font size for the horizontal line
         # FIXME: For some reason, correct line spacing is only applied when font is set to a value greater than 14 (H1)
-        run.font.size = line_font_size_pt
-        run.font.color.rgb = line_color_rgb
+        _apply_font_properties(
+            run.font,
+            {
+                "bold": True,
+                "color": line_color,
+                "font_size": line_font_size,
+            },
+        )
 
     # Get specific header-to-about spacing if it exists
     if line_spacing:
@@ -2141,16 +2119,20 @@ def _add_horizontal_line_to_cell(cell: DOCX_Cell, is_sidebar: bool = False):
         )
         if header_to_about is not None:
             # Use specific header-to-about spacing
-            p.paragraph_format.line_spacing = header_to_about
+            _apply_paragraph_format_properties(
+                p.paragraph_format, {"line_spacing": header_to_about}
+            )
         else:
             # Use general line spacing
-            p.paragraph_format.line_spacing = line_spacing
+            _apply_paragraph_format_properties(
+                p.paragraph_format, {"line_spacing": line_spacing}
+            )
 
 
 ##############################
 # Primary Helpers
 ##############################
-def _apply_font_properties(font_obj: DOCX_FONT, properties: dict) -> None:
+def _apply_font_properties(font_obj: DOCX_FONT, properties: Dict[str, str]) -> None:
     """Apply font properties to a font object
 
     Args:
@@ -2172,7 +2154,7 @@ def _apply_font_properties(font_obj: DOCX_FONT, properties: dict) -> None:
 
 
 def _apply_paragraph_format_properties(
-    paragraph_format: DOCX_ParagraphFormat, properties: dict
+    paragraph_format: DOCX_ParagraphFormat, properties: Dict[str, str | int | float]
 ) -> None:
     """Apply paragraph format properties to a paragraph format object
 
@@ -2180,17 +2162,17 @@ def _apply_paragraph_format_properties(
         paragraph_format: The paragraph format object
         properties: Dictionary containing paragraph format properties
     """
-    if "line_spacing" in properties:
+    if "line_spacing" in properties and properties["line_spacing"] is not None:
         paragraph_format.line_spacing = properties["line_spacing"]
-    if "space_before" in properties:
+    if "space_before" in properties and properties["space_before"] is not None:
         paragraph_format.space_before = Pt(properties["space_before"])
-    if "space_after" in properties:
+    if "space_after" in properties and properties["space_after"] is not None:
         paragraph_format.space_after = Pt(properties["space_after"])
-    if "indent_left" in properties:
+    if "indent_left" in properties and properties["indent_left"] is not None:
         paragraph_format.left_indent = Inches(properties["indent_left"])
-    if "indent_right" in properties:
+    if "indent_right" in properties and properties["indent_right"] is not None:
         paragraph_format.right_indent = Inches(properties["indent_right"])
-    if "alignment" in properties:
+    if "alignment" in properties and properties["alignment"] is not None:
         paragraph_format.alignment = properties["alignment"]
 
 
@@ -2323,11 +2305,13 @@ def _process_horizontal_skills_list(
         # Apply font size to all runs in the paragraph
         if font_size:
             for run in paragraph.runs:
-                run.font.size = Pt(font_size)
+                _apply_font_properties(run.font, {"font_size": font_size})
 
         # Apply line spacing to the paragraph
         if line_spacing:
-            paragraph.paragraph_format.line_spacing = line_spacing
+            _apply_paragraph_format_properties(
+                paragraph.paragraph_format, {"line_spacing": line_spacing}
+            )
 
     return paragraph
 
@@ -2352,12 +2336,23 @@ def _process_tagline_and_specialty(
         if use_paragraph_style:
             tagline_para = container.add_paragraph()
             tagline_run = tagline_para.add_run(em_tag.text)
-            tagline_run.italic = True
-            tagline_run.font.size = Pt(HeadingsHelper.get_font_size_for_tag("h4"))
+            _apply_font_properties(
+                tagline_run.font,
+                {
+                    "italic": True,
+                    "font_size": HeadingsHelper.get_font_size_for_tag("h4"),
+                },
+            )
         else:
             tagline_para = container.add_paragraph(em_tag.text, style="Subtitle")
             for run in tagline_para.runs:
                 run.italic = True
+                _apply_font_properties(
+                    run.font,
+                    {
+                        "italic": True,
+                    },
+                )
 
         _paragraph_alignment(tagline_para, alignment_str)
 
@@ -2388,10 +2383,16 @@ def _process_tagline_and_specialty(
         header_specialty_space_after = ConfigHelper.get_style_constant(
             "header_specialty_space_after", None
         )
-        if header_specialty_space_after:
-            specialty_para.paragraph_format.space_after = Pt(
-                header_specialty_space_after
-            )
+        header_specialty_space_before = ConfigHelper.get_style_constant(
+            "header_specialty_space_before", None
+        )
+        _apply_paragraph_format_properties(
+            specialty_para.paragraph_format,
+            {
+                "space_after": header_specialty_space_after,
+                "space_before": header_specialty_space_before,
+            },
+        )
 
         current_p = current_p.find_next_sibling()
 
@@ -2606,9 +2607,6 @@ def _process_job_entry(
         line_length = ConfigHelper.get_style_constant(
             "job_entry_horizontal_line_length", 30
         )
-        line_spacing = ConfigHelper.get_style_constant(
-            "job_entry_horizontal_line_spacing", 1.0
-        )
 
         # Add the horizontal line
         p = document.add_paragraph()
@@ -2616,12 +2614,23 @@ def _process_job_entry(
         p.add_run(line_char * line_length)
 
         for run in p.runs:
-            run.bold = True
             # Set font size for the horizontal line
-            run.font.size = Pt(16)
+            _apply_font_properties(
+                run.font,
+                {
+                    "bold": True,
+                    "font_size": Pt(16),
+                },
+            )
 
-        if line_spacing:
-            p.paragraph_format.line_spacing = line_spacing
+        _apply_paragraph_format_properties(
+            p.paragraph_format,
+            {
+                "line_spacing": ConfigHelper.get_style_constant(
+                    "job_entry_horizontal_line_spacing", 1.0
+                )
+            },
+        )
 
     # Add explicit space before h3 in two-column mode by adding an empty paragraph
     elif space_before and not is_first_job:
@@ -2745,10 +2754,6 @@ def _process_position(
     """
     position_title = element.text.strip()
 
-    position_line_spacing = ConfigHelper.get_style_constant(
-        "position_title_line_spacing", None
-    )
-
     # Add the position heading
     heading_level = HeadingsHelper.get_level_for_tag(element.name)
     use_paragraph_style = HeadingsHelper.should_use_paragraph_style(element.name)
@@ -2761,8 +2766,14 @@ def _process_position(
         space_after=space_after,
     )
 
-    if position_line_spacing:
-        position_para.paragraph_format.line_spacing = position_line_spacing
+    _apply_paragraph_format_properties(
+        position_para.paragraph_format,
+        {
+            "line_spacing": ConfigHelper.get_style_constant(
+                "position_title_line_spacing", None
+            )
+        },
+    )
 
     processed_elements.add(element)
     next_element = element.find_next_sibling()
@@ -2797,7 +2808,12 @@ def _process_position(
                         )
                     )
                     combo_para = document.add_paragraph()
-                    combo_para.paragraph_format.line_spacing = reduced_spacing
+                    _apply_paragraph_format_properties(
+                        combo_para.paragraph_format,
+                        {
+                            "line_spacing": reduced_spacing,
+                        },
+                    )
 
                     # Get font size from config
                     date_loc_font_size = ConfigHelper.get_style_constant(
@@ -2811,21 +2827,25 @@ def _process_position(
 
                     # Add date with appropriate formatting
                     date_run = combo_para.add_run(date_text + date_location_separator)
-                    if next_element.find("strong"):
-                        date_run.bold = True
-                    if next_element.find("em"):
-                        date_run.italic = True
-                    if date_loc_font_size:
-                        date_run.font.size = Pt(date_loc_font_size)
+                    _apply_font_properties(
+                        date_run.font,
+                        {
+                            "bold": next_element.find("strong") is not None,
+                            "italic": next_element.find("em") is not None,
+                            "font_size": date_loc_font_size,
+                        },
+                    )
 
                     # Add location with appropriate formatting
                     location_run = combo_para.add_run(location_text)
-                    if next_next_element.find("strong"):
-                        location_run.bold = True
-                    if next_next_element.find("em"):
-                        location_run.italic = True
-                    if date_loc_font_size:
-                        location_run.font.size = Pt(date_loc_font_size)
+                    _apply_font_properties(
+                        location_run.font,
+                        {
+                            "bold": next_element.find("strong") is not None,
+                            "italic": next_element.find("em") is not None,
+                            "font_size": date_loc_font_size,
+                        },
+                    )
 
                     processed_elements.add(next_element)
                     processed_elements.add(next_next_element)
@@ -2860,20 +2880,23 @@ def _add_heading_or_paragraph(
         The created heading or paragraph object
     """
     has_add_heading = hasattr(document, "add_heading")
+    format_styles = {}
 
     if use_paragraph_style or not has_add_heading:
         # For cells or when paragraph style is requested, use add_paragraph
         para = document.add_paragraph()
         run = para.add_run(text)
-        run.bold = bold
-        run.italic = italic
+        format_styles["bold"] = bold
+        format_styles["italic"] = italic
 
         # Apply appropriate font size
         if font_size is None:
             size_pt = HeadingsHelper.get_font_size_for_level(heading_level)
-            run.font.size = Pt(size_pt)
+            format_styles["font_size"] = size_pt
         else:
-            run.font.size = Pt(font_size)
+            format_styles["font_size"] = font_size
+
+        _apply_font_properties(run.font, format_styles)
     else:
         # Only use add_heading when available (for Document objects)
         para = document.add_heading(text, level=heading_level)
@@ -3195,9 +3218,13 @@ def _create_heading_with_formatting_preservation(
     # For cell "headings", make sure all runs are bold
     if not use_paragraph_style and not has_add_heading:
         for run in para.runs:
-            run.bold = True
-            # Apply heading font size
-            run.font.size = Pt(HeadingsHelper.get_font_size_for_level(heading_level))
+            _apply_font_properties(
+                run.font,
+                {
+                    "bold": True,
+                    "font_size": HeadingsHelper.get_font_size_for_level(heading_level),
+                },
+            )
 
     # Apply spacing
     _add_space_before_or_after(
@@ -3277,8 +3304,13 @@ def _add_configured_page_numbers(document: DOCX_Document) -> None:
     if page_numbers_format == "simple":
         # Simple page numbers
         run = footer_para.add_run()
-        run.font.size = Pt(font_size)
-        run.font.name = font_name
+        _apply_font_properties(
+            run.font,
+            {
+                "font_size": font_size,
+                "font_name": font_name,
+            },
+        )
 
         fldChar1 = OxmlElement("w:fldChar")
         fldChar1.set(qn("w:fldCharType"), "begin")
@@ -3306,13 +3338,23 @@ def _add_configured_page_numbers(document: DOCX_Document) -> None:
                 # Add text before page number
                 if before_page:
                     run = footer_para.add_run(before_page)
-                    run.font.size = Pt(font_size)
-                    run.font.name = font_name
+                    _apply_font_properties(
+                        run.font,
+                        {
+                            "font_size": font_size,
+                            "font_name": font_name,
+                        },
+                    )
 
                 # Add current page number field
                 run1 = footer_para.add_run()
-                run1.font.size = Pt(font_size)
-                run1.font.name = font_name
+                _apply_font_properties(
+                    run1.font,
+                    {
+                        "font_size": font_size,
+                        "font_name": font_name,
+                    },
+                )
 
                 fldChar1 = OxmlElement("w:fldChar")
                 fldChar1.set(qn("w:fldCharType"), "begin")
@@ -3327,13 +3369,23 @@ def _add_configured_page_numbers(document: DOCX_Document) -> None:
                 # Add text between page and total
                 if between_page_total:
                     run = footer_para.add_run(between_page_total)
-                    run.font.size = Pt(font_size)
-                    run.font.name = font_name
+                    _apply_font_properties(
+                        run.font,
+                        {
+                            "font_size": font_size,
+                            "font_name": font_name,
+                        },
+                    )
 
                 # Add total pages field
                 run2 = footer_para.add_run()
-                run2.font.size = Pt(font_size)
-                run2.font.name = font_name
+                _apply_font_properties(
+                    run2.font,
+                    {
+                        "font_size": font_size,
+                        "font_name": font_name,
+                    },
+                )
 
                 fldChar3 = OxmlElement("w:fldChar")
                 fldChar3.set(qn("w:fldCharType"), "begin")
@@ -3348,8 +3400,13 @@ def _add_configured_page_numbers(document: DOCX_Document) -> None:
                 # Add text after total
                 if after_total:
                     run = footer_para.add_run(after_total)
-                    run.font.size = Pt(font_size)
-                    run.font.name = font_name
+                    _apply_font_properties(
+                        run.font,
+                        {
+                            "font_size": font_size,
+                            "font_name": font_name,
+                        },
+                    )
 
 
 ##############################
@@ -3632,7 +3689,6 @@ def _left_indent_paragraph(
     Returns:
         paragraph: The modified paragraph object
     """
-    # paragraph.paragraph_format._left_indent_paragraph = Inches(inches)
     paragraph.paragraph_format.left_indent = Inches(inches)
     return paragraph
 
@@ -3742,10 +3798,14 @@ def _add_formatted_paragraph(
     if bold or italic or not is_link:
         # If bold/italic formatting is needed or no links detected, use simple formatting
         run = para.add_run(text)
-        run.bold = bold
-        run.italic = italic
-        if font_size:
-            run.font.size = Pt(font_size)
+        _apply_font_properties(
+            run.font,
+            {
+                "bold": bold,
+                "italic": italic,
+                "font_size": font_size,
+            },
+        )
     else:
         # Process for hyperlinks
         _process_text_for_hyperlinks(para, text)
@@ -3958,7 +4018,6 @@ def _add_horizontal_line_simple(document: DOCX_Document) -> None:
     line_char = ConfigHelper.get_style_constant("horizontal_line_char", "_")
     line_length = ConfigHelper.get_style_constant("horizontal_line_length", 50)
     line_color = ConfigHelper.get_style_constant("horizontal_line_color", "000000")
-    line_color_rgb = RGBColor.from_string(line_color)
 
     p = document.add_paragraph()
     _paragraph_alignment(p, "center")
@@ -3967,8 +4026,13 @@ def _add_horizontal_line_simple(document: DOCX_Document) -> None:
     # Set color for the horizontal line
     if p.runs:
         for run in p.runs:
-            run.bold = True
-            run.font.color.rgb = line_color_rgb
+            _apply_font_properties(
+                run.font,
+                {
+                    "bold": True,
+                    "color": line_color,
+                },
+            )
 
 
 def _add_space_paragraph(
@@ -4063,7 +4127,9 @@ def _find_organization_element(
     return None, False
 
 
-def _create_hyperlink_style(document: DOCX_Document, hyperlink_props: dict) -> bool:
+def _create_hyperlink_style(
+    document: DOCX_Document, hyperlink_props: Dict[str, str]
+) -> bool:
     """Create a Hyperlink character style if it doesn't exist
 
     Args:
@@ -4088,7 +4154,9 @@ def _create_hyperlink_style(document: DOCX_Document, hyperlink_props: dict) -> b
         return False
 
 
-def _validate_style_properties(properties: dict) -> dict:
+def _validate_style_properties(
+    properties: Dict[str, str | int | float],
+) -> Dict[str, str | int | float]:
     """Validate and clean style properties with type checking
 
     Args:
@@ -4143,7 +4211,9 @@ def _validate_style_properties(properties: dict) -> dict:
 
 
 def _apply_document_styles(
-    document: DOCX_Document, styles: dict = None, style_constants: dict = None
+    document: DOCX_Document,
+    styles: Dict[str, dict] = None,
+    style_constants: Dict[str, str | dict] = None,
 ) -> None:
     """Apply style settings to document using values from config
 
