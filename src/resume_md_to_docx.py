@@ -682,6 +682,169 @@ class HeadingsHelper:
             )
 
 
+class StylesHelper:
+    """Helper class for managing document styles based on configuration"""
+
+    # Class-level storage for the styles configuration
+    _document_styles = {}
+    _initialized = False
+
+    @classmethod
+    def init(cls, config: Dict[str, dict]) -> None:
+        """Initialize the styles from configuration
+
+        Args:
+            config (dict): Configuration dictionary with document_styles
+        """
+        cls._document_styles = config.get("document_styles", {})
+        cls._initialized = True
+
+    @classmethod
+    def get_style_properties(cls, style_name: str) -> dict:
+        """Get style properties for a specific style
+
+        Args:
+            style_name (str): Name of the style (e.g., 'Normal', 'Heading 1')
+
+        Returns:
+            dict: Style properties or empty dict if not found
+        """
+        cls._check_initialized()
+        return cls._document_styles.get(style_name, {})
+
+    @classmethod
+    def get_all_style_properties(cls) -> dict:
+        """Get all style properties
+
+        Returns:
+            dict: Dictionary mapping style names to their properties
+        """
+        cls._check_initialized()
+        return {
+            "Normal": cls._document_styles.get("Normal", {}),
+            "Heading 1": cls._document_styles.get("Heading 1", {}),
+            "Heading 2": cls._document_styles.get("Heading 2", {}),
+            "Heading 3": cls._document_styles.get("Heading 3", {}),
+            "Heading 4": cls._document_styles.get("Heading 4", {}),
+            "Heading 5": cls._document_styles.get("Heading 5", {}),
+            "Hyperlink": cls._document_styles.get("Hyperlink", {}),
+        }
+
+    @classmethod
+    def get_style_for_heading_level(cls, heading_level: int | None) -> dict:
+        """Get style properties for a heading level
+
+        Args:
+            heading_level (int or None): The heading level (1-5)
+
+        Returns:
+            dict: Style properties for the heading level or Normal style if None
+        """
+        cls._check_initialized()
+        if heading_level is not None:
+            style_name = f"Heading {heading_level}"
+            return cls.get_style_properties(style_name)
+        return cls.get_style_properties("Normal")
+
+    @classmethod
+    def apply_styles_to_content(cls, document: DOCX_Document) -> None:
+        """Apply document styles directly to document or table cell content"""
+        cls._check_initialized()
+        style_properties = cls.get_all_style_properties()
+
+        # Process each paragraph in the cell
+        for paragraph in document.paragraphs:
+            text = paragraph.text.strip()
+            if not text:
+                continue
+
+            # Start with Normal style as base
+            normal = style_properties["Normal"]
+
+            # Check if all runs are bold (common heading indicator)
+            is_bold = all(run.bold for run in paragraph.runs if run.text.strip())
+
+            # Method 1: Check if text matches any ResumeSection docx_heading - THE KEY FIX
+            heading_level = None
+            for section in ResumeSection.get_ordered_sections():
+                # Case-insensitive comparison with the docx_heading
+                if text.upper() == section.docx_heading.upper():
+                    heading_level = 1  # Always use heading level 1 for section headings
+                    break
+
+            # Method 2: Check font size if available
+            if not heading_level and paragraph.runs and is_bold:
+                first_run = paragraph.runs[0]
+                if (
+                    hasattr(first_run, "font")
+                    and hasattr(first_run.font, "size")
+                    and first_run.font.size
+                ):
+                    font_size = first_run.font.size.pt
+                    if font_size >= 16:
+                        heading_level = 1  # H1
+                    elif font_size >= 14:
+                        heading_level = 2  # H2
+                    elif font_size >= 12:
+                        heading_level = 3  # H3
+                    elif font_size >= 11:
+                        heading_level = 4  # H4
+
+            # Method 3: Text characteristics (length, all caps, position)
+            if not heading_level and is_bold:
+                if text.isupper() and len(text) < 40:
+                    heading_level = 2  # H2
+                elif len(text) < 35:
+                    heading_level = 3  # H3
+                elif text.endswith(":"):
+                    heading_level = 5  # H5
+
+            # Get style name and properties
+            # style_name = f"Heading {heading_level}" if heading_level else "Normal"
+            # style = style_properties.get(style_name, normal)
+
+            style = (
+                cls.get_style_for_heading_level(heading_level)
+                if heading_level
+                else normal
+            )
+
+            # Apply style to all runs in paragraph
+            for run in paragraph.runs:
+                # Bold handling
+                if heading_level or "bold" in style:
+                    run_style = style.copy()
+                    run_style["bold"] = style.get("bold", heading_level is not None)
+                    _apply_font_properties(run.font, run_style)
+                else:
+                    _apply_font_properties(run.font, style)
+
+            # Apply paragraph formatting
+            _apply_paragraph_format_properties(paragraph.paragraph_format, style)
+
+        # Special handling for hyperlinks
+        hyperlink_style = style_properties.get("Hyperlink", {})
+        if hyperlink_style:
+            for paragraph in document.paragraphs:
+                for run in paragraph.runs:
+                    if run.underline or (
+                        "http" in run.text or "www." in run.text or "@" in run.text
+                    ):
+                        _apply_font_properties(run.font, hyperlink_style)
+
+    @classmethod
+    def _check_initialized(cls) -> None:
+        """Check if the configuration has been initialized
+
+        Raises:
+            RuntimeError: If the configuration has not been initialized
+        """
+        if not cls._initialized:
+            raise RuntimeError(
+                "StylesHelper has not been initialized. Call StylesHelper.init() first."
+            )
+
+
 ##############################
 # Main Processors
 ##############################
@@ -714,6 +877,7 @@ def create_ats_resume(
     # Initialize ConfigHelper and HeadingsHelper with config
     ConfigHelper.init(config_loader.config)
     HeadingsHelper.init(config_loader.config, paragraph_style_headings)
+    StylesHelper.init(config_loader.config)
 
     # Access config sections directly through properties
     doc_defaults = config_loader.document_defaults
@@ -834,11 +998,9 @@ def create_ats_resume(
             process_projects_section(main_cell, soup)
             main_sections.append(projects_section.docx_heading)
 
-        # print("Applying styles to all cells...")
         # FIXME: This overrides any custom styles applied in the section processors, which is giving a particular problem for the sidebar horizontal line spacing
         for cell in [about_content_cell, contact_info_cell, sidebar_cell, main_cell]:
-            _apply_styles_to_cell_content(cell, document_styles)
-        # print("Styles applied.")
+            StylesHelper.apply_styles_to_content(cell)
     else:
         # Define processor mapping using dynamic section access
         section_processor_map = {}
@@ -1684,112 +1846,6 @@ def _process_contact_info_horizontal(cell: DOCX_Cell, soup: BeautifulSoup) -> No
         else:
             # Process the entire text
             _process_text_for_hyperlinks(para, item.text.strip())
-
-
-def _apply_styles_to_cell_content(
-    cell: DOCX_Cell, document_styles: Dict[str, dict]
-) -> None:
-    """Apply document styles directly to table cell content following Stack Overflow approach
-
-    Args:
-        cell: The table cell containing content
-        document_styles: Dictionary of document styles from config
-    """
-
-    # StackOverflow approach: Create a direct map of style properties to apply
-    style_properties = {
-        "Normal": document_styles.get("Normal", {}),
-        "Heading 1": document_styles.get("Heading 1", {}),
-        "Heading 2": document_styles.get("Heading 2", {}),
-        "Heading 3": document_styles.get("Heading 3", {}),
-        "Heading 4": document_styles.get("Heading 4", {}),
-        "Heading 5": document_styles.get("Heading 5", {}),
-        "Hyperlink": document_styles.get("Hyperlink", {}),
-    }
-
-    # Define section heading patterns for better heading detection - make this more specific
-    heading_patterns = {
-        r"^(PROFESSIONAL\s+SUMMARY|ABOUT|SUMMARY)$": 2,
-        r"^(PROFESSIONAL\s+EXPERIENCE|WORK\s+EXPERIENCE|EXPERIENCE)$": 2,
-        r"^(TOP\s+SKILLS|SKILLS|EXPERTISE)$": 2,
-        r"^(EDUCATION|ACADEMIC)$": 2,
-        r"^(CONTACT|CONTACT\s+INFORMATION)$": 2,
-        r"^(PROJECTS|SPECIAL\s+PROJECTS)$": 2,
-        r"^(LICENSES|CERTIFICATIONS|LICENSES\s+&\s+CERTIFICATIONS)$": 2,
-    }
-
-    # Process each paragraph in the cell
-    for i, paragraph in enumerate(cell.paragraphs):
-        text = paragraph.text.strip()
-        if not text:
-            continue
-
-        # Start with Normal style as base
-        normal = style_properties["Normal"]
-
-        # Detect heading level using various methods
-        heading_level = None
-
-        # Method 1: Check if all runs are bold (common heading indicator)
-        is_bold = all(run.bold for run in paragraph.runs if run.text.strip())
-
-        # Method 2: Pattern match for section headings - this is the key fix!
-        for pattern, level in heading_patterns.items():
-            if re.match(pattern, text, re.IGNORECASE):
-                heading_level = 1
-                break
-
-        # Method 3: Check font size of first run if available
-        if not heading_level and paragraph.runs and is_bold:
-            first_run = paragraph.runs[0]
-            if (
-                hasattr(first_run, "font")
-                and hasattr(first_run.font, "size")
-                and first_run.font.size
-            ):
-                font_size = first_run.font.size.pt
-                if font_size >= 16:
-                    heading_level = 1  # H1
-                elif font_size >= 14:
-                    heading_level = 2  # H2 (main section headings)
-                elif font_size >= 12:
-                    heading_level = 3  # H3 (company names)
-                elif font_size >= 11:
-                    heading_level = 4  # H4 (position titles)
-
-        # Method 4: Text characteristics (length, all caps, position)
-        if not heading_level and is_bold:
-            if text.isupper() and len(text) < 40:
-                heading_level = 2  # H2 (section headings are often ALL CAPS)
-            elif len(text) < 35:
-                heading_level = 3  # H3 (company names tend to be shorter)
-            elif text.endswith(":"):
-                heading_level = 5  # H5 (subsection headings often end with colon)
-
-        # Get the appropriate style based on detection
-        style_name = f"Heading {heading_level}" if heading_level else "Normal"
-        style = style_properties.get(style_name, normal)
-
-        # Apply style to all runs in paragraph (direct approach from Stack Overflow)
-        for run in paragraph.runs:
-            # Bold (preserve for headings)
-            if heading_level or "bold" in style:
-                style["bold"] = style.get("bold", heading_level is not None)
-
-            _apply_font_properties(run.font, style)
-
-        _apply_paragraph_format_properties(paragraph.paragraph_format, style)
-
-    # Special handling for hyperlinks
-    hyperlink_style = style_properties.get("Hyperlink", {})
-    if hyperlink_style:
-        for paragraph in cell.paragraphs:
-            for run in paragraph.runs:
-                # Check for hyperlink indicators
-                if run.underline or (
-                    "http" in run.text or "www." in run.text or "@" in run.text
-                ):
-                    _apply_font_properties(run.font, hyperlink_style)
 
 
 def _cell_margins(
@@ -2827,25 +2883,25 @@ def _process_position(
 
                     # Add date with appropriate formatting
                     date_run = combo_para.add_run(date_text + date_location_separator)
-                    _apply_font_properties(
-                        date_run.font,
-                        {
-                            "bold": next_element.find("strong") is not None,
-                            "italic": next_element.find("em") is not None,
-                            "font_size": date_loc_font_size,
-                        },
-                    )
+                    date_styles = {}
+                    if next_element.find("strong"):
+                        date_styles["bold"] = True
+                    if next_element.find("em"):
+                        date_styles["italic"] = True
+                    if date_loc_font_size:
+                        date_styles["font_size"] = date_loc_font_size
+                    _apply_font_properties(date_run.font, date_styles)
 
                     # Add location with appropriate formatting
                     location_run = combo_para.add_run(location_text)
-                    _apply_font_properties(
-                        location_run.font,
-                        {
-                            "bold": next_element.find("strong") is not None,
-                            "italic": next_element.find("em") is not None,
-                            "font_size": date_loc_font_size,
-                        },
-                    )
+                    location_styles = {}
+                    if next_next_element.find("strong"):
+                        location_styles["bold"] = True
+                    if next_next_element.find("em"):
+                        location_styles["italic"] = True
+                    if date_loc_font_size:
+                        location_styles["font_size"] = date_loc_font_size
+                    _apply_font_properties(location_run.font, location_styles)
 
                     processed_elements.add(next_element)
                     processed_elements.add(next_next_element)
