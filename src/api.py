@@ -350,12 +350,6 @@ class App(BaseApi):
             help="Markdown resume file",
         )
         self._arg_parser.add_argument(
-            "paragraph_headings",
-            action="append",
-            choices=["h3", "h4", "h5", "h6"],
-            help="Heading levels to render as paragraphs",
-        )
-        self._arg_parser.add_argument(
             "config_options",
             type=str,
             required=False,
@@ -422,7 +416,6 @@ class App(BaseApi):
         self,
         md_input_path: Path,
         docx_output_path: Path,
-        paragraph_headings: list[str],
         output_formats: list[str],
         config_loader: ConfigLoader,
     ) -> Response:
@@ -431,7 +424,6 @@ class App(BaseApi):
         Args:
             md_input_path (Path): Path to the input markdown file
             docx_output_path (Path): Path to the output DOCX file
-            paragraph_headings (list[str]): List of paragraph headings
             output_formats (list[str]): List of output formats
             config_loader (ConfigLoader): Configuration loader instance
             uuid_name (str): UUID of the input file (if applicable)
@@ -446,18 +438,11 @@ class App(BaseApi):
             self._api_config.mimetypes.get("docx")
             self._api_config.mimetypes.get("pdf")
 
-            # Create paragraph_style_headings dictionary
-            paragraph_style_headings = {}
-            for heading_level in paragraph_headings:
-                if heading_level in ["h3", "h4", "h5", "h6"]:
-                    paragraph_style_headings[heading_level] = True
-
             # Convert markdown to DOCX
             docx_path = create_ats_resume(
                 md_input_path,
                 docx_output_path,
                 config_loader=config_loader,
-                paragraph_style_headings=paragraph_style_headings,
             )
 
             # Track created files and file to return
@@ -542,7 +527,6 @@ class App(BaseApi):
         output_formats = (
             [output_format] if isinstance(output_format, str) else output_format
         )
-        paragraph_headings = args["paragraph_headings"] or []
 
         # Determine input source based on config and available inputs
         prefer_file = self._api_config.input.get("prefer_file", True)
@@ -616,7 +600,6 @@ class App(BaseApi):
                 return self._response(
                     temp_input_path,
                     temp_output_path,
-                    paragraph_headings,
                     output_formats,
                     config_loader,
                 )
@@ -625,7 +608,6 @@ class App(BaseApi):
             return self._response(
                 input_filename,
                 output_path,
-                paragraph_headings,
                 output_formats,
                 config_loader,
             )
@@ -791,8 +773,6 @@ python api.py --config api_config.yaml --debug
 curl -X POST "http://localhost:3000/convert/pdf" \\
 -H "Content-Type: multipart/form-data" \\
 -F "input_file=@resume.md" \\
--F "paragraph_headings=h5" \\
--F "paragraph_headings=h6" \\
 -F "config_options={\"document_styles\": {\"Subtitle\": {\"font_name\": \"Helvetica Neue\"}}}"
 """
 

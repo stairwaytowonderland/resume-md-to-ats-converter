@@ -218,7 +218,6 @@ The project includes a REST API that converts markdown resumes to ATS-friendly f
 | Parameter | Description | Required |
 |-----------|-------------|----------|
 | `input_file` | Markdown resume file to convert | Yes |
-| `paragraph_headings` | Heading levels to render as paragraphs (`h3`, `h4`, `h5`, `h6`) | No |
 | `config_options` | JSON string with configuration overrides | No |
 
 #### AWS API Examples ☁️
@@ -384,12 +383,8 @@ python src/resume_md_to_docx.py -i sample/example/example.md --pdf
 | `-h` | `--help` | Access the help screen | |
 | `-i` | `--input` | Input markdown file | None (required in non-interactive mode) |
 | `-o` | `--output` | Output Word document | `<input_file>.docx` in the output directory |
-| `-p` | `--paragraph-headings` | Specify which heading levels to render as paragraphs instead of headings | None (all headings use Word styles) |
 | `-I` | `--interactive` | Run in interactive mode, prompting for inputs | Auto-enabled when no other args provided |
 | `-P` | `--pdf` | Also create a PDF version of the resume | Disabled |
-
-> [!NOTE]
-> The `-p` (or `--paragraph-headings`) option choices are: `h3`, `h4`, `h5`, `h6`. You can specify multiple heading levels by separating them with spaces (e.g. `<...command...> -p h5 h6`).
 
 #### Examples 🤖
 
@@ -397,10 +392,7 @@ python src/resume_md_to_docx.py -i sample/example/example.md --pdf
 # Set input, output, and create a pdf
 python src/resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/example\ ats\ resume.docx --pdf
 
-# Set input, output, paragraph-headings, and create a pdf
-python src/resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/example\ ats\ resume.docx -p h3 h4 h5 h6 --pdf
-
-# Set input, output, paragraph-headings, create a pdf, and use a custom configuration file
+# Set input, output, create a pdf, and use a custom configuration file
 python src/resume_md_to_docx.py -i sample/example/example.md -o ~/Desktop/example\ ats\ resume.docx --pdf -c custom_config.yaml
 ```
 
@@ -427,16 +419,6 @@ python -m src.api
 curl -X POST "http://localhost:3000/convert/docx" \
   -F "input_file=@resume.md" \
   -o resume_ats.docx
-```
-
-##### Convert to PDF with Paragraph Headings 🦋
-
-```bash
-curl -X POST "http://localhost:3000/convert/pdf" \
-  -F "input_file=@resume.md" \
-  -F "paragraph_headings=h5" \
-  -F "paragraph_headings=h6" \
-  -o resume_ats.pdf
 ```
 
 ##### Convert with Custom Configuration 🦋

@@ -3,7 +3,7 @@
 # Document defaults - controls margins and page size
 document_defaults:
   margin_top: 0.5  # in inches
-  margin_bottom: 1.0  # in inches
+  margin_bottom: 0.5  # in inches
   margin_left: 0.5  # in inches
   margin_right: 0.5  # in inches
   page_width: 8.5  # in inches (US Letter)
@@ -32,9 +32,7 @@ document_defaults:
     padding_right: 18    # Padding to the right of the image in points
     padding_bottom: 7   # Padding below the image in points
     padding_left: 0     # Padding to the left of the image in points
-    vertical_alignment: "center"  # Vertical alignment of the image in the cell
   header_alignment: "center"  # Alignment for header text (left, center, or right)
-  vertical_alignment: "center"
 
 # Style constants - general formatting preferences
 style_constants:
@@ -49,18 +47,19 @@ style_constants:
   horizontal_line_color: "4F81BD"  # Color of horizontal lines
   horizontal_line_spacing: 1.6  # Height of horizontal line
   header_to_about_spacing: 0.8    # Add explicit control for space between header and about
+  # header_to_about_spacing: 0.2    # Add explicit control for space between header and about
   horizontal_line_font_size: 16
   sidebar_horizontal_line_length: 15  # Length of horizontal line
   sidebar_horizontal_line_color: "4F81BD"  # Color of horizontal lines in sidebar
   sidebar_horizontal_line_font_size: 16
   job_entry_horizontal_line_length: 30  # Length of horizontal line for job entries
-  job_entry_horizontal_line_spacing: 1.0  # Height of horizontal line for job
+  job_entry_horizontal_line_spacing: 1.6  # Height of horizontal line for job
   header_specialty_space_after: 4  # Space after headings
   top_skills_separator_markdown: " • "  # Separator for top skills area
   top_skills_separator: " | "  # Separator for top skills area
   top_skills_bold: true  # Enable/disable bold formatting for top skills
   key_skills_separator_markdown: " · "  # Separator for key skills area
-  key_skills_separator: ", "  # Separator for key skills area
+  key_skills_separator: " • "  # Separator for key skills area
   key_skills_bold: true  # Enable/disable bold formatting for key skills
   key_skills_line_spacing: 1.25  # Line spacing for key skills line
   key_skills_font_size: 10  # Font size for key skills line
@@ -187,7 +186,7 @@ document_styles:
 
   Heading 1:  # H1 - Main section headings
     # font_name: "Helvetica Neue"
-    font_size: 16
+    font_size: 24
     # bold: true
     # underline: true
     color: "365F91"
@@ -196,7 +195,7 @@ document_styles:
 
   Heading 2:  # H2 - Company names
     # font_name: "Helvetica Neue"
-    font_size: 14
+    font_size: 16
     # bold: true
     # italic: false
     color: "4F81BD"
@@ -205,7 +204,7 @@ document_styles:
 
   Heading 3:  # H3 - Role titles
     # font_name: "Helvetica Neue"
-    font_size: 13
+    font_size: 14
     line_spacing: 1.25
     # bold: true
     # italic: false
@@ -241,28 +240,22 @@ document_styles:
 
 paragraph_lists:
   ul:
-    bullet_character: "•"  # Custom bullet character to use in lists (●, •, ◦, ·, etc.)
+    bullet_character: "-"  # Custom bullet character to use in lists (●, •, ◦, ·, etc.)
     paragraph_delimiter: "\n"  # Line delimiter for paragraph-style lists
 
-paragraph_headings:
+markdown_headings:
   h1:
-    level: 0
-    paragraph_heading_size: 24
+    document_style: "Title"
   h2:
-    level: 1
-    paragraph_heading_size: 16
+    document_style: "Heading 1"
   h3:
-    level: 2
-    paragraph_heading_size: 14
+    document_style: "Heading 2"
   h4:
-    level: 3
-    paragraph_heading_size: 12
+    document_style: "Heading 3"
   h5:
-    level: 4
-    paragraph_heading_size: 11
+    document_style: "Heading 4"
   h6:
-    level: 5
-    paragraph_heading_size: 10
+    document_style: "Heading 5"
 
 resume_sections:
   about:
@@ -289,14 +282,7 @@ resume_sections:
     add_space_before_h4: true
     space_before_h4: 8
     space_after_h4: 0
-  projects:
-    markdown_heading: "Projects"
-    docx_heading: "PROJECTS"
-    add_space_before_h2: false
-    add_space_before_h3: true
-    space_before_h3: 16
-    space_after_h3: 2
-    space_after_h4: 2
+
   certifications:
     markdown_heading: "Licenses & certifications"
     docx_heading: "CERTIFICATIONS"
@@ -305,6 +291,14 @@ resume_sections:
     add_space_before_h4: true
     space_before_h3: 16
     space_before_h4: 4
+  projects:
+    markdown_heading: "Projects"
+    docx_heading: "PROJECTS"
+    add_space_before_h2: false
+    add_space_before_h3: true
+    space_before_h3: 16
+    space_after_h3: 2
+    space_after_h4: 2
   education:
     markdown_heading: "Education"
     docx_heading: "EDUCATION"

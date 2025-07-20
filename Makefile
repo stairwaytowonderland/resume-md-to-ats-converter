@@ -176,10 +176,8 @@ login: .login_aws .login_serverless ## Login to AWS and Serveless
   . .venv/bin/activate; \
   python src/resume_md_to_docx.py -i sample/template/sample.md -o sample/template/output/sample.docx --pdf; \
   python src/resume_md_to_docx.py -i sample/template/sample_columns.md -c src/resume_config_columns.yaml -o sample/template/output/sample_columns.docx --pdf; \
-  python src/resume_md_to_docx.py -i sample/template/sample.md -o sample/template/output/sample.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
   python src/resume_md_to_docx.py -i sample/example/example.md -o sample/example/output/example.docx --pdf; \
   python src/resume_md_to_docx.py -i sample/example/example_columns.md -c src/resume_config_columns.yaml -o sample/example/output/example_columns.docx --pdf; \
-  python src/resume_md_to_docx.py -i sample/example/example.md -o sample/example/output/example.paragraph-headings.docx -p h3 h4 h5 h6 --pdf; \
 )
 
 .deploy-dev:

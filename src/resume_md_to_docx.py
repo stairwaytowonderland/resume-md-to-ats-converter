@@ -349,7 +349,7 @@ class ConfigLoader:
             "style_constants": {},
             "document_styles": {},
             "paragraph_lists": {},
-            "paragraph_headings": {},
+            "markdown_headings": {},
             "resume_sections": OrderedDict(),
         }
 
@@ -392,7 +392,7 @@ class ConfigLoader:
                         "document_defaults",
                         "style_constants",
                         "paragraph_lists",
-                        "paragraph_headings",
+                        "markdown_headings",
                     ]:
                         if section in yaml_config:
                             if isinstance(yaml_config[section], dict) and isinstance(
@@ -453,13 +453,13 @@ class ConfigLoader:
         return self._config.get("document_styles", {})
 
     @property
-    def paragraph_headings(self) -> dict:
+    def markdown_headings(self) -> dict:
         """Get markdown headings configuration
 
         Returns:
             dict: Markdown headings configuration
         """
-        return self._config.get("paragraph_headings", {})
+        return self._config.get("markdown_headings", {})
 
     @property
     def resume_sections(self) -> dict:
@@ -579,45 +579,18 @@ class HeadingsHelper:
 
     # Class-level storage for the heading configuration
     _heading_map = {}
-    _paragraph_style_headings = {}
     _initialized = False
 
     @classmethod
-    def init(
-        cls, config: Dict[str, dict], paragraph_style_headings: Dict[str, bool] = None
-    ) -> None:
-        """Initialize the heading map from configuration
+    def init(cls, headings_map: Dict[str, dict]) -> None:
+        """Initialize the headings helper
 
         Args:
-            config (dict): Configuration dictionary with paragraph_headings
+            headings_map (dict): Dictionary mapping HTML tag names to their properties
         """
-        # Simply assign the paragraph_headings from config
-        cls._heading_map = config["paragraph_headings"]
-        cls._paragraph_style_headings = paragraph_style_headings or {}
+
+        cls._heading_map = headings_map
         cls._initialized = True
-
-    @classmethod
-    def should_use_paragraph_style(cls, tag_name: str) -> bool:
-        """Check if a heading tag should use paragraph style instead of heading style
-
-        Args:
-            tag_name (str): HTML tag name (e.g., 'h1', 'h2', etc.)
-
-        Returns:
-            bool: True if tag should use paragraph style, False otherwise
-        """
-        cls._check_initialized()
-        return cls._paragraph_style_headings.get(tag_name, False)
-
-    @classmethod
-    def any_heading_uses_paragraph_style(cls) -> bool:
-        """Check if any heading level uses paragraph style
-
-        Returns:
-            bool: True if any heading level has paragraph styling enabled, False otherwise
-        """
-        cls._check_initialized()
-        return bool(cls._paragraph_style_headings)
 
     @classmethod
     def get_level_for_tag(cls, tag_name: str) -> int | None:
@@ -687,6 +660,7 @@ class StylesHelper:
 
     # Class-level storage for the styles configuration
     _document_styles = {}
+    _markdown_headings = {}
     _initialized = False
 
     @classmethod
@@ -697,6 +671,7 @@ class StylesHelper:
             config (dict): Configuration dictionary with document_styles
         """
         cls._document_styles = config.get("document_styles", {})
+        cls._markdown_headings = config.get("markdown_headings", {})
         cls._initialized = True
 
     @classmethod
@@ -781,13 +756,13 @@ class StylesHelper:
                     and first_run.font.size
                 ):
                     font_size = first_run.font.size.pt
-                    if font_size >= 16:
+                    if font_size >= 14:
                         heading_level = 1  # H1
-                    elif font_size >= 14:
-                        heading_level = 2  # H2
                     elif font_size >= 12:
-                        heading_level = 3  # H3
+                        heading_level = 2  # H2
                     elif font_size >= 11:
+                        heading_level = 3  # H3
+                    elif font_size >= 10:
                         heading_level = 4  # H4
 
             # Method 3: Text characteristics (length, all caps, position)
@@ -833,6 +808,44 @@ class StylesHelper:
                         _apply_font_properties(run.font, hyperlink_style)
 
     @classmethod
+    def headings_map(cls) -> Dict[str, dict]:
+        """Create a mapping of markdown headings to Word document styles
+
+        Returns:
+            dict: Mapping of markdown heading tags to their Word document styles
+        """
+        # Create an empty result dictionary
+        result = {}
+
+        # Process each heading tag in the markdown_headings
+        for tag, props in cls._markdown_headings.items():
+            # Get the document_style name
+            document_style = props.get("document_style")
+            if not document_style:
+                continue
+
+            # Determine level from tag name (h1 -> 0, h2 -> 1, etc.)
+            try:
+                tag_level = (
+                    int(tag[1:]) - 1
+                )  # Extract number from tag name (h1, h2, etc.)
+                level = (
+                    tag_level if 0 <= tag_level <= 5 else tag_level
+                )  # Ensure valid range
+            except (ValueError, IndexError):
+                level = 0  # Default to level 0 if tag name is invalid
+
+            # Get the font size from the document style
+            style_props = StylesHelper.get_style_properties(document_style)
+            font_size = style_props.get(
+                "font_size", 11
+            )  # Default to 11pt if not specified
+
+            result[tag] = {"level": level, "paragraph_heading_size": font_size}
+
+        return result
+
+    @classmethod
     def _check_initialized(cls) -> None:
         """Check if the configuration has been initialized
 
@@ -852,7 +865,6 @@ def create_ats_resume(
     md_file: Path,
     output_file: Path,
     config_loader: ConfigLoader,
-    paragraph_style_headings: Dict[str, bool] = None,
 ) -> Path:
     """Convert markdown resume to ATS-friendly Word document
 
@@ -867,17 +879,13 @@ def create_ats_resume(
     Returns:
         Path: Path to the created document
     """
-    # Default to using heading styles for all if not specified
-    if paragraph_style_headings is None:
-        paragraph_style_headings = {}
-
     # Initialize ResumeSection from config (order preserved from YAML)
     ResumeSection.init_from_config(config_loader.resume_sections)
 
     # Initialize ConfigHelper and HeadingsHelper with config
     ConfigHelper.init(config_loader.config)
-    HeadingsHelper.init(config_loader.config, paragraph_style_headings)
     StylesHelper.init(config_loader.config)
+    HeadingsHelper.init(StylesHelper.headings_map())
 
     # Access config sections directly through properties
     doc_defaults = config_loader.document_defaults
@@ -1280,11 +1288,11 @@ def process_about_section(
                 # Check if this is a strong/bold element
                 if getattr(child, "name", None) == "strong":
                     run = para.add_run(child.text)
-                    run.bold = True
+                    _apply_font_properties(run.font, {"bold": True})
                 # Check if this is an em/italic element
                 elif getattr(child, "name", None) == "em":
                     run = para.add_run(child.text)
-                    run.italic = True
+                    _apply_font_properties(run.font, {"italic": True})
                 # Check if this is a link/anchor element
                 elif getattr(child, "name", None) == "a" and child.get("href"):
                     _add_hyperlink(para, child.text, child.get("href"))
@@ -1302,14 +1310,10 @@ def process_about_section(
                 if current_element.name.startswith("h")
                 else None
             )
-            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
-                current_element.name
-            )
             _add_heading_or_paragraph(
                 document,
                 highlights_subsection.full_heading,
                 heading_level,
-                use_paragraph_style=use_paragraph_style,
                 bold=highlights_subsection.bold,
                 italic=highlights_subsection.italic,
                 space_before=space_before_h3,
@@ -1478,9 +1482,6 @@ def process_experience_section(
 
                 # KEY_SKILLS subsection
                 elif subsection == JobSubsection.KEY_SKILLS:
-                    use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
-                        current_element.name
-                    )
                     key_skills_heading_line_spacing = ConfigHelper.get_style_constant(
                         "key_skills_heading_line_spacing", None
                     )
@@ -1488,7 +1489,6 @@ def process_experience_section(
                         document,
                         subsection.full_heading,
                         heading_level,
-                        use_paragraph_style=use_paragraph_style,
                         bold=subsection.bold,
                         italic=subsection.italic,
                     )
@@ -1537,14 +1537,10 @@ def process_experience_section(
                     subsection == JobSubsection.RESPONSIBILITIES
                     and current_element not in processed_elements
                 ):
-                    use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
-                        current_element.name
-                    )
                     _add_heading_or_paragraph(
                         document,
                         subsection.full_heading,
                         heading_level,
-                        use_paragraph_style=use_paragraph_style,
                         bold=subsection.bold,
                         italic=subsection.italic,
                     )
@@ -1566,14 +1562,10 @@ def process_experience_section(
                     subsection == JobSubsection.ADDITIONAL_DETAILS
                     and current_element not in processed_elements
                 ):
-                    use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
-                        current_element.name
-                    )
                     _add_heading_or_paragraph(
                         document,
                         subsection.full_heading,
                         heading_level,
-                        use_paragraph_style=use_paragraph_style,
                         bold=subsection.bold,
                         italic=subsection.italic,
                     )
@@ -2188,25 +2180,55 @@ def _add_horizontal_line_to_cell(cell: DOCX_Cell, is_sidebar: bool = False):
 ##############################
 # Primary Helpers
 ##############################
-def _apply_font_properties(font_obj: DOCX_FONT, properties: Dict[str, str]) -> None:
+def _apply_font_properties(
+    obj: DOCX_Run | DOCX_FONT, properties: Dict[str, str] = None
+) -> None:
     """Apply font properties to a font object
 
     Args:
-        font_obj: The font object (from style.font or run.font)
+        obj: The font object (from style.font or run.font)
         properties: Dictionary containing font properties
     """
+    font_obj = None
+    is_run_obj = isinstance(obj, DOCX_Run)
+    is_font_obj = isinstance(obj, DOCX_FONT)
+    if is_run_obj:
+        font_obj = obj.font
+    elif is_font_obj:
+        font_obj = obj
+    else:
+        raise ValueError("obj must be a DOCX_Run or DOCX_FONT object")
+
     if "font_name" in properties:
-        font_obj.name = properties["font_name"]
+        if is_run_obj:
+            obj.font.name = properties["font_name"]
+        else:
+            font_obj.name = properties["font_name"]
     if "font_size" in properties:
-        font_obj.size = Pt(properties["font_size"])
+        if is_run_obj:
+            obj.font.size = Pt(properties["font_size"])
+        else:
+            font_obj.size = Pt(properties["font_size"])
     if "bold" in properties:
-        font_obj.bold = properties["bold"]
+        if is_run_obj:
+            obj.font.bold = properties["bold"]
+        else:
+            font_obj.bold = properties["bold"]
     if "italic" in properties:
-        font_obj.italic = properties["italic"]
+        if is_run_obj:
+            obj.font.italic = properties["italic"]
+        else:
+            font_obj.italic = properties["italic"]
     if "underline" in properties:
-        font_obj.underline = properties["underline"]
+        if is_run_obj:
+            obj.font.underline = properties["underline"]
+        else:
+            font_obj.underline = properties["underline"]
     if "color" in properties:
-        font_obj.color.rgb = RGBColor.from_string(properties["color"])
+        if is_run_obj:
+            obj.font.color.rgb = RGBColor.from_string(properties["color"])
+        else:
+            font_obj.color.rgb = RGBColor.from_string(properties["color"])
 
 
 def _apply_paragraph_format_properties(
@@ -2272,7 +2294,8 @@ def _prepare_section(
             last_para = document.paragraphs[-1]
             # Add page break to the LAST paragraph instead of creating a new one
             if last_para.runs:
-                last_para.runs[-1].add_break(DOCX_BREAK_TYPE.PAGE)
+                last_run = last_para.runs[-1]
+                last_run.add_break(DOCX_BREAK_TYPE.PAGE)
             else:
                 run = last_para.add_run()
                 run.add_break(DOCX_BREAK_TYPE.PAGE)
@@ -2282,18 +2305,12 @@ def _prepare_section(
             run = p.add_run()
             run.add_break(DOCX_BREAK_TYPE.PAGE)
 
-    # FIXME: This should only be enabled for two_column layouts
-    # elif section_type.add_space_before_h2:
-    #     _add_space_paragraph(document, ConfigHelper.get_style_constant("font_size_pts"))
-
     # Add the section heading
-    use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h2")
     heading_level = HeadingsHelper.get_level_for_tag("h2")
     _add_heading_or_paragraph(
         document,
         section_type.docx_heading,
         heading_level,
-        use_paragraph_style=use_paragraph_style,
         space_before=space_before,
         space_after=space_after,
     )
@@ -2382,33 +2399,17 @@ def _process_tagline_and_specialty(
         first_p: First paragraph element (tagline)
         alignment_str: Alignment as string (left, right, center)
     """
-    # Check if ANY paragraph headings are specified
-    use_paragraph_style = HeadingsHelper.any_heading_uses_paragraph_style()
-
     # Check if the paragraph contains emphasis (italics)
     em_tag = first_p.find("em")
     if em_tag:
-        # Process paragraph with emphasis
-        if use_paragraph_style:
-            tagline_para = container.add_paragraph()
-            tagline_run = tagline_para.add_run(em_tag.text)
+        tagline_para = container.add_paragraph(em_tag.text, style="Subtitle")
+        for run in tagline_para.runs:
             _apply_font_properties(
-                tagline_run.font,
+                run.font,
                 {
                     "italic": True,
-                    "font_size": HeadingsHelper.get_font_size_for_tag("h4"),
                 },
             )
-        else:
-            tagline_para = container.add_paragraph(em_tag.text, style="Subtitle")
-            for run in tagline_para.runs:
-                run.italic = True
-                _apply_font_properties(
-                    run.font,
-                    {
-                        "italic": True,
-                    },
-                )
 
         _paragraph_alignment(tagline_para, alignment_str)
 
@@ -2479,7 +2480,8 @@ def _process_simple_section(
             para = document.add_paragraph()
             for child in current_element.children:
                 if getattr(child, "name", None) == "strong":
-                    para.add_run(f"{child.text}: ").bold = True
+                    run = para.add_run(f"{child.text}: ")
+                    _apply_font_properties(run.font, {"bold": True})
                 else:
                     if child.string and child.string.strip():
                         _process_text_for_hyperlinks(para, child.string.strip())
@@ -2529,9 +2531,6 @@ def _process_project_section(
         subsection = JobSubsection.PROJECT_CLIENT  # Fallback
 
     heading_level = HeadingsHelper.get_level_for_tag(project_element.name)
-    use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
-        project_element.name
-    )
 
     # Prepare the project text
     project_text = subsection.full_heading
@@ -2543,7 +2542,6 @@ def _process_project_section(
         document,
         project_text,
         heading_level,
-        use_paragraph_style=use_paragraph_style,
         bold=subsection.bold,
         italic=subsection.italic,
     )
@@ -2573,22 +2571,11 @@ def _process_project_section(
         # Responsibilities Overview
         if h6_subsection == JobSubsection.RESPONSIBILITIES:
             heading_level = HeadingsHelper.get_level_for_tag(next_element.name)
-            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
-                next_element.name
-            )
 
-            # Add the heading or paragraph
-            if use_paragraph_style:
-                resp_header = document.add_paragraph()
-                _left_indent_paragraph(resp_header)  # Keep indentation
-                resp_run = resp_header.add_run(h6_subsection.full_heading)
-                resp_run.bold = h6_subsection.bold
-                resp_run.italic = h6_subsection.italic
-            else:
-                resp_heading = document.add_heading(
-                    h6_subsection.full_heading, level=heading_level
-                )
-                _left_indent_paragraph(resp_heading)  # Keep indentation
+            resp_heading = document.add_heading(
+                h6_subsection.full_heading, level=heading_level
+            )
+            _left_indent_paragraph(resp_heading)  # Keep indentation
 
             # Get the paragraph with responsibilities
             resp_element = next_element.find_next_sibling()
@@ -2603,22 +2590,11 @@ def _process_project_section(
         # Additional Details
         elif h6_subsection == JobSubsection.ADDITIONAL_DETAILS:
             heading_level = HeadingsHelper.get_level_for_tag(next_element.name)
-            use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
-                next_element.name
-            )
 
-            # Add the heading or paragraph
-            if use_paragraph_style:
-                details_header = document.add_paragraph()
-                _left_indent_paragraph(details_header)  # Keep indentation
-                details_run = details_header.add_run(h6_subsection.full_heading)
-                details_run.bold = h6_subsection.bold
-                details_run.italic = h6_subsection.italic
-            else:
-                details_heading = document.add_heading(
-                    h6_subsection.full_heading, level=heading_level
-                )
-                _left_indent_paragraph(details_heading)  # Keep indentation
+            details_heading = document.add_heading(
+                h6_subsection.full_heading, level=heading_level
+            )
+            _left_indent_paragraph(details_heading)  # Keep indentation
 
             processed_elements.add(next_element)
 
@@ -2640,7 +2616,16 @@ def _process_job_entry(
     space_after: int | None = None,
     is_first_job: bool = True,
 ) -> set[BS4_Element]:
-    """Process a job entry (h3) and its related elements"""
+    """Process a job entry (h3) and its related elements
+
+    Args:
+        document: The Word document object
+        job_element: BeautifulSoup element for the job heading
+        processed_elements: Set of elements already processed
+        space_before: Space before the job entry, if any
+        space_after: Space after the job entry, if any
+        is_first_job: Whether this is the first job entry in the document
+    """
     job_title = job_element.text.strip()
 
     # Check for HR before h3 and add page break if found
@@ -2663,6 +2648,9 @@ def _process_job_entry(
         line_length = ConfigHelper.get_style_constant(
             "job_entry_horizontal_line_length", 30
         )
+        line_spacing = ConfigHelper.get_style_constant(
+            "job_entry_horizontal_line_spacing", 1.0
+        )
 
         # Add the horizontal line
         p = document.add_paragraph()
@@ -2675,17 +2663,13 @@ def _process_job_entry(
                 run.font,
                 {
                     "bold": True,
-                    "font_size": Pt(16),
+                    "font_size": 16,
                 },
             )
 
         _apply_paragraph_format_properties(
             p.paragraph_format,
-            {
-                "line_spacing": ConfigHelper.get_style_constant(
-                    "job_entry_horizontal_line_spacing", 1.0
-                )
-            },
+            {"line_spacing": line_spacing},
         )
 
     # Add explicit space before h3 in two-column mode by adding an empty paragraph
@@ -2697,13 +2681,11 @@ def _process_job_entry(
         spacer.paragraph_format.space_after = Pt(space_before)
 
     # Add the company name as h3
-    use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h3")
     heading_level = HeadingsHelper.get_level_for_tag("h3")
     company_heading = _add_heading_or_paragraph(
         document,
         job_title,
         heading_level,
-        use_paragraph_style=use_paragraph_style,
         # Don't pass space_before here since we handled it manually above
         space_after=space_after,
     )
@@ -2724,11 +2706,14 @@ def _process_job_entry(
 
         duration_text = next_element.text.replace("*", "").replace("_", "").strip()
         duration_run = duration_para.add_run(duration_text)
+        duration_settings = {}
 
         if has_strong:
-            duration_run.bold = True
+            duration_settings["bold"] = True
         if has_em:
-            duration_run.italic = True
+            duration_settings["italic"] = True
+
+        _apply_font_properties(duration_run.font, duration_settings)
 
         processed_elements.add(next_element)
 
@@ -2759,14 +2744,10 @@ def _process_subsection(
         processed_elements.add(current_element)
 
         # Add the subsection heading
-        use_paragraph_style = HeadingsHelper.should_use_paragraph_style(
-            current_element.name
-        )
         _add_heading_or_paragraph(
             document,
             subsection.full_heading,
             heading_level,
-            use_paragraph_style=use_paragraph_style,
             bold=subsection.bold,
             italic=subsection.italic,
         )
@@ -2812,12 +2793,10 @@ def _process_position(
 
     # Add the position heading
     heading_level = HeadingsHelper.get_level_for_tag(element.name)
-    use_paragraph_style = HeadingsHelper.should_use_paragraph_style(element.name)
     position_para = _add_heading_or_paragraph(
         document,
         position_title,
         heading_level,
-        use_paragraph_style=use_paragraph_style,
         space_before=space_before,
         space_after=space_after,
     )
@@ -2890,6 +2869,7 @@ def _process_position(
                         date_styles["italic"] = True
                     if date_loc_font_size:
                         date_styles["font_size"] = date_loc_font_size
+
                     _apply_font_properties(date_run.font, date_styles)
 
                     # Add location with appropriate formatting
@@ -2901,6 +2881,7 @@ def _process_position(
                         location_styles["italic"] = True
                     if date_loc_font_size:
                         location_styles["font_size"] = date_loc_font_size
+
                     _apply_font_properties(location_run.font, location_styles)
 
                     processed_elements.add(next_element)
@@ -2914,7 +2895,6 @@ def _add_heading_or_paragraph(
     document: DOCX_Document,
     text: str,
     heading_level: int,
-    use_paragraph_style: bool = False,
     bold: bool = True,
     italic: bool = False,
     font_size: int | None = None,
@@ -2927,7 +2907,6 @@ def _add_heading_or_paragraph(
         document: The Word document object
         text (str): Text content for the heading/paragraph
         heading_level (int): The heading level (0-5) to use if not using paragraph style
-        use_paragraph_style (bool): Whether to use paragraph style instead of heading style
         bold (bool): Whether to make the paragraph text bold (if using paragraph style)
         italic (bool): Whether to make the paragraph text italic (if using paragraph style)
         font_size (int, optional): Font size in points for paragraph style. Defaults to None.
@@ -2938,7 +2917,7 @@ def _add_heading_or_paragraph(
     has_add_heading = hasattr(document, "add_heading")
     format_styles = {}
 
-    if use_paragraph_style or not has_add_heading:
+    if not has_add_heading:
         # For cells or when paragraph style is requested, use add_paragraph
         para = document.add_paragraph()
         run = para.add_run(text)
@@ -3056,14 +3035,12 @@ def _process_projects_or_certifications(
         # Process certification name (h3)
         if current_element.name == "h3":
             cert_name = current_element.text.strip()
-            use_paragraph_style = HeadingsHelper.should_use_paragraph_style("h3")
             heading_level = HeadingsHelper.get_level_for_tag("h3")
 
             para = _add_heading_or_paragraph(
                 document,
                 cert_name,
                 heading_level,
-                use_paragraph_style=use_paragraph_style,
                 # space_before=space_before,
                 # space_after=space_after,
             )
@@ -3111,7 +3088,8 @@ def _process_projects_or_certifications(
                     org_text = next_element.find("strong").text.strip()
                     org_para = document.add_paragraph()
                     org_run = org_para.add_run(org_text)
-                    org_run.bold = True
+
+                    _apply_font_properties(org_run.font, {"bold": True})
 
                     # Look for date information in the next element
                     date_element = next_element.find_next_sibling()
@@ -3126,7 +3104,8 @@ def _process_projects_or_certifications(
                             _add_hyperlink(date_para, date_text, parent_a["href"])
                         else:
                             date_run = date_para.add_run(date_text)
-                            date_run.italic = True
+
+                            _apply_font_properties(date_run.font, {"italic": True})
 
             # Add spacing after each certification
             # _add_space_paragraph(document)
@@ -3165,7 +3144,7 @@ def _process_project_or_certification_blockquote(
             if strong_tag:
                 org_para = document.add_paragraph()
                 org_run = org_para.add_run(strong_tag.text.strip())
-                org_run.bold = True
+                _apply_font_properties(org_run.font, {"bold": True})
 
     # Process all other content
     for item in blockquote.contents:
@@ -3222,10 +3201,10 @@ def _process_element_children_with_formatting(
         if getattr(child, "name", None) == "strong":
             text = child.text + (":" if add_colon_to_strong else "")
             run = paragraph.add_run(text)
-            run.bold = True
+            _apply_font_properties(run.font, {"bold": True})
         elif getattr(child, "name", None) == "em":
             run = paragraph.add_run(child.text)
-            run.italic = True
+            _apply_font_properties(run.font, {"italic": True})
         elif getattr(child, "name", None) == "a" and child.get("href"):
             _add_hyperlink(paragraph, child.text, child.get("href"))
         elif child.string:
@@ -3236,7 +3215,6 @@ def _create_heading_with_formatting_preservation(
     document: DOCX_Document,
     element: BS4_Element,
     heading_level: int | None = None,
-    use_paragraph_style: bool = None,
     space_before: int | None = None,
     space_after: int | None = None,
 ) -> None:
@@ -3246,24 +3224,20 @@ def _create_heading_with_formatting_preservation(
         document: The Word document object
         element: BeautifulSoup element to process
         heading_level: Heading level to use (if None, will be determined from element)
-        use_paragraph_style: Whether to use paragraph style (if None, will be determined)
     """
     if heading_level is None:
         heading_level = HeadingsHelper.get_level_for_tag(element.name)
-    if use_paragraph_style is None:
-        use_paragraph_style = HeadingsHelper.should_use_paragraph_style(element.name)
 
     # Check if document supports add_heading
     has_add_heading = hasattr(document, "add_heading")
 
-    if use_paragraph_style or not has_add_heading:
+    if not has_add_heading:
         # For cells or when paragraph style is requested, use add_paragraph
         para = document.add_paragraph()
         # For cells that were meant to be headings, apply heading formatting manually
-        if not use_paragraph_style and not has_add_heading:
-            # Get font size for this heading level
-            HeadingsHelper.get_font_size_for_level(heading_level)
-            # We'll apply formatting to child elements below
+        # Get font size for this heading level
+        HeadingsHelper.get_font_size_for_level(heading_level)
+        # We'll apply formatting to child elements below
     else:
         # Only use add_heading when available (for Document objects)
         para = document.add_heading(level=heading_level)
@@ -3272,7 +3246,7 @@ def _create_heading_with_formatting_preservation(
     _process_element_children_with_formatting(para, element)
 
     # For cell "headings", make sure all runs are bold
-    if not use_paragraph_style and not has_add_heading:
+    if not has_add_heading:
         for run in para.runs:
             _apply_font_properties(
                 run.font,
@@ -3315,7 +3289,7 @@ def _process_date_paragraph(
         _add_hyperlink(date_para, date_text, parent_a["href"])
     else:
         date_run = date_para.add_run(date_text)
-        date_run.italic = True
+        _apply_font_properties(date_run.font, {"italic": True})
 
     return True
 
@@ -3507,34 +3481,6 @@ def _run_interactive_mode() -> tuple[Path, Path, dict[str, bool], bool, ConfigLo
     # Get output file
     output_file = OutputFilePath(input_file=input_file, interactive=True).output_path()
 
-    # Prompt for paragraph style headings
-    print(
-        "\n🔠 Choose heading levels to render as paragraphs instead of Word headings:"
-    )
-    print("   (Enter numbers separated by space, e.g., '3 4 5 6' for h3, h4, h5, h6)")
-    print("   1. h3 - Job titles")
-    print("   2. h4 - Company names")
-    print("   3. h5 - Subsections (Key Skills, Summary, etc.)")
-    print("   4. h6 - Sub-subsections (Responsibilities, Additional Details)")
-    print("   0. None (use Word heading styles for all)")
-
-    heading_choices = input(
-        "👉 Your choices (e.g., '3 4 5 6' or '0' for none): "
-    ).strip()
-
-    paragraph_style_headings = {}
-    if heading_choices != "0":
-        chosen_numbers = [int(n) for n in heading_choices.split() if n.isdigit()]
-        heading_map = {1: "h3", 2: "h4", 3: "h5", 4: "h6"}
-
-        for num in chosen_numbers:
-            if 1 <= num <= 4:
-                heading_tag = heading_map[num]
-                paragraph_style_headings[heading_tag] = True
-                print(f"✅ Selected {heading_tag} for paragraph styling")
-    else:
-        print("✅ Using Word headings for all levels (no paragraph styling)")
-
     print("\n⚙️ Processing your resume...\n")
 
     create_pdf = (
@@ -3545,7 +3491,7 @@ def _run_interactive_mode() -> tuple[Path, Path, dict[str, bool], bool, ConfigLo
         print("✅ Will generate PDF output")
 
     # Return the ConfigLoader object directly instead of just the config_file path
-    return input_file, output_file, paragraph_style_headings, create_pdf, config_loader
+    return input_file, output_file, create_pdf, config_loader
 
 
 ##############################
@@ -3764,11 +3710,11 @@ def _process_list_item_formatting(
         # Handle bold text (strong tags)
         if getattr(child, "name", None) == "strong":
             run = paragraph.add_run(child.text)
-            run.bold = True
+            _apply_font_properties(run.font, {"bold": True})
         # Handle italic text (em tags)
         elif getattr(child, "name", None) == "em":
             run = paragraph.add_run(child.text)
-            run.italic = True
+            _apply_font_properties(run.font, {"italic": True})
         # Handle links
         elif getattr(child, "name", None) == "a" and child.get("href"):
             _add_hyperlink(paragraph, child.text, child.get("href"))
@@ -3810,7 +3756,12 @@ def _format_skills_list(
 
             # Add the skill with bold formatting
             skill_run = skills_para.add_run(skill)
-            skill_run.bold = True
+            _apply_font_properties(
+                skill_run.font,
+                {
+                    "bold": True,
+                },
+            )
 
         return skills_para
     else:
@@ -4077,18 +4028,16 @@ def _add_horizontal_line_simple(document: DOCX_Document) -> None:
 
     p = document.add_paragraph()
     _paragraph_alignment(p, "center")
-    p.add_run(line_char * line_length).bold = True
+    p.add_run(line_char * line_length)
 
-    # Set color for the horizontal line
-    if p.runs:
-        for run in p.runs:
-            _apply_font_properties(
-                run.font,
-                {
-                    "bold": True,
-                    "color": line_color,
-                },
-            )
+    for run in p.runs:
+        _apply_font_properties(
+            run.font,
+            {
+                "bold": True,
+                "color": line_color,
+            },
+        )
 
 
 def _add_space_paragraph(
@@ -4378,14 +4327,6 @@ if __name__ == "__main__":
         help='Output Word document (default: "<input_file>.docx")',
     )
     parser.add_argument(
-        "-p",
-        "--paragraph-headings",
-        dest="paragraph_headings",
-        nargs="+",
-        choices=["h3", "h4", "h5", "h6"],
-        help="Specify which heading levels to render as paragraphs instead of headings",
-    )
-    parser.add_argument(
         "-P",
         "--pdf",
         dest="create_pdf",
@@ -4411,14 +4352,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Check if we should run in interactive mode
-    if (
-        not (args.input_file or args.output_file or args.paragraph_headings)
-        or args.interactive
-    ):
+    if not (args.input_file or args.output_file) or args.interactive:
         # Now we get the config_loader object directly from _run_interactive_mode
-        input_file, output_file, paragraph_style_headings, create_pdf, config_loader = (
-            _run_interactive_mode()
-        )
+        input_file, output_file, create_pdf, config_loader = _run_interactive_mode()
     else:
         config_loader = ConfigLoader(args.config_file)
 
@@ -4429,11 +4365,6 @@ if __name__ == "__main__":
         input_file = Path(args.input_file)
 
         output_file = OutputFilePath(input_file, args.output_file).output_path()
-
-        # Convert list to dictionary if provided
-        paragraph_style_headings = {}
-        if args.paragraph_headings:
-            paragraph_style_headings = {h: True for h in args.paragraph_headings}
 
         # Show help if required arguments are missing
         if not input_file:
@@ -4446,7 +4377,6 @@ if __name__ == "__main__":
     result = create_ats_resume(
         input_file,
         output_file,
-        paragraph_style_headings=paragraph_style_headings,
         config_loader=config_loader,  # Pass config_loader object instead of string
     )
 
