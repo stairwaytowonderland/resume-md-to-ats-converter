@@ -2868,27 +2868,27 @@ def _process_position(
 
                     # Add date with appropriate formatting
                     date_run = combo_para.add_run(date_text + date_location_separator)
-                    date_styles = {}
-                    if next_element.find("strong"):
-                        date_styles["bold"] = True
-                    if next_element.find("em"):
-                        date_styles["italic"] = True
-                    if date_loc_font_size:
-                        date_styles["font_size"] = date_loc_font_size
 
-                    _apply_font_properties(date_run.font, date_styles)
+                    _apply_font_properties(
+                        date_run.font,
+                        {
+                            "bold": next_element.find("strong") is not None,
+                            "italic": next_element.find("em") is not None,
+                            "font_size": date_loc_font_size,
+                        },
+                    )
 
                     # Add location with appropriate formatting
                     location_run = combo_para.add_run(location_text)
-                    location_styles = {}
-                    if next_next_element.find("strong"):
-                        location_styles["bold"] = True
-                    if next_next_element.find("em"):
-                        location_styles["italic"] = True
-                    if date_loc_font_size:
-                        location_styles["font_size"] = date_loc_font_size
 
-                    _apply_font_properties(location_run.font, location_styles)
+                    _apply_font_properties(
+                        location_run.font,
+                        {
+                            "bold": next_next_element.find("strong") is not None,
+                            "italic": next_next_element.find("em") is not None,
+                            "font_size": date_loc_font_size,
+                        },
+                    )
 
                     processed_elements.add(next_element)
                     processed_elements.add(next_next_element)
