@@ -723,7 +723,11 @@ class StylesHelper:
 
     @classmethod
     def apply_styles_to_content(cls, document: DOCX_Document) -> None:
-        """Apply document styles directly to document or table cell content"""
+        """Apply document styles directly to document or table cell content
+
+        Args:
+            document (DOCX_Document): The Word document to apply styles to
+        """
         cls._check_initialized()
         style_properties = cls.get_all_style_properties()
 
@@ -814,6 +818,8 @@ class StylesHelper:
         Returns:
             dict: Mapping of markdown heading tags to their Word document styles
         """
+        cls._check_initialized()
+
         # Create an empty result dictionary
         result = {}
 
