@@ -843,9 +843,7 @@ class StylesHelper:
 
             # Get the font size from the document style
             style_props = StylesHelper.get_style_properties(document_style)
-            font_size = style_props.get(
-                "font_size", 11
-            )  # Default to 11pt if not specified
+            font_size = style_props.get("font_size")  # Default to 11pt if not specified
 
             result[tag] = {"level": level, "paragraph_heading_size": font_size}
 
@@ -2366,6 +2364,7 @@ def _process_horizontal_skills_list(
 
     # Get font size and line spacing (key skills specific)
     font_size = ConfigHelper.get_style_constant(f"{config_prefix}_font_size", None)
+
     line_spacing = ConfigHelper.get_style_constant(
         f"{config_prefix}_line_spacing", None
     )
@@ -4061,7 +4060,7 @@ def _add_space_paragraph(
         None
     """
     if font_size is None:
-        font_size = ConfigHelper.get_style_constant("font_size_pts", 11)
+        font_size = ConfigHelper.get_style_constant("font_size_pts")
 
     p = document.add_paragraph()
     p.add_run()
