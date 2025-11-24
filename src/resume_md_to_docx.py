@@ -768,6 +768,10 @@ class StylesHelper:
                         heading_level = 3  # H3
                     elif font_size >= 10:
                         heading_level = 4  # H4
+                    elif font_size >= 9:
+                        heading_level = 5  # H5
+                    elif font_size >= 8:
+                        heading_level = 6  # H6
 
             # Method 3: Text characteristics (length, all caps, position)
             if not heading_level and is_bold:
@@ -929,7 +933,7 @@ def create_ats_resume(
     # Check if two-column layout is enabled
     if config_loader.two_column_enabled:
         # Process header with name and tagline
-        process_header_section(document, soup)
+        process_header_section(document, soup, two_column=True)
 
         # Create the two-column layout structure
         about_content_cell, contact_info_cell, sidebar_cell, main_cell = (
@@ -945,7 +949,7 @@ def create_ats_resume(
         if about_section:
             # Override space before to be minimal
             about_section.space_before_h2 = 0
-            process_about_section(about_content_cell, soup)
+            process_about_section(about_content_cell, soup, two_column=True)
 
         # Process sections for the sidebar (Top Skills, Certifications, Education)
         sidebar_sections = []
@@ -953,7 +957,7 @@ def create_ats_resume(
 
         # Add Top Skills to sidebar
         if skills_section:
-            process_skills_section(sidebar_cell, soup)
+            process_skills_section(sidebar_cell, soup, two_column=True)
             sidebar_sections.append(skills_section.docx_heading)
             first_sidebar_section = False
 
@@ -969,7 +973,7 @@ def create_ats_resume(
             ):
                 _add_horizontal_line_to_cell(sidebar_cell, is_sidebar=True)
 
-            process_certifications_section(sidebar_cell, soup)
+            process_certifications_section(sidebar_cell, soup, two_column=True)
             sidebar_sections.append(certifications_section.docx_heading)
             first_sidebar_section = False
 
@@ -985,7 +989,7 @@ def create_ats_resume(
             ):
                 _add_horizontal_line_to_cell(sidebar_cell, is_sidebar=True)
 
-            process_education_section(sidebar_cell, soup)
+            process_education_section(sidebar_cell, soup, two_column=True)
             sidebar_sections.append(education_section.docx_heading)
 
         # Track main sections for horizontal lines
@@ -997,7 +1001,7 @@ def create_ats_resume(
             # Add horizontal line before first section
             # _add_horizontal_line_to_cell(main_cell, is_sidebar=False)
 
-            process_experience_section(main_cell, soup)
+            process_experience_section(main_cell, soup, two_column=True)
             main_sections.append(experience_section.docx_heading)
             first_main_section = False
 
@@ -1007,7 +1011,7 @@ def create_ats_resume(
             if not first_main_section:
                 _add_horizontal_line_to_cell(main_cell, is_sidebar=False)
 
-            process_projects_section(main_cell, soup)
+            process_projects_section(main_cell, soup, two_column=True)
             main_sections.append(projects_section.docx_heading)
 
         # FIXME: This overrides any custom styles applied in the section processors, which is giving a particular problem for the sidebar horizontal line spacing
@@ -1123,12 +1127,14 @@ def convert_to_pdf(docx_file: Path) -> Path | None:
 def process_header_section(
     document: DOCX_Document,
     soup: BeautifulSoup,
+    two_column: bool = False,
 ) -> None:
     """Process the header (name and tagline) section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
+        two_column: Whether the document is in two-column layout
 
     Returns:
         None
@@ -1232,12 +1238,14 @@ def process_header_section(
 def process_about_section(
     document: DOCX_Document,
     soup: BeautifulSoup,
+    two_column: bool = False,
 ) -> None:
     """Process the About section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
+        two_column: Whether the document is in two-column layout
 
     Returns:
         None
@@ -1336,12 +1344,14 @@ def process_about_section(
 def process_skills_section(
     document: DOCX_Document,
     soup: BeautifulSoup,
+    two_column: bool = False,
 ) -> None:
     """Process the Skills section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
+        two_column: Whether the document is in two-column layout
 
     Returns:
         None
@@ -1363,22 +1373,21 @@ def process_skills_section(
 def process_experience_section(
     document: DOCX_Document,
     soup: BeautifulSoup,
+    two_column: bool = False,
 ) -> None:
     """Process the Experience section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
+        two_column: Whether the document is in two-column layout
 
     Returns:
         None
     """
     experience_section = ResumeSection.get_section("EXPERIENCE")
-    section_h2 = _prepare_section(
-        document,
-        soup,
-        experience_section,
-        space_after=experience_section.space_after_h2,
+    section_h2 = _prepare_section_with_page_break(
+        document, soup, experience_section, two_column=two_column
     )
 
     if not section_h2:
@@ -1592,21 +1601,21 @@ def process_experience_section(
 def process_education_section(
     document: DOCX_Document,
     soup: BeautifulSoup,
+    two_column: bool = False,
 ) -> None:
     """Process the Education section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
+        two_column: Whether the document is in two-column layout
 
     Returns:
         None
     """
     education_section = ResumeSection.get_section("EDUCATION")
-    section_h2 = _prepare_section(
-        document,
-        soup,
-        education_section,
+    section_h2 = _prepare_section_with_page_break(
+        document, soup, education_section, two_column=two_column
     )
 
     if not section_h2:
@@ -1622,21 +1631,21 @@ def process_education_section(
 def process_certifications_section(
     document: DOCX_Document,
     soup: BeautifulSoup,
+    two_column: bool = False,
 ) -> None:
     """Process the Certifications section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
+        two_column: Whether the document is in two-column layout
 
     Returns:
         None
     """
     certifications_section = ResumeSection.get_section("CERTIFICATIONS")
-    section_h2 = _prepare_section(
-        document,
-        soup,
-        certifications_section,
+    section_h2 = _prepare_section_with_page_break(
+        document, soup, certifications_section, two_column=two_column
     )
 
     if not section_h2:
@@ -1667,21 +1676,21 @@ def process_certifications_section(
 def process_projects_section(
     document: DOCX_Document,
     soup: BeautifulSoup,
+    two_column: bool = False,
 ) -> None:
     """Process the Special Projects section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
+        two_column: Whether the document is in two-column layout
 
     Returns:
         None
     """
     projects_section = ResumeSection.get_section("PROJECTS")
-    section_h2 = _prepare_section(
-        document,
-        soup,
-        projects_section,
+    section_h2 = _prepare_section_with_page_break(
+        document, soup, projects_section, two_column=two_column
     )
 
     if not section_h2:
@@ -1704,21 +1713,21 @@ def process_projects_section(
 def process_contact_section(
     document: DOCX_Document,
     soup: BeautifulSoup,
+    two_column: bool = False,
 ) -> None:
     """Process the Contact section
 
     Args:
         document: The Word document object
         soup: BeautifulSoup object of the HTML content
+        two_column: Whether the document is in two-column layout
 
     Returns:
         None
     """
     contact_section = ResumeSection.get_section("CONTACT")
-    section_h2 = _prepare_section(
-        document,
-        soup,
-        contact_section,
+    section_h2 = _prepare_section_with_page_break(
+        document, soup, contact_section, two_column=two_column
     )
 
     if not section_h2:
@@ -2517,6 +2526,9 @@ def _process_project_section(
         set: Updated set of processed elements
     """
     bullet_indent_inches = ConfigHelper.get_style_constant("bullet_indent_inches")
+    project_client_indent_inches = ConfigHelper.get_style_constant(
+        "project_client_indent_inches", bullet_indent_inches / 2
+    )
 
     # Get the next element to see if it contains the project details
     next_element = project_element.find_next_sibling()
@@ -2561,7 +2573,7 @@ def _process_project_section(
             # Process regular paragraph text
             para = document.add_paragraph()
             _process_text_for_hyperlinks(para, next_element.text.strip())
-            _left_indent_paragraph(para, bullet_indent_inches / 2)
+            _left_indent_paragraph(para, project_client_indent_inches)
             processed_elements.add(next_element)
             next_element = next_element.find_next_sibling()
             continue
@@ -2577,10 +2589,17 @@ def _process_project_section(
         if h6_subsection == JobSubsection.RESPONSIBILITIES:
             heading_level = HeadingsHelper.get_level_for_tag(next_element.name)
 
-            resp_heading = document.add_heading(
-                h6_subsection.full_heading, level=heading_level
+            # FIXED: Use _add_heading_or_paragraph instead of document.add_heading
+            resp_heading = _add_heading_or_paragraph(
+                document,
+                h6_subsection.full_heading,
+                heading_level,
+                bold=h6_subsection.bold,
+                italic=h6_subsection.italic,
             )
-            _left_indent_paragraph(resp_heading)  # Keep indentation
+            _left_indent_paragraph(
+                resp_heading, project_client_indent_inches
+            )  # Keep indentation
 
             # Get the paragraph with responsibilities
             resp_element = next_element.find_next_sibling()
@@ -2596,16 +2615,25 @@ def _process_project_section(
         elif h6_subsection == JobSubsection.ADDITIONAL_DETAILS:
             heading_level = HeadingsHelper.get_level_for_tag(next_element.name)
 
-            details_heading = document.add_heading(
-                h6_subsection.full_heading, level=heading_level
+            # FIXED: Use _add_heading_or_paragraph instead of document.add_heading
+            details_heading = _add_heading_or_paragraph(
+                document,
+                h6_subsection.full_heading,
+                heading_level,
+                bold=h6_subsection.bold,
+                italic=h6_subsection.italic,
             )
-            _left_indent_paragraph(details_heading)  # Keep indentation
+            _left_indent_paragraph(
+                details_heading, project_client_indent_inches
+            )  # Keep indentation
 
             processed_elements.add(next_element)
 
         # Bullet points
         elif next_element.name == "ul":
-            _left_indent_paragraph(_add_bullet_list(document, next_element))
+            _left_indent_paragraph(
+                _add_bullet_list(document, next_element), project_client_indent_inches
+            )
             processed_elements.add(next_element)
 
         next_element = next_element.find_next_sibling()
@@ -3011,6 +3039,84 @@ def _add_bullet_list(
                 _left_indent_paragraph(bullet_para, indentation)
 
         return bullet_para
+
+
+def _prepare_section_with_page_break(
+    document: DOCX_Document,
+    soup: BeautifulSoup,
+    section_type: ResumeSection,
+    space_before: int | None = None,
+    space_after: int | None = None,
+    two_column: bool = False,
+) -> BS4_Element | None:
+    """Prepare section and add page break if HR is found before it
+
+    Args:
+        document: The Word document object
+        soup: BeautifulSoup object of the HTML content
+        section_type: ResumeSection enum value
+        space_before: Space before the section heading, if any
+        space_after: Space after the section heading, if any
+        two_column: Whether the document is in two-column layout
+
+    Returns:
+        BeautifulSoup element or None: The section heading element if found, None otherwise
+    """
+    section_h2 = soup.find("h2", string=lambda text: section_type.matches(text))
+
+    if not section_h2:
+        print(f"ℹ️  Section '{section_type.docx_heading}' not found in document")
+        return None
+
+    if not space_before:
+        space_before = (
+            section_type.space_before_h2 if section_type.add_space_before_h2 else None
+        )
+    if not space_after:
+        space_after = section_type.space_after_h2
+
+    heading_level = HeadingsHelper.get_level_for_tag("h2")
+
+    if two_column:
+        # Add the section heading
+        heading_para = _add_heading_or_paragraph(
+            document,
+            section_type.docx_heading,
+            heading_level,
+            space_before=space_before,
+            space_after=space_after,
+        )
+
+        # Check if there's an HR before this section
+        if _has_hr_before_element(section_h2):
+            # Add page break as the FIRST element in the heading paragraph
+            # This ensures the heading and everything after it appears on the new page
+            heading_para._p.insert(0, OxmlElement("w:r"))
+            first_run = heading_para.runs[0]
+            first_run.add_break(DOCX_BREAK_TYPE.PAGE)
+    else:
+        # Check if there's an HR before this section
+        if _has_hr_before_element(section_h2):
+            # Check if document has any content already (for cells or documents)
+            has_content = False
+            if hasattr(document, "paragraphs"):
+                has_content = len(document.paragraphs) > 0
+
+            if has_content:
+                # Add page break before this section
+                para = document.add_paragraph()
+                run = para.add_run()
+                run.add_break(DOCX_BREAK_TYPE.PAGE)
+
+        _add_heading_or_paragraph(
+            document,
+            section_type.docx_heading,
+            heading_level,
+            space_before=space_before,
+            space_after=space_after,
+        )
+
+    return section_h2
 
 
 def _process_projects_or_certifications(

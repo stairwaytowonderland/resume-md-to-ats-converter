@@ -47,6 +47,7 @@ style_constants:
   space_after: 0
   indent_inches: 0.25
   bullet_indent_inches: 0.5
+  project_client_indent_inches: 0 # 0.25
   hr_before_job_blank_line: false  # Enable/disable blank line before job entries with HR
   horizontal_line_char: "_"  # Character for horizontal lines
   horizontal_line_length: 50  # Length of horizontal line
@@ -241,6 +242,15 @@ document_styles:
     # bold: true
     # italic: false
     color: "243F60"
+    space_after: 1
+
+  Heading 6:  # H6 - Responsibilities, Details
+    # font_name: "Helvetica Neue"
+    font_size: 8
+    # bold: true
+    # italic: false
+    color: "243F60"
+    space_after: 1
 
   Hyperlink:
     # font_name: "Helvetica Neue"
