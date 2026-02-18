@@ -11,7 +11,8 @@
 *.~*
 
 __pycache__
-/.venv
+requirements.lock
+/.venv*
 /.requirements
 /.serverless
 /.serverless-wsgi
@@ -21,6 +22,7 @@ __pycache__
 Icon?
 .idea
 .vscode
+/.devcontainer
 
 /data
 /.templates

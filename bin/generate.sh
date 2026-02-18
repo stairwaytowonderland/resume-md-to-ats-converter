@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 set -eu
 
@@ -7,19 +7,19 @@ __python_module="src.resume_md_to_docx"
 __script_dir() {
   local src=""
   local dir=""
-  if [ -z "$BASH_SOURCE" -o "${BASH_SOURCE[0]}" != "$0" ]; then
+  if [ -z "${BASH_SOURCE[0]}" ] || [ "${BASH_SOURCE[0]}" != "$0" ]; then
     src="${0}/bin"
   else
     src="${BASH_SOURCE[0]}"
   fi
-  dir=$(CDPATH= cd -- "$( dirname -- "$src" )" &> /dev/null && pwd -P)
+  dir=$(CDPATH='' cd -- "$( dirname -- "$src" )" &> /dev/null && pwd -P)
   echo "$dir"
 }
 
 __python_usage() {
   local code="${1:-0}"
   python -m "$__python_module" --help
-  [ $code -eq 0 ] || exit $code
+  [ "$code" -eq 0 ] || exit "$code"
 }
 
 __usage() {
@@ -39,7 +39,7 @@ Arguments:
 Example:
   $0 sample/example/example.md sample/example/output
 EOF
-  [ $code -eq 0 ] || exit $code
+  [ "$code" -eq 0 ] || exit "$code"
 }
 
 __usage_check() {
@@ -65,7 +65,8 @@ __command() {
   pushd "$dir" > /dev/null || return 1
   local md_file="$1"; shift
   local output_dir="$1"; shift
-  local file_name=$(basename "$md_file")
+  local file_name
+  file_name=$(basename "$md_file")
   local base_file_name="${file_name%.*}"
   local output_file="${output_dir}/${base_file_name}.docx"
   __usage_check "$md_file" "$output_dir" || return 1
@@ -81,7 +82,8 @@ __command() {
 }
 
 main() {
-  local dir=$(__script_dir)
+  local dir
+  dir=$(__script_dir)
   if [ ! -r "$dir" ]; then
     printf "Directory '%s' does not exist or is not readable.\n" "$dir"
     return 1
@@ -96,7 +98,7 @@ __usage_check "$@" || exit 1
 main "$@"
 
 # Final error check
-if [ $? -ne 0 ]; then
+if [ "$?" -ne 0 ]; then
   echo "An error occurred during the execution of the script."
   exit 1
 fi
