@@ -191,7 +191,7 @@ document_styles:
     # bold: true
     # underline: true
     color: "365F91"
-    space_before: 18
+    space_before: 24
     space_after: 4
 
   Heading 2:  # H2 - Company names
