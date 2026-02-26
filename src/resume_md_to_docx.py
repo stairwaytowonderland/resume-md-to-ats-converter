@@ -2109,9 +2109,12 @@ def _process_contact_info_horizontal(cell: DOCX_Cell, soup: BeautifulSoup) -> No
             )
 
             # Add the value (rest of the text)
-            value_text = item.text.replace(strong_tag.text, "").strip()
+            value_text = item.text.replace(strong_tag.text, "").lstrip()
             if value_text:
-                para.add_run(f" {value_text}")
+                # Only add a space if value_text does not already start with one
+                if not value_text.startswith(" "):
+                    para.add_run(" ")
+                para.add_run(value_text)
         else:
             # Process the entire text
             _process_text_for_hyperlinks(para, item.text.strip())
