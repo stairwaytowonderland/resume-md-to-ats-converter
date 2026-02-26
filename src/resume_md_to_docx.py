@@ -417,6 +417,15 @@ class ConfigLoader:
         )
 
     @property
+    def contact_ribbon_enabled(self) -> bool:
+        """Check if contact ribbon is enabled (default: True)"""
+        return (
+            self._config.get("style_constants", {})
+            .get("contact_ribbon", {})
+            .get("enabled", True)
+        )
+
+    @property
     def config(self) -> dict:
         """Get the entire configuration dictionary
 
@@ -931,7 +940,10 @@ def create_ats_resume(
     projects_section = ResumeSection.get_section("PROJECTS")
 
     # Check if two-column layout is enabled
-    if config_loader.two_column_enabled:
+    use_two_column = config_loader.two_column_enabled
+    contact_ribbon_enabled = config_loader.contact_ribbon_enabled
+
+    if use_two_column:
         # Process header with name and tagline
         process_header_section(document, soup, two_column=True)
 
@@ -942,7 +954,7 @@ def create_ats_resume(
 
         # Process contact info in the contact cell (right after header, before about section)
         contact_section = ResumeSection.get_section("CONTACT")
-        if contact_section:
+        if contact_section and contact_ribbon_enabled:
             _process_contact_info_horizontal(contact_info_cell, soup)
 
         about_section = ResumeSection.get_section("ABOUT")
@@ -1018,55 +1030,161 @@ def create_ats_resume(
         for cell in [about_content_cell, contact_info_cell, sidebar_cell, main_cell]:
             StylesHelper.apply_styles_to_content(cell)
     else:
+        # Single column mode
+        # Process header with name and tagline
+        process_header_section(document, soup, two_column=False)
+
+        # Read contact_ribbon_placement from config
+        contact_ribbon_styles = ConfigHelper.get_style_constant("contact_ribbon", {})
+        contact_ribbon_placement = contact_ribbon_styles.get(
+            "contact_ribbon_placement", "above_about"
+        )
+
         # Define processor mapping using dynamic section access
         section_processor_map = {}
 
-        # Get sections dynamically
-        if about_section:
-            section_processor_map[about_section] = [
-                (process_header_section, True),  # Header always required
-                (
-                    lambda doc, soup: process_about_section(document=doc, soup=soup),
-                    False,
-                ),
-            ]
+        # Insert contact ribbon processor in the correct place
+        if contact_ribbon_enabled and ResumeSection.get_section("CONTACT"):
 
-        if skills_section:
-            section_processor_map[skills_section] = [
-                (lambda doc, soup: process_skills_section(doc, soup), False),
-            ]
-
-        if experience_section:
-            section_processor_map[experience_section] = [
-                (lambda doc, soup: process_experience_section(doc, soup), False),
-            ]
-
-        if projects_section:
-            section_processor_map[projects_section] = [
-                (lambda doc, soup: process_projects_section(doc, soup), False),
-            ]
-
-        if certifications_section:
-            section_processor_map[certifications_section] = [
-                (lambda doc, soup: process_certifications_section(doc, soup), False),
-            ]
-
-        if education_section:
-            section_processor_map[education_section] = [
-                (lambda doc, soup: process_education_section(doc, soup), False),
-            ]
-
-        if contact_section:
-            section_processor_map[contact_section] = [
-                (lambda doc, soup: process_contact_section(doc, soup), False),
-            ]
+            def contact_ribbon_processor(doc, soup):
+                _process_contact_info_ribbon_single_column(doc, soup)
 
         # Build section processors in YAML order
         section_processors = []
-        for section_type in ResumeSection.get_ordered_sections():
-            if section_type in section_processor_map:
-                for processor, required in section_processor_map[section_type]:
-                    section_processors.append((section_type, processor, required))
+        ordered_sections = ResumeSection.get_ordered_sections()
+        if contact_ribbon_placement == "above_about":
+            # Insert contact ribbon processor before 'about' section
+            for section_type in ordered_sections:
+                if (
+                    section_type.key == "about"
+                    and contact_ribbon_enabled
+                    and ResumeSection.get_section("CONTACT")
+                ):
+                    section_processors.append(
+                        ("contact_ribbon", contact_ribbon_processor, False)
+                    )
+                if section_type == about_section:
+                    section_processor_map[about_section] = [
+                        (
+                            lambda doc, soup: process_about_section(
+                                document=doc, soup=soup
+                            ),
+                            False,
+                        ),
+                    ]
+                if section_type == skills_section:
+                    section_processor_map[skills_section] = [
+                        (lambda doc, soup: process_skills_section(doc, soup), False),
+                    ]
+                if section_type == experience_section:
+                    section_processor_map[experience_section] = [
+                        (
+                            lambda doc, soup: process_experience_section(doc, soup),
+                            False,
+                        ),
+                    ]
+                if section_type == projects_section:
+                    section_processor_map[projects_section] = [
+                        (lambda doc, soup: process_projects_section(doc, soup), False),
+                    ]
+                if section_type == certifications_section:
+                    section_processor_map[certifications_section] = [
+                        (
+                            lambda doc, soup: process_certifications_section(doc, soup),
+                            False,
+                        ),
+                    ]
+                if section_type == education_section:
+                    section_processor_map[education_section] = [
+                        (lambda doc, soup: process_education_section(doc, soup), False),
+                    ]
+                if section_type in section_processor_map:
+                    for processor, required in section_processor_map[section_type]:
+                        section_processors.append((section_type, processor, required))
+        else:
+            # Insert contact ribbon processor after 'about' section
+            for section_type in ordered_sections:
+                if section_type == about_section:
+                    section_processor_map[about_section] = [
+                        (
+                            lambda doc, soup: process_about_section(
+                                document=doc, soup=soup
+                            ),
+                            False,
+                        ),
+                    ]
+                    section_processors.append(
+                        (
+                            section_type,
+                            section_processor_map[about_section][0][0],
+                            False,
+                        )
+                    )
+                    if contact_ribbon_enabled and ResumeSection.get_section("CONTACT"):
+                        section_processors.append(
+                            ("contact_ribbon", contact_ribbon_processor, False)
+                        )
+                elif section_type == skills_section:
+                    section_processor_map[skills_section] = [
+                        (lambda doc, soup: process_skills_section(doc, soup), False),
+                    ]
+                    section_processors.append(
+                        (
+                            section_type,
+                            section_processor_map[skills_section][0][0],
+                            False,
+                        )
+                    )
+                elif section_type == experience_section:
+                    section_processor_map[experience_section] = [
+                        (
+                            lambda doc, soup: process_experience_section(doc, soup),
+                            False,
+                        ),
+                    ]
+                    section_processors.append(
+                        (
+                            section_type,
+                            section_processor_map[experience_section][0][0],
+                            False,
+                        )
+                    )
+                elif section_type == projects_section:
+                    section_processor_map[projects_section] = [
+                        (lambda doc, soup: process_projects_section(doc, soup), False),
+                    ]
+                    section_processors.append(
+                        (
+                            section_type,
+                            section_processor_map[projects_section][0][0],
+                            False,
+                        )
+                    )
+                elif section_type == certifications_section:
+                    section_processor_map[certifications_section] = [
+                        (
+                            lambda doc, soup: process_certifications_section(doc, soup),
+                            False,
+                        ),
+                    ]
+                    section_processors.append(
+                        (
+                            section_type,
+                            section_processor_map[certifications_section][0][0],
+                            False,
+                        )
+                    )
+                elif section_type == education_section:
+                    section_processor_map[education_section] = [
+                        (lambda doc, soup: process_education_section(doc, soup), False),
+                    ]
+                    section_processors.append(
+                        (
+                            section_type,
+                            section_processor_map[education_section][0][0],
+                            False,
+                        )
+                    )
 
         # Process each section with error handling
         for section_type, processor, required in section_processors:
@@ -1077,7 +1195,7 @@ def create_ats_resume(
                     raise  # Re-raise for required sections
                 else:
                     print(
-                        f"⚠️  Warning: Could not process {section_type.docx_heading}: {str(e)}"
+                        f"⚠️  Warning: Could not process {getattr(section_type, 'docx_heading', section_type)}: {str(e)}"
                     )
 
     # Add page numbers if enabled
@@ -1087,6 +1205,140 @@ def create_ats_resume(
     document.save(output_file)
 
     return Path(output_file)
+
+
+def _process_contact_info_ribbon_single_column(
+    document: DOCX_Document, soup: BeautifulSoup
+) -> None:
+    """Process contact info as a horizontal ribbon in single column mode (below header)
+
+    Args:
+        document: The Word document object
+        soup: BeautifulSoup object of the HTML content
+    """
+    # Fine-grained vertical spacing above/below the contact ribbon is controlled by cell margins only.
+    # Set contact_cell_margin_top and contact_cell_margin_bottom in config (in twips, 1/20th point).
+    # Paragraph-based spacing is ignored for the ribbon.
+
+    contact_ribbon_styles = ConfigHelper.get_style_constant("contact_ribbon", {})
+    item_separator = contact_ribbon_styles.get("item_separator", "  |  ")
+    item_separator_color = contact_ribbon_styles.get("item_separator_color", "000000")
+    item_separator_font_style = contact_ribbon_styles.get(
+        "item_separator_font_style", "normal"
+    )
+
+    # Find the contact section h2
+    contact_section = ResumeSection.get_section("CONTACT")
+    section_h2 = None
+    if contact_section:
+        for h2 in soup.find_all("h2"):
+            if h2.text.strip().lower() == contact_section.markdown_heading_lower:
+                section_h2 = h2
+                break
+    if not section_h2:
+        return
+
+    # Gather contact info items (all <p> until next h2)
+    contact_items = []
+    current = section_h2.find_next_sibling()
+    while current and current.name != "h2":
+        if current.name == "p":
+            contact_items.append(current)
+        current = current.find_next_sibling()
+
+    if not contact_items:
+        return
+
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    # Create a dummy wrapper table (1 row, 1 col) to hold the ribbon table
+    wrapper_table = document.add_table(rows=1, cols=1)
+    wrapper_table.allow_autofit = False
+    wrapper_table.autofit = False
+    try:
+        wrapper_table.style = None
+    except Exception:
+        pass
+    # Remove all borders from wrapper table
+    for cell in wrapper_table._cells:
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        tcBorders = OxmlElement("w:tcBorders")
+        for border in ["top", "left", "bottom", "right", "insideH", "insideV"]:
+            border_elem = OxmlElement(f"w:{border}")
+            border_elem.set(qn("w:val"), "nil")
+            tcBorders.append(border_elem)
+        tcPr.append(tcBorders)
+
+    wrapper_cell = wrapper_table.cell(0, 0)
+    # Set cell margins for fine-grained spacing (in twips)
+    margin_top = ConfigHelper.get_style_constant(
+        "contact_cell_margin_top", ConfigHelper.get_style_constant("cell_margin_top", 3)
+    )
+    margin_bottom = ConfigHelper.get_style_constant(
+        "contact_cell_margin_bottom",
+        ConfigHelper.get_style_constant("cell_margin_bottom", 3),
+    )
+    margin_left = ConfigHelper.get_style_constant(
+        "contact_cell_margin_left",
+        ConfigHelper.get_style_constant("cell_margin_left", 3),
+    )
+    margin_right = ConfigHelper.get_style_constant(
+        "contact_cell_margin_right",
+        ConfigHelper.get_style_constant("cell_margin_right", 3),
+    )
+    _cell_margins(wrapper_cell, margin_top, margin_bottom, margin_left, margin_right)
+
+    # Remove default paragraph in wrapper cell
+    if wrapper_cell.paragraphs:
+        p = wrapper_cell.paragraphs[0]
+        p._element.getparent().remove(p._element)
+
+    # Create the actual ribbon table (1 row: ribbon only) inside the wrapper cell
+    ribbon_table = wrapper_cell.add_table(rows=1, cols=1)
+    ribbon_table.allow_autofit = False
+    ribbon_table.autofit = False
+    try:
+        ribbon_table.style = "Table Normal"
+    except Exception:
+        ribbon_table.style = None
+
+    # --- Ribbon row ---
+    cell = ribbon_table.cell(0, 0)
+    _apply_table_cell_fill_and_border_styles(cell, contact_ribbon_styles)
+    # Remove the default empty paragraph in the cell to avoid a blank line
+    if cell.paragraphs:
+        p = cell.paragraphs[0]
+        p._element.getparent().remove(p._element)
+    para = cell.add_paragraph()
+    _paragraph_alignment(para, "center")
+    for i, item in enumerate(contact_items):
+        if i > 0:
+            separator = para.add_run(item_separator)
+            _apply_font_properties(
+                separator.font,
+                {
+                    "bold": item_separator_font_style == "bold",
+                    "italic": item_separator_font_style == "italic",
+                    "color": item_separator_color,
+                },
+            )
+        strong_tag = item.find("strong")
+        if strong_tag:
+            label_run = para.add_run(strong_tag.text.strip())
+            _apply_font_properties(
+                label_run.font,
+                {
+                    "bold": True,
+                },
+            )
+            value_text = item.text.replace(strong_tag.text, "").strip()
+            if value_text:
+                # Use the same hyperlink processing as two-column mode
+                _process_text_for_hyperlinks(para, f" {value_text}")
+        else:
+            _process_text_for_hyperlinks(para, item.text.strip())
 
 
 def convert_to_pdf(docx_file: Path) -> Path | None:
@@ -1252,16 +1504,28 @@ def process_about_section(
     """
     about_section = ResumeSection.get_section("ABOUT")
     add_space_before_h2 = about_section.add_space_before_h2
-    space_before_h2 = about_section.space_before_h2 if add_space_before_h2 else None
-    space_after_h2 = about_section.space_after_h2
+    about_section.space_before_h2 if add_space_before_h2 else None
+    about_section.space_after_h2
 
-    section_h2 = _prepare_section(
+    # Remove heading creation from _prepare_section for about section
+    section_h2 = soup.find("h2", string=lambda text: about_section.matches(text))
+    if not section_h2:
+        print(f"ℹ️  Section '{about_section.docx_heading}' not found in document")
+        return
+
+    # Custom space_before for about section Heading 1
+    about_heading_space_before = about_section.space_before_h2
+    heading_level = HeadingsHelper.get_level_for_tag("h2")
+    _add_heading_or_paragraph(
         document,
-        soup,
-        about_section,
-        space_before=space_before_h2,
-        space_after=space_after_h2,
+        about_section.docx_heading,
+        heading_level,
+        space_before=about_heading_space_before,
+        space_after=about_section.space_after_h2,
     )
+
+    # Only add heading in two_column mode, or if not already created by _prepare_section
+    # _prepare_section already adds the heading, so do NOT add again in single-column mode
 
     add_space_before_h3 = about_section.add_space_before_h3
     space_before_h3 = about_section.space_before_h3 if add_space_before_h3 else None
