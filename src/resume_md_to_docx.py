@@ -289,13 +289,13 @@ class OutputFilePath:
         self,
         input_file: Path,
         output_file: Path = None,
+        interactive: bool = False,
     ):
         self.input_file = input_file
         self.output_file = output_file
+        self.interactive = interactive
 
-    def output_path(
-        self, extension: str = DOCX_EXTENSION, interactive: bool = False
-    ) -> Path:
+    def output_path(self, extension: str = DOCX_EXTENSION) -> Path:
         """Get the output file path
 
         Args:
@@ -310,18 +310,17 @@ class OutputFilePath:
         default_output_file = os.path.join(DEFAULT_OUTPUT_DIR, default_output_name)
         output_path = self.output_file
 
-        if interactive:
+        if self.interactive:
             # Prompt for output file
             output_prompt = f"📝 Enter the output docx filename (default: '{default_output_file}'): "
             output_path = input(output_prompt).strip()
 
-        output_file = output_path or default_output_file
+        output = output_path or default_output_file
 
-        if interactive:
-            if not self.output_file:
-                print(f"✅ Using default output: {default_output_file}")
+        if self.interactive and not output_path:
+            print(f"✅ Using default output: {default_output_file}")
 
-        return output_file
+        return output
 
 
 class ConfigLoader:
@@ -2761,8 +2760,10 @@ def _process_tagline_and_specialty(
         first_p: First paragraph element (tagline)
         alignment_str: Alignment as string (left, right, center)
     """
+
     # Check if the paragraph contains emphasis (italics)
     em_tag = first_p.find("em")
+    use_paragraph_style = False
     if em_tag:
         tagline_para = container.add_paragraph(em_tag.text, style="Subtitle")
         for run in tagline_para.runs:
@@ -2783,6 +2784,9 @@ def _process_tagline_and_specialty(
             rest_para.add_run(rest_of_p)
     else:
         # Process regular paragraph
+        # If you want to use a paragraph style, set use_paragraph_style = True as needed
+        # For now, default to False to match previous logic
+        use_paragraph_style = False
         if use_paragraph_style:
             tagline_para = container.add_paragraph()
             _paragraph_alignment(tagline_para, alignment_str)
