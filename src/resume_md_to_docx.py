@@ -418,11 +418,11 @@ class ConfigLoader:
 
     @property
     def contact_ribbon_enabled(self) -> bool:
-        """Check if contact ribbon is enabled (default: True)"""
+        """Check if contact ribbon is enabled (default: False)"""
         return (
             self._config.get("style_constants", {})
             .get("contact_ribbon", {})
-            .get("enabled", True)
+            .get("enabled", False)
         )
 
     @property

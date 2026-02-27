@@ -96,6 +96,8 @@ style_constants:
   contact_cell_margin_top: 10  # Custom top margin for contact ribbon
 
   contact_ribbon:
+    enabled: true  # Enable/disable the contact ribbon in both layouts
+    # contact_ribbon_placement: below_about  # Placement of contact ribbon: 'above_about' (default) or 'below_about'
     border_enabled: true  # Enable border for contact ribbon
     border_top_enabled: false  # Enable/disable top border for contact ribbon
     border_bottom_enabled: true  # Enable/disable bottom border for contact ribbon
