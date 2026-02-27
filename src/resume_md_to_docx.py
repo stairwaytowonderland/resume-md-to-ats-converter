@@ -1031,8 +1031,6 @@ def create_ats_resume(
             StylesHelper.apply_styles_to_content(cell)
     else:
         # Single column mode
-        # Process header with name and tagline
-        process_header_section(document, soup, two_column=False)
 
         # Read contact_ribbon_placement from config
         contact_ribbon_styles = ConfigHelper.get_style_constant("contact_ribbon", {})
@@ -1052,139 +1050,222 @@ def create_ats_resume(
         # Build section processors in YAML order
         section_processors = []
         ordered_sections = ResumeSection.get_ordered_sections()
-        if contact_ribbon_placement == "above_about":
-            # Insert contact ribbon processor before 'about' section
-            for section_type in ordered_sections:
-                if (
-                    section_type.key == "about"
-                    and contact_ribbon_enabled
-                    and ResumeSection.get_section("CONTACT")
-                ):
-                    section_processors.append(
-                        ("contact_ribbon", contact_ribbon_processor, False)
-                    )
-                if section_type == about_section:
-                    section_processor_map[about_section] = [
-                        (
-                            lambda doc, soup: process_about_section(
-                                document=doc, soup=soup
-                            ),
-                            False,
-                        ),
-                    ]
-                if section_type == skills_section:
-                    section_processor_map[skills_section] = [
-                        (lambda doc, soup: process_skills_section(doc, soup), False),
-                    ]
-                if section_type == experience_section:
-                    section_processor_map[experience_section] = [
-                        (
-                            lambda doc, soup: process_experience_section(doc, soup),
-                            False,
-                        ),
-                    ]
-                if section_type == projects_section:
-                    section_processor_map[projects_section] = [
-                        (lambda doc, soup: process_projects_section(doc, soup), False),
-                    ]
-                if section_type == certifications_section:
-                    section_processor_map[certifications_section] = [
-                        (
-                            lambda doc, soup: process_certifications_section(doc, soup),
-                            False,
-                        ),
-                    ]
-                if section_type == education_section:
-                    section_processor_map[education_section] = [
-                        (lambda doc, soup: process_education_section(doc, soup), False),
-                    ]
-                if section_type in section_processor_map:
-                    for processor, required in section_processor_map[section_type]:
-                        section_processors.append((section_type, processor, required))
-        else:
-            # Insert contact ribbon processor after 'about' section
-            for section_type in ordered_sections:
-                if section_type == about_section:
-                    section_processor_map[about_section] = [
-                        (
-                            lambda doc, soup: process_about_section(
-                                document=doc, soup=soup
-                            ),
-                            False,
-                        ),
-                    ]
-                    section_processors.append(
-                        (
-                            section_type,
-                            section_processor_map[about_section][0][0],
-                            False,
-                        )
-                    )
-                    if contact_ribbon_enabled and ResumeSection.get_section("CONTACT"):
+
+        if contact_ribbon_enabled:
+            # Process header with name and tagline
+            process_header_section(document, soup, two_column=False)
+
+            if contact_ribbon_placement == "above_about":
+                # Insert contact ribbon processor before 'about' section
+                for section_type in ordered_sections:
+                    if (
+                        section_type.key == "about"
+                        and contact_ribbon_enabled
+                        and ResumeSection.get_section("CONTACT")
+                    ):
                         section_processors.append(
                             ("contact_ribbon", contact_ribbon_processor, False)
                         )
-                elif section_type == skills_section:
-                    section_processor_map[skills_section] = [
-                        (lambda doc, soup: process_skills_section(doc, soup), False),
-                    ]
-                    section_processors.append(
-                        (
-                            section_type,
-                            section_processor_map[skills_section][0][0],
-                            False,
+                    if section_type == about_section:
+                        section_processor_map[about_section] = [
+                            (
+                                lambda doc, soup: process_about_section(
+                                    document=doc, soup=soup
+                                ),
+                                False,
+                            ),
+                        ]
+                    if section_type == skills_section:
+                        section_processor_map[skills_section] = [
+                            (
+                                lambda doc, soup: process_skills_section(doc, soup),
+                                False,
+                            ),
+                        ]
+                    if section_type == experience_section:
+                        section_processor_map[experience_section] = [
+                            (
+                                lambda doc, soup: process_experience_section(doc, soup),
+                                False,
+                            ),
+                        ]
+                    if section_type == projects_section:
+                        section_processor_map[projects_section] = [
+                            (
+                                lambda doc, soup: process_projects_section(doc, soup),
+                                False,
+                            ),
+                        ]
+                    if section_type == certifications_section:
+                        section_processor_map[certifications_section] = [
+                            (
+                                lambda doc, soup: process_certifications_section(
+                                    doc, soup
+                                ),
+                                False,
+                            ),
+                        ]
+                    if section_type == education_section:
+                        section_processor_map[education_section] = [
+                            (
+                                lambda doc, soup: process_education_section(doc, soup),
+                                False,
+                            ),
+                        ]
+                    if section_type in section_processor_map:
+                        for processor, required in section_processor_map[section_type]:
+                            section_processors.append(
+                                (section_type, processor, required)
+                            )
+            else:
+                # Insert contact ribbon processor after 'about' section
+                for section_type in ordered_sections:
+                    if section_type == about_section:
+                        section_processor_map[about_section] = [
+                            (
+                                lambda doc, soup: process_about_section(
+                                    document=doc, soup=soup
+                                ),
+                                False,
+                            ),
+                        ]
+                        section_processors.append(
+                            (
+                                section_type,
+                                section_processor_map[about_section][0][0],
+                                False,
+                            )
                         )
-                    )
-                elif section_type == experience_section:
-                    section_processor_map[experience_section] = [
-                        (
-                            lambda doc, soup: process_experience_section(doc, soup),
-                            False,
+                        if contact_ribbon_enabled and ResumeSection.get_section(
+                            "CONTACT"
+                        ):
+                            section_processors.append(
+                                ("contact_ribbon", contact_ribbon_processor, False)
+                            )
+                    elif section_type == skills_section:
+                        section_processor_map[skills_section] = [
+                            (
+                                lambda doc, soup: process_skills_section(doc, soup),
+                                False,
+                            ),
+                        ]
+                        section_processors.append(
+                            (
+                                section_type,
+                                section_processor_map[skills_section][0][0],
+                                False,
+                            )
+                        )
+                    elif section_type == experience_section:
+                        section_processor_map[experience_section] = [
+                            (
+                                lambda doc, soup: process_experience_section(doc, soup),
+                                False,
+                            ),
+                        ]
+                        section_processors.append(
+                            (
+                                section_type,
+                                section_processor_map[experience_section][0][0],
+                                False,
+                            )
+                        )
+                    elif section_type == projects_section:
+                        section_processor_map[projects_section] = [
+                            (
+                                lambda doc, soup: process_projects_section(doc, soup),
+                                False,
+                            ),
+                        ]
+                        section_processors.append(
+                            (
+                                section_type,
+                                section_processor_map[projects_section][0][0],
+                                False,
+                            )
+                        )
+                    elif section_type == certifications_section:
+                        section_processor_map[certifications_section] = [
+                            (
+                                lambda doc, soup: process_certifications_section(
+                                    doc, soup
+                                ),
+                                False,
+                            ),
+                        ]
+                        section_processors.append(
+                            (
+                                section_type,
+                                section_processor_map[certifications_section][0][0],
+                                False,
+                            )
+                        )
+                    elif section_type == education_section:
+                        section_processor_map[education_section] = [
+                            (
+                                lambda doc, soup: process_education_section(doc, soup),
+                                False,
+                            ),
+                        ]
+                        section_processors.append(
+                            (
+                                section_type,
+                                section_processor_map[education_section][0][0],
+                                False,
+                            )
+                        )
+        else:
+            # Get sections dynamically
+            if about_section:
+                section_processor_map[about_section] = [
+                    (process_header_section, True),  # Header always required
+                    (
+                        lambda doc, soup: process_about_section(
+                            document=doc, soup=soup
                         ),
-                    ]
-                    section_processors.append(
-                        (
-                            section_type,
-                            section_processor_map[experience_section][0][0],
-                            False,
-                        )
-                    )
-                elif section_type == projects_section:
-                    section_processor_map[projects_section] = [
-                        (lambda doc, soup: process_projects_section(doc, soup), False),
-                    ]
-                    section_processors.append(
-                        (
-                            section_type,
-                            section_processor_map[projects_section][0][0],
-                            False,
-                        )
-                    )
-                elif section_type == certifications_section:
-                    section_processor_map[certifications_section] = [
-                        (
-                            lambda doc, soup: process_certifications_section(doc, soup),
-                            False,
-                        ),
-                    ]
-                    section_processors.append(
-                        (
-                            section_type,
-                            section_processor_map[certifications_section][0][0],
-                            False,
-                        )
-                    )
-                elif section_type == education_section:
-                    section_processor_map[education_section] = [
-                        (lambda doc, soup: process_education_section(doc, soup), False),
-                    ]
-                    section_processors.append(
-                        (
-                            section_type,
-                            section_processor_map[education_section][0][0],
-                            False,
-                        )
-                    )
+                        False,
+                    ),
+                ]
+
+            if skills_section:
+                section_processor_map[skills_section] = [
+                    (lambda doc, soup: process_skills_section(doc, soup), False),
+                ]
+
+            if experience_section:
+                section_processor_map[experience_section] = [
+                    (lambda doc, soup: process_experience_section(doc, soup), False),
+                ]
+
+            if projects_section:
+                section_processor_map[projects_section] = [
+                    (lambda doc, soup: process_projects_section(doc, soup), False),
+                ]
+
+            if certifications_section:
+                section_processor_map[certifications_section] = [
+                    (
+                        lambda doc, soup: process_certifications_section(doc, soup),
+                        False,
+                    ),
+                ]
+
+            if education_section:
+                section_processor_map[education_section] = [
+                    (lambda doc, soup: process_education_section(doc, soup), False),
+                ]
+
+            if contact_section:
+                section_processor_map[contact_section] = [
+                    (lambda doc, soup: process_contact_section(doc, soup), False),
+                ]
+
+            # Build section processors in YAML order
+            section_processors = []
+            for section_type in ResumeSection.get_ordered_sections():
+                if section_type in section_processor_map:
+                    for processor, required in section_processor_map[section_type]:
+                        section_processors.append((section_type, processor, required))
 
         # Process each section with error handling
         for section_type, processor, required in section_processors:
