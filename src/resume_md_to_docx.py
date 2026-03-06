@@ -4710,6 +4710,23 @@ def _apply_document_styles(
             # Apply font properties using helper function
             _apply_font_properties(style.font, validated_props)
 
+            # If an explicit font_name is configured, strip any theme font attributes
+            # (w:asciiTheme, w:hAnsiTheme, etc.) from the style's XML so that PDF
+            # renderers (e.g. LibreOffice) don't fall back to the theme font instead
+            # of the configured font name.
+            if "font_name" in validated_props:
+                rPr = style.element.find(qn("w:rPr"))
+                if rPr is not None:
+                    rFonts = rPr.find(qn("w:rFonts"))
+                    if rFonts is not None:
+                        for theme_attr in (
+                            qn("w:asciiTheme"),
+                            qn("w:hAnsiTheme"),
+                            qn("w:eastAsiaTheme"),
+                            qn("w:cstheme"),
+                        ):
+                            rFonts.attrib.pop(theme_attr, None)
+
             # Apply paragraph format properties if the style supports them
             if hasattr(style, "paragraph_format"):
                 _apply_paragraph_format_properties(
