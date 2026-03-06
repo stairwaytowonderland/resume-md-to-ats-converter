@@ -25,6 +25,7 @@ Icon?
 /.devcontainer
 
 /data
+/data_*
 /.templates
 
 # Exclude document files generally

@@ -2983,9 +2983,7 @@ def _process_project_section(
 
         # Bullet points
         elif next_element.name == "ul":
-            _left_indent_paragraph(
-                _add_bullet_list(document, next_element), project_client_indent_inches
-            )
+            _add_bullet_list(document, next_element, project_client_indent_inches)
             processed_elements.add(next_element)
 
         next_element = next_element.find_next_sibling()
